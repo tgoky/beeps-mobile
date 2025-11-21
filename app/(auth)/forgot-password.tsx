@@ -12,9 +12,13 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 
 export default function ForgotPasswordScreen() {
   const { resetPassword } = useAuth();
+  const { effectiveTheme } = useTheme();
+  const colors = Colors[effectiveTheme];
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -47,18 +51,19 @@ export default function ForgotPasswordScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.text }]}>Reset Password</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Enter your email address and we'll send you instructions to reset your password
         </Text>
 
         <View style={styles.form}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
             placeholder="Email"
+            placeholderTextColor={colors.textTertiary}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -67,7 +72,7 @@ export default function ForgotPasswordScreen() {
           />
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.button, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
             onPress={handleResetPassword}
             disabled={loading}
           >
@@ -81,7 +86,7 @@ export default function ForgotPasswordScreen() {
           <View style={styles.footer}>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
-                <Text style={styles.link}>Back to Sign In</Text>
+                <Text style={[styles.link, { color: colors.primary }]}>Back to Sign In</Text>
               </TouchableOpacity>
             </Link>
           </View>
@@ -94,23 +99,21 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: Spacing.xl,
     justifyContent: 'center',
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    fontSize: FontSizes['4xl'],
+    fontWeight: FontWeights.bold,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 32,
+    fontSize: FontSizes.base,
+    marginBottom: Spacing['2xl'],
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -118,16 +121,15 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
-    fontSize: 16,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xl,
+    fontSize: FontSizes.base,
+    borderWidth: 1,
   },
   button: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 12,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
   },
   buttonDisabled: {
@@ -135,15 +137,15 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
   },
   footer: {
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: Spacing.xl,
   },
   link: {
-    color: '#007AFF',
-    fontWeight: '600',
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
   },
 });

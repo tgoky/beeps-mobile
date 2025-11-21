@@ -12,10 +12,13 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
+  const { effectiveTheme } = useTheme();
+  const colors = Colors[effectiveTheme];
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,21 +43,21 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Sign in to your account</Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Email</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
               placeholder="you@example.com"
-              placeholderTextColor={Colors.light.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -64,11 +67,11 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Password</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
               placeholder="Enter your password"
-              placeholderTextColor={Colors.light.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -78,12 +81,12 @@ export default function LoginScreen() {
 
           <Link href="/(auth)/forgot-password" asChild>
             <TouchableOpacity>
-              <Text style={styles.forgotPassword}>Forgot Password?</Text>
+              <Text style={[styles.forgotPassword, { color: colors.primary }]}>Forgot Password?</Text>
             </TouchableOpacity>
           </Link>
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.button, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading}
           >
@@ -95,10 +98,10 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={[styles.footerText, { color: colors.textSecondary }]}>Don't have an account? </Text>
             <Link href="/(auth)/register" asChild>
               <TouchableOpacity>
-                <Text style={styles.link}>Sign Up</Text>
+                <Text style={[styles.link, { color: colors.primary }]}>Sign Up</Text>
               </TouchableOpacity>
             </Link>
           </View>
@@ -111,7 +114,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
   },
   content: {
     flex: 1,
@@ -124,14 +126,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FontSizes['4xl'],
     fontWeight: FontWeights.bold,
-    color: Colors.light.text,
     marginBottom: Spacing.sm,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: FontSizes.lg,
     fontWeight: FontWeights.light,
-    color: Colors.light.textSecondary,
     letterSpacing: 0.3,
   },
   form: {
@@ -143,23 +143,18 @@ const styles = StyleSheet.create({
   label: {
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.semiBold,
-    color: Colors.light.text,
     marginBottom: Spacing.sm,
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: Colors.light.backgroundSecondary,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     fontSize: FontSizes.base,
     fontWeight: FontWeights.regular,
-    color: Colors.light.text,
     borderWidth: 1,
-    borderColor: Colors.light.border,
   },
   forgotPassword: {
-    color: Colors.light.primary,
     textAlign: 'right',
     marginBottom: Spacing.xl,
     fontWeight: FontWeights.medium,
@@ -167,13 +162,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   button: {
-    backgroundColor: Colors.light.primary,
     padding: Spacing.md + 2,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
-    shadowColor: Colors.light.primary,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -192,12 +186,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
   },
   footerText: {
-    color: Colors.light.textSecondary,
     fontWeight: FontWeights.regular,
     fontSize: FontSizes.base,
   },
   link: {
-    color: Colors.light.primary,
     fontWeight: FontWeights.semiBold,
     fontSize: FontSizes.base,
     letterSpacing: 0.2,
