@@ -5,20 +5,6 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import {
-  Inter_300Light,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
-import {
-  PlusJakartaSans_300Light,
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-} from '@expo-google-fonts/plus-jakarta-sans';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppProviders } from '@/providers/AppProviders';
@@ -33,17 +19,19 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
-  const [fontsLoaded] = useFonts({
-    Inter_300Light,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    PlusJakartaSans_300Light,
-    PlusJakartaSans_400Regular,
-    PlusJakartaSans_500Medium,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
+  const [fontsLoaded, fontError] = useFonts({
+    // Inter fonts
+    'Inter_300Light': require('@expo-google-fonts/inter/Inter_300Light.ttf'),
+    'Inter_400Regular': require('@expo-google-fonts/inter/Inter_400Regular.ttf'),
+    'Inter_500Medium': require('@expo-google-fonts/inter/Inter_500Medium.ttf'),
+    'Inter_600SemiBold': require('@expo-google-fonts/inter/Inter_600SemiBold.ttf'),
+    'Inter_700Bold': require('@expo-google-fonts/inter/Inter_700Bold.ttf'),
+    // Plus Jakarta Sans fonts
+    'PlusJakartaSans_300Light': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_300Light.ttf'),
+    'PlusJakartaSans_400Regular': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_400Regular.ttf'),
+    'PlusJakartaSans_500Medium': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_500Medium.ttf'),
+    'PlusJakartaSans_600SemiBold': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_600SemiBold.ttf'),
+    'PlusJakartaSans_700Bold': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_700Bold.ttf'),
   });
 
   useEffect(() => {
@@ -52,7 +40,13 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) {
+  useEffect(() => {
+    if (fontError) {
+      console.error('Error loading fonts:', fontError);
+    }
+  }, [fontError]);
+
+  if (!fontsLoaded && !fontError) {
     return null;
   }
 
