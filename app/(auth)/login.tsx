@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { Colors, Fonts, FontSizes, Spacing, BorderRadius } from '@/constants/theme';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -42,28 +43,38 @@ export default function LoginScreen() {
       style={styles.container}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Welcome to Beeps</Text>
-        <Text style={styles.subtitle}>Sign in to continue</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.subtitle}>Sign in to your account</Text>
+        </View>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            editable={!loading}
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="you@example.com"
+              placeholderTextColor={Colors.light.textTertiary}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!loading}
+            />
+          </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            editable={!loading}
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your password"
+              placeholderTextColor={Colors.light.textTertiary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              editable={!loading}
+            />
+          </View>
 
           <Link href="/(auth)/forgot-password" asChild>
             <TouchableOpacity>
@@ -100,64 +111,95 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.background,
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: Spacing.xl,
     justifyContent: 'center',
   },
+  header: {
+    marginBottom: Spacing['2xl'],
+  },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
+    fontSize: FontSizes['4xl'],
+    fontFamily: Fonts.displayBold,
+    color: Colors.light.text,
+    marginBottom: Spacing.sm,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 32,
-    textAlign: 'center',
+    fontSize: FontSizes.lg,
+    fontFamily: Fonts.light,
+    color: Colors.light.textSecondary,
+    letterSpacing: 0.3,
   },
   form: {
     width: '100%',
   },
+  inputContainer: {
+    marginBottom: Spacing.lg,
+  },
+  label: {
+    fontSize: FontSizes.sm,
+    fontFamily: Fonts.semiBold,
+    color: Colors.light.text,
+    marginBottom: Spacing.sm,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   input: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    fontSize: 16,
+    backgroundColor: Colors.light.backgroundSecondary,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    fontSize: FontSizes.base,
+    fontFamily: Fonts.regular,
+    color: Colors.light.text,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   forgotPassword: {
-    color: '#007AFF',
+    color: Colors.light.primary,
     textAlign: 'right',
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.sm,
+    letterSpacing: 0.2,
   },
   button: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.light.primary,
+    padding: Spacing.md + 2,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
+    shadowColor: Colors.light.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: FontSizes.base,
+    fontFamily: Fonts.semiBold,
+    letterSpacing: 0.5,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: Spacing.xl,
   },
   footerText: {
-    color: '#666',
+    color: Colors.light.textSecondary,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.base,
   },
   link: {
-    color: '#007AFF',
-    fontWeight: '600',
+    color: Colors.light.primary,
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.base,
+    letterSpacing: 0.2,
   },
 });

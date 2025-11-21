@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from('User')
+        .from('users')
         .select('*')
         .eq('supabaseId', userId)
         .single();
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Create user profile
     if (data.user) {
-      const { error: profileError } = await supabase.from('User').insert({
+      const { error: profileError } = await supabase.from('users').insert({
         supabaseId: data.user.id,
         email,
         ...userData,
