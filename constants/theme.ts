@@ -1,8 +1,10 @@
 /**
  * Premium design system for Beeps Mobile
- * Fonts: Inter (UI), Plus Jakarta Sans (Display)
+ * Using iOS System Fonts (San Francisco) - Clean, modern, optimized
  * Color palette optimized for music/creative industry
  */
+
+import { Platform } from 'react-native';
 
 // Brand colors
 const primaryColor = '#6366F1'; // Indigo - Premium, creative
@@ -76,21 +78,23 @@ export const Colors = {
   },
 };
 
-// Premium typography system
+// System font weights (iOS San Francisco / Android Roboto)
 export const Fonts = {
-  // Primary font family - Inter (clean, modern, excellent readability)
-  regular: 'Inter_400Regular',
-  light: 'Inter_300Light',
-  medium: 'Inter_500Medium',
-  semiBold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
+  // Use system fonts - looks native and premium
+  light: Platform.select({ ios: 'System', default: 'sans-serif-light' }),
+  regular: Platform.select({ ios: 'System', default: 'sans-serif' }),
+  medium: Platform.select({ ios: 'System', default: 'sans-serif-medium' }),
+  semiBold: Platform.select({ ios: 'System', default: 'sans-serif' }),
+  bold: Platform.select({ ios: 'System', default: 'sans-serif' }),
+};
 
-  // Display font family - Plus Jakarta Sans (friendly, approachable)
-  displayRegular: 'PlusJakartaSans_400Regular',
-  displayLight: 'PlusJakartaSans_300Light',
-  displayMedium: 'PlusJakartaSans_500Medium',
-  displaySemiBold: 'PlusJakartaSans_600SemiBold',
-  displayBold: 'PlusJakartaSans_700Bold',
+// Font weight mapping for system fonts
+export const FontWeights: { [key: string]: any } = {
+  light: '300',
+  regular: '400',
+  medium: '500',
+  semiBold: '600',
+  bold: '700',
 };
 
 // Typography scale

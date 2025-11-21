@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { Colors, Fonts, FontSizes, Spacing, BorderRadius } from '@/constants/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -123,14 +123,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSizes['4xl'],
-    fontFamily: Fonts.displayBold,
+    fontWeight: FontWeights.bold,
     color: Colors.light.text,
     marginBottom: Spacing.sm,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: FontSizes.lg,
-    fontFamily: Fonts.light,
+    fontWeight: FontWeights.light,
     color: Colors.light.textSecondary,
     letterSpacing: 0.3,
   },
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: FontSizes.sm,
-    fontFamily: Fonts.semiBold,
+    fontWeight: FontWeights.semiBold,
     color: Colors.light.text,
     marginBottom: Spacing.sm,
     letterSpacing: 0.3,
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     fontSize: FontSizes.base,
-    fontFamily: Fonts.regular,
+    fontWeight: FontWeights.regular,
     color: Colors.light.text,
     borderWidth: 1,
     borderColor: Colors.light.border,
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     textAlign: 'right',
     marginBottom: Spacing.xl,
-    fontFamily: Fonts.medium,
+    fontWeight: FontWeights.medium,
     fontSize: FontSizes.sm,
     letterSpacing: 0.2,
   },
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: FontSizes.base,
-    fontFamily: Fonts.semiBold,
+    fontWeight: FontWeights.semiBold,
     letterSpacing: 0.5,
   },
   footer: {
@@ -193,12 +193,12 @@ const styles = StyleSheet.create({
   },
   footerText: {
     color: Colors.light.textSecondary,
-    fontFamily: Fonts.regular,
+    fontWeight: FontWeights.regular,
     fontSize: FontSizes.base,
   },
   link: {
     color: Colors.light.primary,
-    fontFamily: Fonts.semiBold,
+    fontWeight: FontWeights.semiBold,
     fontSize: FontSizes.base,
     letterSpacing: 0.2,
   },
