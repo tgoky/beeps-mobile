@@ -1,50 +1,118 @@
-# Welcome to your Expo app 👋
+# Beeps Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The mobile companion app for [Beeps](https://github.com/tgoky/beeps) - a comprehensive music production marketplace connecting artists, producers, studios, and gear sellers.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Multi-role Authentication**: Sign up as an Artist, Producer, Studio Owner, Gear Seller, or Lyricist
+- **Marketplace**: Browse and purchase beats, book studio time, and rent/buy equipment
+- **Collaborations**: Find and create collaboration opportunities with other creators
+- **Community**: Connect with other creators through role-based community feeds
+- **User Profiles**: Manage your profile, view stats, and showcase your work
+
+## Tech Stack
+
+- **Framework**: [Expo](https://expo.dev) with [Expo Router](https://docs.expo.dev/router/introduction/)
+- **Language**: TypeScript
+- **Backend**: [Supabase](https://supabase.com) (authentication & database)
+- **Data Fetching**: TanStack React Query
+- **Forms**: React Hook Form
+- **Audio**: Expo AV
+- **UI**: React Native with custom components
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ installed
+- Expo CLI (`npm install -g expo-cli`)
+- iOS Simulator (Mac only) or Android Studio for testing
+
+### Installation
+
+1. Install dependencies:
 
    ```bash
    npm install
    ```
 
-2. Start the app
+2. Set up environment variables:
+
+   Copy `.env.example` to `.env` and add your Supabase credentials:
+
+   ```bash
+   EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+3. Start the development server:
 
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+4. Run on your device:
+   - Press `i` for iOS simulator
+   - Press `a` for Android emulator
+   - Scan the QR code with Expo Go app on your physical device
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Project Structure
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+beeps-mobile/
+├── app/                    # App screens (Expo Router)
+│   ├── (auth)/            # Authentication screens
+│   ├── (tabs)/            # Main tab navigation
+│   └── _layout.tsx        # Root layout
+├── components/            # Reusable UI components
+│   └── ui/shared/         # Shared components (Button, Card, Input, etc.)
+├── contexts/              # React contexts (Auth, etc.)
+├── hooks/                 # Custom React hooks
+├── lib/                   # Libraries and utilities
+│   └── supabase.ts        # Supabase client configuration
+├── providers/             # App-level providers
+├── types/                 # TypeScript type definitions
+└── constants/             # App constants and theme
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Key Screens
 
-## Learn more
+### Authentication
+- **Login**: Sign in to existing account
+- **Register**: Create new account with role selection
+- **Forgot Password**: Reset password flow
 
-To learn more about developing your project with Expo, look at the following resources:
+### Main Tabs
+- **Home**: Dashboard with quick actions and recent activity
+- **Marketplace**: Browse beats, studios, and equipment
+- **Collaborations**: Find and create collaboration opportunities
+- **Community**: Role-based social feed
+- **Profile**: User profile and settings
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Development
 
-## Join the community
+This project uses [Expo Router](https://docs.expo.dev/router/introduction/) for file-based routing. Add new screens by creating files in the `app` directory.
 
-Join our community of developers creating universal apps.
+### Adding New Features
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+1. Create screen files in `app/` directory
+2. Add types to `types/database.ts`
+3. Create API hooks using React Query
+4. Build UI components in `components/`
+
+## Database Schema
+
+The app uses the same Prisma schema as the [web version](https://github.com/tgoky/beeps), including:
+- Users with multiple role profiles
+- Beats, Studios, Equipment marketplace
+- Collaborations and Service Requests
+- Community posts and social features
+- Bookings and Transactions
+
+## Related Projects
+
+- [Beeps Web](https://github.com/tgoky/beeps) - Next.js web application
+
+## License
+
+Private
