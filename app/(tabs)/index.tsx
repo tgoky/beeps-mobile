@@ -6,30 +6,21 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
+import { useStudios } from '@/hooks/useStudios';
+import { useProducers } from '@/hooks/useProducers';
+import { useArtists } from '@/hooks/useArtists';
 
 const { width } = Dimensions.get('window');
 
 type TabType = 'studios' | 'producers' | 'artists';
 type ViewMode = 'map' | 'grid';
-
-// Mock data - replace with real data from Supabase
-const mockStudios = [
-  { id: '1', name: 'Sound Haven Studio', lat: 37.7849, lng: -122.4094, price: 75, rating: 4.8 },
-  { id: '2', name: 'Beat Lab NYC', lat: 37.7899, lng: -122.4164, price: 95, rating: 4.9 },
-  { id: '3', name: 'Echo Chamber', lat: 37.7799, lng: -122.4024, price: 60, rating: 4.7 },
-];
-
-const mockProducers = [
-  { id: '1', name: 'DJ Marcus', lat: 37.7869, lng: -122.4104, rate: 150, rating: 4.9 },
-  { id: '2', name: 'Sarah Beats', lat: 37.7889, lng: -122.4154, rate: 200, rating: 5.0 },
-  { id: '3', name: 'Mike Producer', lat: 37.7819, lng: -122.4044, rate: 125, rating: 4.8 },
-];
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -38,6 +29,11 @@ export default function HomeScreen() {
 
   const [activeTab, setActiveTab] = useState<TabType>('studios');
   const [viewMode, setViewMode] = useState<ViewMode>('map');
+
+  // Fetch real data
+  const { data: studios, isLoading: studiosLoading } = useStudios();
+  const { data: producers, isLoading: producersLoading } = useProducers();
+  const { data: artists, isLoading: artistsLoading } = useArtists();
 
   // User location (San Francisco for demo)
   const userLocation = { latitude: 37.7849, longitude: -122.4094 };
@@ -73,51 +69,157 @@ export default function HomeScreen() {
   const getData = () => {
     switch (activeTab) {
       case 'studios':
-        return mockStudios;
+        return studios || [];
       case 'producers':
-        return mockProducers;
+        return producers || [];
       case 'artists':
-        return [];
+        return artists || [];
       default:
         return [];
     }
   };
 
+  const isLoading = () => {
+    switch (activeTab) {
+      case 'studios':
+        return studiosLoading;
+      case 'producers':
+        return producersLoading;
+      case 'artists':
+        return artistsLoading;
+      default:
+        return false;
+    }
+  };
+
   const renderGridView = () => {
     const data = getData();
+    const loading = isLoading();
+
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Loading {activeTab}...
+          </Text>
+        </View>
+      );
+    }
+
+    if (data.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+            No {activeTab} found
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <ScrollView style={styles.gridContainer} showsVerticalScrollIndicator={false}>
-        {data.map((item: any) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={styles.gridCardContent}>
-              <View style={styles.gridCardHeader}>
-                <View>
-                  <Text style={[styles.gridCardName, { color: colors.text }]}>{item.name}</Text>
-                  <Text style={[styles.gridCardPrice, { color: colors.textSecondary }]}>
-                    ${item.price || item.rate}/hr
+        {data.map((item: any) => {
+          let name = '';
+          let price = 0;
+          let rating = 0;
+
+          if (activeTab === 'studios') {
+            name = item.name;
+            price = item.hourlyRate;
+            rating = item.rating;
+          } else if (activeTab === 'producers') {
+            name = item.user.fullName || item.user.username;
+            price = item.productionRate || 0;
+            rating = 0; // Producers don't have ratings in schema
+          } else if (activeTab === 'artists') {
+            name = item.user.fullName || item.user.username;
+            price = 0; // Artists don't have pricing
+            rating = 0;
+          }
+
+          return (
+            <TouchableOpacity
+              key={item.id}
+              style={[styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={styles.gridCardContent}>
+                <View style={styles.gridCardHeader}>
+                  <View>
+                    <Text style={[styles.gridCardName, { color: colors.text }]}>{name}</Text>
+                    {price > 0 && (
+                      <Text style={[styles.gridCardPrice, { color: colors.textSecondary }]}>
+                        ${price}/hr
+                      </Text>
+                    )}
+                    {activeTab !== 'studios' && item.user.location && (
+                      <Text style={[styles.gridCardLocation, { color: colors.textTertiary }]}>
+                        📍 {item.user.location}
+                      </Text>
+                    )}
+                  </View>
+                  {rating > 0 && (
+                    <View style={styles.gridCardRating}>
+                      <Text style={styles.ratingText}>⭐ {rating.toFixed(1)}</Text>
+                    </View>
+                  )}
+                  {activeTab !== 'studios' && item.user.verified && (
+                    <View style={styles.verifiedBadge}>
+                      <Text style={styles.verifiedText}>✓</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity style={[styles.bookButton, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.bookButtonText}>
+                    {activeTab === 'studios' ? 'Book Studio' : 'View Profile'}
                   </Text>
-                </View>
-                <View style={styles.gridCardRating}>
-                  <Text style={styles.ratingText}>⭐ {item.rating}</Text>
-                </View>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={[styles.bookButton, { backgroundColor: colors.primary }]}>
-                <Text style={styles.bookButtonText}>
-                  {activeTab === 'studios' ? 'Book Studio' : 'View Profile'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     );
   };
 
   const renderMapView = () => {
     const data = getData();
+    const loading = isLoading();
+
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Loading {activeTab}...
+          </Text>
+        </View>
+      );
+    }
+
+    // Filter items that have location data
+    const itemsWithLocation = data.filter((item: any) => {
+      if (activeTab === 'studios') {
+        return item.latitude && item.longitude;
+      }
+      // For producers/artists, we'd need geocoded location data
+      // For now, skip them or show in grid view
+      return false;
+    });
+
+    if (itemsWithLocation.length === 0 && activeTab !== 'studios') {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+            Map view is only available for studios.
+          </Text>
+          <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
+            Please use grid view for {activeTab}.
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.mapContainer}>
         <MapView
@@ -138,15 +240,25 @@ export default function HomeScreen() {
             pinColor={colors.primary}
           />
 
-          {/* Studios/Producers markers */}
-          {data.map((item: any) => (
-            <Marker
-              key={item.id}
-              coordinate={{ latitude: item.lat, longitude: item.lng }}
-              title={item.name}
-              description={`$${item.price || item.rate}/hr • ⭐ ${item.rating}`}
-            />
-          ))}
+          {/* Studios markers */}
+          {itemsWithLocation.map((item: any) => {
+            let name = '';
+            let description = '';
+
+            if (activeTab === 'studios') {
+              name = item.name;
+              description = `$${item.hourlyRate}/hr${item.rating > 0 ? ` • ⭐ ${item.rating.toFixed(1)}` : ''}`;
+            }
+
+            return (
+              <Marker
+                key={item.id}
+                coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+                title={name}
+                description={description}
+              />
+            );
+          })}
         </MapView>
       </View>
     );
@@ -398,5 +510,48 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.semiBold,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.base,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  emptyText: {
+    fontSize: FontSizes.lg,
+    fontWeight: FontWeights.medium,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emptySubtext: {
+    fontSize: FontSizes.sm,
+    textAlign: 'center',
+  },
+  gridCardLocation: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.xs,
+  },
+  verifiedBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  verifiedText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: FontWeights.bold,
   },
 });

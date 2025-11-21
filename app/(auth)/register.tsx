@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { UserRole } from '@/types/database';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 
 const USER_ROLES: { value: UserRole; label: string }[] = [
   { value: 'ARTIST', label: 'Artist' },
@@ -25,6 +27,8 @@ const USER_ROLES: { value: UserRole; label: string }[] = [
 
 export default function RegisterScreen() {
   const { signUp } = useAuth();
+  const { effectiveTheme } = useTheme();
+  const colors = Colors[effectiveTheme];
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -72,25 +76,27 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join the Beeps community</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Join the Beeps community</Text>
 
           <View style={styles.form}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
               placeholder="Full Name"
+              placeholderTextColor={colors.textTertiary}
               value={fullName}
               onChangeText={setFullName}
               editable={!loading}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
               placeholder="Username"
+              placeholderTextColor={colors.textTertiary}
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
@@ -98,8 +104,9 @@ export default function RegisterScreen() {
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
               placeholder="Email"
+              placeholderTextColor={colors.textTertiary}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -108,8 +115,9 @@ export default function RegisterScreen() {
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
               placeholder="Password"
+              placeholderTextColor={colors.textTertiary}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -117,21 +125,23 @@ export default function RegisterScreen() {
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
               placeholder="Confirm Password"
+              placeholderTextColor={colors.textTertiary}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
               editable={!loading}
             />
 
-            <Text style={styles.label}>I am a:</Text>
+            <Text style={[styles.label, { color: colors.text }]}>I am a:</Text>
             <View style={styles.roleContainer}>
               {USER_ROLES.map((role) => (
                 <TouchableOpacity
                   key={role.value}
                   style={[
                     styles.roleButton,
+                    { borderColor: colors.border, backgroundColor: selectedRole === role.value ? colors.primary : colors.card },
                     selectedRole === role.value && styles.roleButtonSelected,
                   ]}
                   onPress={() => setSelectedRole(role.value)}
@@ -140,6 +150,7 @@ export default function RegisterScreen() {
                   <Text
                     style={[
                       styles.roleButtonText,
+                      { color: selectedRole === role.value ? '#fff' : colors.textSecondary },
                       selectedRole === role.value && styles.roleButtonTextSelected,
                     ]}
                   >
@@ -150,7 +161,7 @@ export default function RegisterScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
               onPress={handleRegister}
               disabled={loading}
             >
@@ -162,10 +173,10 @@ export default function RegisterScreen() {
             </TouchableOpacity>
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
+              <Text style={[styles.footerText, { color: colors.textSecondary }]}>Already have an account? </Text>
               <Link href="/(auth)/login" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.link}>Sign In</Text>
+                  <Text style={[styles.link, { color: colors.primary }]}>Sign In</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -179,73 +190,63 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   scrollContent: {
     flexGrow: 1,
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: Spacing.xl,
     justifyContent: 'center',
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    fontSize: FontSizes['4xl'],
+    fontWeight: FontWeights.bold,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 32,
+    fontSize: FontSizes.base,
+    marginBottom: Spacing['2xl'],
     textAlign: 'center',
   },
   form: {
     width: '100%',
   },
   input: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    fontSize: 16,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    fontSize: FontSizes.base,
+    borderWidth: 1,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
+    marginBottom: Spacing.sm,
   },
   roleContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 24,
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
   },
   roleButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: '#ddd',
-    backgroundColor: '#fff',
   },
-  roleButtonSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
+  roleButtonSelected: {},
   roleButtonText: {
-    color: '#666',
-    fontSize: 14,
+    fontSize: FontSizes.sm,
   },
   roleButtonTextSelected: {
-    color: '#fff',
-    fontWeight: '600',
+    fontWeight: FontWeights.semiBold,
   },
   button: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 12,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
   },
   buttonDisabled: {
@@ -253,19 +254,19 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: Spacing.xl,
   },
   footerText: {
-    color: '#666',
+    fontSize: FontSizes.base,
   },
   link: {
-    color: '#007AFF',
-    fontWeight: '600',
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
   },
 });
