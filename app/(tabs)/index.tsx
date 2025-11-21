@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
-import { Colors, Fonts, FontSizes, Spacing, BorderRadius } from '@/constants/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -108,20 +108,20 @@ const styles = StyleSheet.create({
   },
   logoTitle: {
     fontSize: FontSizes['4xl'],
-    fontFamily: Fonts.displayBold,
+    fontWeight: FontWeights.bold,
     color: Colors.light.text,
     letterSpacing: -0.5,
   },
   welcomeTitle: {
     fontSize: FontSizes['3xl'],
-    fontFamily: Fonts.displayBold,
+    fontWeight: FontWeights.bold,
     marginBottom: Spacing.sm,
     color: Colors.light.text,
     letterSpacing: -0.3,
   },
   welcomeSubtitle: {
     fontSize: FontSizes.lg,
-    fontFamily: Fonts.light,
+    fontWeight: FontWeights.light,
     color: Colors.light.textSecondary,
     marginBottom: Spacing['2xl'],
     textAlign: 'center',
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontSize: FontSizes.base,
-    fontFamily: Fonts.semiBold,
+    fontWeight: FontWeights.semiBold,
     textAlign: 'center',
     letterSpacing: 0.5,
   },
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: Colors.light.primary,
     fontSize: FontSizes.base,
-    fontFamily: Fonts.semiBold,
+    fontWeight: FontWeights.semiBold,
     textAlign: 'center',
     letterSpacing: 0.5,
   },
@@ -172,14 +172,14 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: FontSizes['3xl'],
-    fontFamily: Fonts.displayBold,
+    fontWeight: FontWeights.bold,
     marginBottom: Spacing.xs,
     color: Colors.light.text,
     letterSpacing: -0.3,
   },
   role: {
     fontSize: FontSizes.base,
-    fontFamily: Fonts.medium,
+    fontWeight: FontWeights.medium,
     color: Colors.light.primary,
     textTransform: 'capitalize',
     letterSpacing: 0.5,
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: FontSizes.xl,
-    fontFamily: Fonts.semiBold,
+    fontWeight: FontWeights.semiBold,
     marginBottom: Spacing.lg,
     color: Colors.light.text,
     letterSpacing: -0.2,
@@ -217,14 +217,14 @@ const styles = StyleSheet.create({
   },
   actionTitle: {
     fontSize: FontSizes.base,
-    fontFamily: Fonts.semiBold,
+    fontWeight: FontWeights.semiBold,
     color: Colors.light.text,
     marginBottom: Spacing.xs,
     letterSpacing: 0.2,
   },
   actionSubtitle: {
     fontSize: FontSizes.sm,
-    fontFamily: Fonts.regular,
+    fontWeight: FontWeights.regular,
     color: Colors.light.textSecondary,
     letterSpacing: 0.1,
   },
@@ -240,14 +240,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: FontSizes.lg,
-    fontFamily: Fonts.semiBold,
+    fontWeight: FontWeights.semiBold,
     color: Colors.light.text,
     marginBottom: Spacing.xs,
     letterSpacing: 0.2,
   },
   emptyText: {
     fontSize: FontSizes.sm,
-    fontFamily: Fonts.regular,
+    fontWeight: FontWeights.regular,
     color: Colors.light.textSecondary,
     textAlign: 'center',
     letterSpacing: 0.2,
