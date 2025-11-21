@@ -88,7 +88,7 @@ export const Fonts = {
   bold: Platform.select({ ios: 'System', default: 'sans-serif' }),
 };
 
-// Font weight mapping for system fonts
+// Font weight mapping for system fonts (lighter, friendlier)
 export const FontWeights: { [key: string]: any } = {
   light: '300',
   regular: '400',
@@ -97,17 +97,17 @@ export const FontWeights: { [key: string]: any } = {
   bold: '700',
 };
 
-// Typography scale
+// Typography scale (reduced sizes for friendlier feel)
 export const FontSizes = {
-  xs: 12,
-  sm: 14,
-  base: 16,
-  lg: 18,
-  xl: 20,
-  '2xl': 24,
-  '3xl': 30,
-  '4xl': 36,
-  '5xl': 48,
+  xs: 11,
+  sm: 13,
+  base: 15,
+  lg: 17,
+  xl: 19,
+  '2xl': 22,
+  '3xl': 26,
+  '4xl': 32,
+  '5xl': 42,
 };
 
 // Spacing scale

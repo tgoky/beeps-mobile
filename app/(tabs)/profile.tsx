@@ -1,10 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
+  const { effectiveTheme } = useTheme();
+  const colors = Colors[effectiveTheme];
 
   const handleSignOut = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -22,11 +26,11 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Not Signed In</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Not Signed In</Text>
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, { backgroundColor: colors.primary }]}
             onPress={() => router.push('/(auth)/login')}
           >
             <Text style={styles.buttonText}>Sign In</Text>
@@ -37,54 +41,57 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.avatar}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
           <Text style={styles.avatarText}>
             {user.fullName?.charAt(0) || user.username?.charAt(0) || 'U'}
           </Text>
         </View>
-        <Text style={styles.name}>{user.fullName || user.username}</Text>
-        <Text style={styles.username}>@{user.username}</Text>
-        <Text style={styles.role}>{user.primaryRole}</Text>
+        <Text style={[styles.name, { color: colors.text }]}>{user.fullName || user.username}</Text>
+        <Text style={[styles.username, { color: colors.textSecondary }]}>@{user.username}</Text>
+        <Text style={[styles.role, { color: colors.primary }]}>{user.primaryRole}</Text>
       </View>
 
-      <View style={styles.stats}>
+      <View style={[styles.stats, { backgroundColor: colors.background, borderTopColor: colors.border, borderBottomColor: colors.border }]}>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{user.followersCount}</Text>
-          <Text style={styles.statLabel}>Followers</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{user.followersCount}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Followers</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{user.followingCount}</Text>
-          <Text style={styles.statLabel}>Following</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{user.followingCount}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Following</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>0</Text>
-          <Text style={styles.statLabel}>Posts</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>0</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Posts</Text>
         </View>
       </View>
 
       {user.bio && (
-        <View style={styles.section}>
-          <Text style={styles.bio}>{user.bio}</Text>
+        <View style={[styles.section, { backgroundColor: colors.background }]}>
+          <Text style={[styles.bio, { color: colors.text }]}>{user.bio}</Text>
         </View>
       )}
 
-      <View style={styles.section}>
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Edit Profile</Text>
+      <View style={[styles.section, { backgroundColor: colors.background }]}>
+        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.menuText, { color: colors.text }]}>Edit Profile</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Settings</Text>
+        <TouchableOpacity
+          style={[styles.menuItem, { borderBottomColor: colors.border }]}
+          onPress={() => router.push('/settings')}
+        >
+          <Text style={[styles.menuText, { color: colors.text }]}>Settings</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Bookings</Text>
+        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.menuText, { color: colors.text }]}>Bookings</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Transactions</Text>
+        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.menuText, { color: colors.text }]}>Transactions</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Notifications</Text>
+        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.menuText, { color: colors.text }]}>Notifications</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.menuItem, styles.menuItemDanger]} onPress={handleSignOut}>
           <Text style={styles.menuTextDanger}>Sign Out</Text>
@@ -97,87 +104,80 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     alignItems: 'center',
-    padding: 24,
-    paddingTop: 60,
+    padding: Spacing.xl,
+    paddingTop: Spacing['3xl'] + 20,
   },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   avatarText: {
     fontSize: 40,
-    fontWeight: 'bold',
+    fontWeight: FontWeights.bold,
     color: '#fff',
   },
   name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: FontSizes['2xl'],
+    fontWeight: FontWeights.semiBold,
+    marginBottom: Spacing.xs,
   },
   username: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 4,
+    fontSize: FontSizes.base,
+    marginBottom: Spacing.xs,
   },
   role: {
-    fontSize: 14,
-    color: '#007AFF',
+    fontSize: FontSizes.sm,
     textTransform: 'capitalize',
-    fontWeight: '600',
+    fontWeight: FontWeights.medium,
   },
   stats: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingVertical: Spacing.lg,
+    borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
   stat: {
     flex: 1,
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.semiBold,
+    marginBottom: Spacing.xs,
   },
   statLabel: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: FontSizes.sm,
   },
   section: {
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    padding: Spacing.lg,
+    marginTop: Spacing.sm,
   },
   bio: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#333',
+    fontSize: FontSizes.base,
+    lineHeight: 22,
   },
   menuItem: {
-    paddingVertical: 16,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
   menuItemDanger: {
     borderBottomWidth: 0,
   },
   menuText: {
-    fontSize: 16,
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.regular,
   },
   menuTextDanger: {
-    fontSize: 16,
+    fontSize: FontSizes.base,
     color: '#FF3B30',
+    fontWeight: FontWeights.medium,
   },
   emptyState: {
     flex: 1,
@@ -186,19 +186,18 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.semiBold,
+    marginBottom: Spacing.lg,
   },
   button: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingHorizontal: Spacing['2xl'],
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
   },
 });
