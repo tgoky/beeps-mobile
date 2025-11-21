@@ -7,8 +7,8 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
@@ -16,6 +16,20 @@ import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constan
 import { useStudios } from '@/hooks/useStudios';
 import { useProducers } from '@/hooks/useProducers';
 import { useArtists } from '@/hooks/useArtists';
+
+// Conditionally import MapView to avoid errors in Expo Go
+let MapView: any;
+let Marker: any;
+let PROVIDER_GOOGLE: any;
+try {
+  const Maps = require('react-native-maps');
+  MapView = Maps.default;
+  Marker = Maps.Marker;
+  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+} catch (e) {
+  // MapView not available in Expo Go
+  console.log('MapView not available - requires custom development build');
+}
 
 const { width } = Dimensions.get('window');
 
@@ -28,7 +42,7 @@ export default function HomeScreen() {
   const colors = Colors[effectiveTheme];
 
   const [activeTab, setActiveTab] = useState<TabType>('studios');
-  const [viewMode, setViewMode] = useState<ViewMode>('map');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid'); // Default to grid since map requires custom dev build
 
   // Fetch real data
   const { data: studios, isLoading: studiosLoading } = useStudios();
@@ -186,6 +200,26 @@ export default function HomeScreen() {
     const data = getData();
     const loading = isLoading();
 
+    // Check if MapView is available
+    if (!MapView) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: colors.text }]}>🗺️</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Map View Unavailable</Text>
+          <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+            Map view requires a custom development build.{'\n'}
+            Please use grid view or run: npx expo run:ios
+          </Text>
+          <TouchableOpacity
+            style={[styles.switchButton, { backgroundColor: colors.primary }]}
+            onPress={() => setViewMode('grid')}
+          >
+            <Text style={styles.switchButtonText}>Switch to Grid View</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
@@ -216,6 +250,12 @@ export default function HomeScreen() {
           <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
             Please use grid view for {activeTab}.
           </Text>
+          <TouchableOpacity
+            style={[styles.switchButton, { backgroundColor: colors.primary }]}
+            onPress={() => setViewMode('grid')}
+          >
+            <Text style={styles.switchButtonText}>Switch to Grid View</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -528,14 +568,33 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   emptyText: {
-    fontSize: FontSizes.lg,
-    fontWeight: FontWeights.medium,
+    fontSize: 48,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  emptyTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.bold,
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
   emptySubtext: {
     fontSize: FontSizes.sm,
     textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.xl,
+  },
+  switchButton: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  switchButtonText: {
+    color: '#fff',
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
   },
   gridCardLocation: {
     fontSize: FontSizes.xs,
