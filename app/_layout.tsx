@@ -21,17 +21,17 @@ export default function RootLayout() {
 
   const [fontsLoaded, fontError] = useFonts({
     // Inter fonts
-    'Inter_300Light': require('@expo-google-fonts/inter/Inter_300Light.ttf'),
-    'Inter_400Regular': require('@expo-google-fonts/inter/Inter_400Regular.ttf'),
-    'Inter_500Medium': require('@expo-google-fonts/inter/Inter_500Medium.ttf'),
-    'Inter_600SemiBold': require('@expo-google-fonts/inter/Inter_600SemiBold.ttf'),
-    'Inter_700Bold': require('@expo-google-fonts/inter/Inter_700Bold.ttf'),
+    'Inter_300Light': require('../assets/fonts/Inter-Light.ttf'),
+    'Inter_400Regular': require('../assets/fonts/Inter-Regular.ttf'),
+    'Inter_500Medium': require('../assets/fonts/Inter-Medium.ttf'),
+    'Inter_600SemiBold': require('../assets/fonts/Inter-SemiBold.ttf'),
+    'Inter_700Bold': require('../assets/fonts/Inter-Bold.ttf'),
     // Plus Jakarta Sans fonts
-    'PlusJakartaSans_300Light': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_300Light.ttf'),
-    'PlusJakartaSans_400Regular': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_400Regular.ttf'),
-    'PlusJakartaSans_500Medium': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_500Medium.ttf'),
-    'PlusJakartaSans_600SemiBold': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_600SemiBold.ttf'),
-    'PlusJakartaSans_700Bold': require('@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_700Bold.ttf'),
+    'PlusJakartaSans_300Light': require('../assets/fonts/PlusJakartaSans-Light.ttf'),
+    'PlusJakartaSans_400Regular': require('../assets/fonts/PlusJakartaSans-Regular.ttf'),
+    'PlusJakartaSans_500Medium': require('../assets/fonts/PlusJakartaSans-Medium.ttf'),
+    'PlusJakartaSans_600SemiBold': require('../assets/fonts/PlusJakartaSans-SemiBold.ttf'),
+    'PlusJakartaSans_700Bold': require('../assets/fonts/PlusJakartaSans-Bold.ttf'),
   });
 
   useEffect(() => {
