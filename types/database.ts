@@ -77,16 +77,15 @@ export interface Studio {
   description?: string;
   ownerId: string;
   clubId?: string;
-  address?: string;
+  location: string;  // Combined location string (required in Prisma schema)
   city?: string;
   state?: string;
   country?: string;
-  postalCode?: string;
   latitude?: number;
   longitude?: number;
   hourlyRate: number;
   equipment: string[];
-  capacity?: number;
+  capacity?: string;  // Changed from number to string to match Prisma schema
   imageUrl?: string;
   rating: number;
   reviewsCount: number;
