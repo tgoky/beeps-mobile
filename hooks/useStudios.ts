@@ -15,8 +15,6 @@ export function useStudios() {
   return useQuery({
     queryKey: ['studios'],
     queryFn: async () => {
-      console.log('[useStudios] Fetching studios...');
-
       const { data, error } = await supabase
         .from('studios')
         .select(`
@@ -34,20 +32,7 @@ export function useStudios() {
         .eq('is_active', true)
         .order('rating', { ascending: false });
 
-      if (error) {
-        console.error('[useStudios] Error fetching studios:', error);
-        throw error;
-      }
-
-      console.log('[useStudios] Raw data received:', data?.length || 0, 'studios');
-      if (data && data.length > 0) {
-        console.log('[useStudios] First studio sample:', {
-          id: data[0].id,
-          name: data[0].name,
-          is_active: data[0].is_active,
-          owner_id: data[0].owner_id,
-        });
-      }
+      if (error) throw error;
 
       // Transform the data to match our TypeScript types
       return (data || []).map((studio) => {
@@ -87,13 +72,11 @@ export function useStudios() {
   });
 }
 
-// Debug function to fetch ALL studios (including inactive) for troubleshooting
+// Fetch ALL studios (including inactive) - used by Studio Manager tool
 export function useAllStudiosDebug() {
   return useQuery({
     queryKey: ['studios', 'debug', 'all'],
     queryFn: async () => {
-      console.log('[useAllStudiosDebug] Fetching ALL studios (including inactive)...');
-
       const { data, error } = await supabase
         .from('studios')
         .select(`
@@ -110,22 +93,7 @@ export function useAllStudiosDebug() {
         `)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('[useAllStudiosDebug] Error:', error);
-        throw error;
-      }
-
-      console.log('[useAllStudiosDebug] Total studios in DB:', data?.length || 0);
-      const activeCount = data?.filter(s => s.is_active).length || 0;
-      const inactiveCount = data?.filter(s => !s.is_active).length || 0;
-      console.log('[useAllStudiosDebug] Active:', activeCount, 'Inactive:', inactiveCount);
-
-      if (data && data.length > 0) {
-        console.log('[useAllStudiosDebug] Studios breakdown:');
-        data.forEach((studio, idx) => {
-          console.log(`  ${idx + 1}. ${studio.name} - is_active: ${studio.is_active}, owner_id: ${studio.owner_id}`);
-        });
-      }
+      if (error) throw error;
 
       // Transform the data
       return (data || []).map((studio) => {
@@ -171,8 +139,6 @@ export function useUpdateStudioStatus() {
 
   return useMutation({
     mutationFn: async ({ studioId, isActive }: { studioId: string; isActive: boolean }) => {
-      console.log(`[useUpdateStudioStatus] Updating studio ${studioId} to is_active=${isActive}`);
-
       const { data, error } = await supabase
         .from('studios')
         .update({ is_active: isActive })
@@ -180,12 +146,7 @@ export function useUpdateStudioStatus() {
         .select()
         .single();
 
-      if (error) {
-        console.error('[useUpdateStudioStatus] Error:', error);
-        throw error;
-      }
-
-      console.log('[useUpdateStudioStatus] Successfully updated studio');
+      if (error) throw error;
       return data;
     },
     onSuccess: () => {
@@ -233,11 +194,10 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
             description: studio.description,
             ownerId: studio.owner_id,
             clubId: studio.club_id,
-            address: studio.address,
+            location: studio.location,
             city: studio.city,
             state: studio.state,
             country: studio.country,
-            postalCode: studio.postal_code,
             latitude: studio.latitude,
             longitude: studio.longitude,
             hourlyRate: studio.hourly_rate,
@@ -300,11 +260,10 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
             description: studio.description,
             ownerId: studio.owner_id,
             clubId: studio.club_id,
-            address: studio.address,
+            location: studio.location,
             city: studio.city,
             state: studio.state,
             country: studio.country,
-            postalCode: studio.postal_code,
             latitude: studio.latitude,
             longitude: studio.longitude,
             hourlyRate: studio.hourly_rate,

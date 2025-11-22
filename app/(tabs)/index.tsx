@@ -14,7 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
-import { useStudios, useAllStudiosDebug } from '@/hooks/useStudios';
+import { useStudios } from '@/hooks/useStudios';
 import { useProducers } from '@/hooks/useProducers';
 import { useArtists } from '@/hooks/useArtists';
 import CustomMapView from '@/components/CustomMapView';
@@ -35,17 +35,8 @@ export default function HomeScreen() {
 
   // Fetch real data
   const { data: studios, isLoading: studiosLoading } = useStudios();
-  const { data: allStudiosDebug } = useAllStudiosDebug(); // Debug: fetch ALL studios
   const { data: producers, isLoading: producersLoading } = useProducers();
   const { data: artists, isLoading: artistsLoading } = useArtists();
-
-  // Debug logging
-  React.useEffect(() => {
-    if (allStudiosDebug) {
-      console.log('[HomeScreen] Debug - Total studios in DB:', allStudiosDebug.length);
-      console.log('[HomeScreen] Active studios shown:', studios?.length || 0);
-    }
-  }, [allStudiosDebug, studios]);
 
   // User location (San Francisco for demo)
   const userLocation = { latitude: 37.7849, longitude: -122.4094 };
@@ -225,14 +216,8 @@ export default function HomeScreen() {
       );
     }
 
-    const itemsWithLocation = data.filter((item: any) => {
-      if (activeTab === 'studios') {
-        return item.latitude && item.longitude;
-      }
-      return false;
-    });
-
-    if (itemsWithLocation.length === 0 || activeTab !== 'studios') {
+    // Only studios can be shown on map
+    if (activeTab !== 'studios') {
       return (
         <View style={styles.emptyContainer}>
           <Ionicons name="map-outline" size={64} color={colors.textTertiary} />
@@ -252,9 +237,39 @@ export default function HomeScreen() {
       );
     }
 
+    if (data.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="map-outline" size={64} color={colors.textTertiary} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            No studios found
+          </Text>
+          <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+            Check back later for new listings
+          </Text>
+        </View>
+      );
+    }
+
+    // Assign default coordinates to studios without location
+    // Spread them around San Francisco bay area
+    const studiosWithLocation = data.map((studio: any, index: number) => {
+      if (studio.latitude && studio.longitude) {
+        return studio;
+      }
+      // Assign default coordinates in SF bay area with slight variations
+      const offsetLat = (index % 5) * 0.01 - 0.02; // -0.02 to +0.02
+      const offsetLon = Math.floor(index / 5) * 0.01 - 0.02;
+      return {
+        ...studio,
+        latitude: userLocation.latitude + offsetLat,
+        longitude: userLocation.longitude + offsetLon,
+      };
+    });
+
     return (
       <CustomMapView
-        studios={itemsWithLocation}
+        studios={studiosWithLocation}
         theme={effectiveTheme}
         onStudioPress={(studio) => setSelectedStudio(studio)}
         selectedStudio={selectedStudio}
@@ -271,18 +286,6 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Debug Panel - Remove after fixing */}
-      {allStudiosDebug && allStudiosDebug.length > 0 && (
-        <View style={[styles.debugPanel, { backgroundColor: colors.accent }]}>
-          <Text style={styles.debugText}>
-            🔍 Debug: {allStudiosDebug.length} total studios in DB, {studios?.length || 0} active shown
-          </Text>
-          <Text style={styles.debugTextSmall}>
-            {allStudiosDebug.filter(s => !s.isActive).length} inactive studios hidden
-          </Text>
-        </View>
-      )}
-
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <View>
@@ -373,23 +376,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  debugPanel: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
-  },
-  debugText: {
-    color: '#fff',
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.semiBold,
-  },
-  debugTextSmall: {
-    color: '#fff',
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.regular,
-    opacity: 0.8,
-    marginTop: 2,
   },
   header: {
     flexDirection: 'row',
