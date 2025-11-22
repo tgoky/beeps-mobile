@@ -56,13 +56,13 @@ export const Colors = {
     textTertiary: '#6B7280', // Gray 500
 
     // Backgrounds
-    background: '#111827', // Gray 900
+    background: '#000000ff', // Gray 900
     backgroundSecondary: '#1F2937', // Gray 800
     backgroundTertiary: '#374151', // Gray 700
 
     // UI elements
     border: '#374151', // Gray 700
-    card: '#1F2937', // Gray 800
+    card: '#000000ff', // Gray 800
     tint: '#9CA3AF',
 
     // Icons
