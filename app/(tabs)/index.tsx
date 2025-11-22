@@ -17,19 +17,7 @@ import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constan
 import { useStudios } from '@/hooks/useStudios';
 import { useProducers } from '@/hooks/useProducers';
 import { useArtists } from '@/hooks/useArtists';
-
-// Conditionally import MapView to avoid errors in Expo Go
-let MapView: any;
-let Marker: any;
-let PROVIDER_GOOGLE: any;
-try {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default;
-  Marker = Maps.Marker;
-  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
-} catch (e) {
-  console.log('MapView not available - requires custom development build');
-}
+import CustomMapView from '@/components/CustomMapView';
 
 const { width } = Dimensions.get('window');
 
@@ -43,6 +31,7 @@ export default function HomeScreen() {
 
   const [activeTab, setActiveTab] = useState<TabType>('studios');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [selectedStudio, setSelectedStudio] = useState<any | null>(null);
 
   // Fetch real data
   const { data: studios, isLoading: studiosLoading } = useStudios();
@@ -216,25 +205,6 @@ export default function HomeScreen() {
     const data = getData();
     const loading = isLoading();
 
-    if (!MapView) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="map-outline" size={64} color={colors.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Map View Unavailable</Text>
-          <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
-            Map view requires a custom development build.{'\n'}
-            Please use grid view or run: npx expo run:ios
-          </Text>
-          <TouchableOpacity
-            style={[styles.switchButton, { backgroundColor: colors.accent }]}
-            onPress={() => setViewMode('grid')}
-          >
-            <Text style={styles.switchButtonText}>Switch to Grid View</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
@@ -253,7 +223,7 @@ export default function HomeScreen() {
       return false;
     });
 
-    if (itemsWithLocation.length === 0) {
+    if (itemsWithLocation.length === 0 || activeTab !== 'studios') {
       return (
         <View style={styles.emptyContainer}>
           <Ionicons name="map-outline" size={64} color={colors.textTertiary} />
@@ -274,33 +244,13 @@ export default function HomeScreen() {
     }
 
     return (
-      <View style={styles.mapContainer}>
-        <MapView
-          provider={PROVIDER_GOOGLE}
-          style={styles.map}
-          initialRegion={{
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-          }}
-          customMapStyle={effectiveTheme === 'dark' ? darkMapStyle : []}
-        >
-          <Marker
-            coordinate={userLocation}
-            title="Your Location"
-            pinColor={colors.primary}
-          />
-          {itemsWithLocation.map((item: any) => (
-            <Marker
-              key={item.id}
-              coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-              title={item.name}
-              description={`$${item.hourlyRate}/hr${item.rating > 0 ? ` • ⭐ ${item.rating.toFixed(1)}` : ''}`}
-            />
-          ))}
-        </MapView>
-      </View>
+      <CustomMapView
+        studios={itemsWithLocation}
+        theme={effectiveTheme}
+        onStudioPress={(studio) => setSelectedStudio(studio)}
+        selectedStudio={selectedStudio}
+        userLocation={userLocation}
+      />
     );
   };
 
@@ -398,13 +348,6 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-// Dark map style for Google Maps
-const darkMapStyle = [
-  { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-];
 
 const styles = StyleSheet.create({
   container: {
