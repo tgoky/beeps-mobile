@@ -21,11 +21,14 @@ export function useStudios() {
         .from('studios')
         .select(`
           *,
-          owner:users!owner_id (
+          studio_owner_profiles!owner_id (
             id,
-            username,
-            full_name,
-            avatar
+            users!user_id (
+              id,
+              username,
+              full_name,
+              avatar
+            )
           )
         `)
         .eq('is_active', true)
@@ -47,35 +50,39 @@ export function useStudios() {
       }
 
       // Transform the data to match our TypeScript types
-      return (data || []).map((studio) => ({
-        id: studio.id,
-        name: studio.name,
-        description: studio.description,
-        ownerId: studio.owner_id,
-        clubId: studio.club_id,
-        address: studio.address,
-        city: studio.city,
-        state: studio.state,
-        country: studio.country,
-        postalCode: studio.postal_code,
-        latitude: studio.latitude,
-        longitude: studio.longitude,
-        hourlyRate: studio.hourly_rate,
-        equipment: studio.equipment || [],
-        capacity: studio.capacity,
-        imageUrl: studio.image_url,
-        rating: studio.rating || 0,
-        reviewsCount: studio.reviews_count || 0,
-        isActive: studio.is_active,
-        createdAt: studio.created_at,
-        updatedAt: studio.updated_at,
-        owner: {
-          id: studio.owner.id,
-          username: studio.owner.username,
-          fullName: studio.owner.full_name,
-          avatar: studio.owner.avatar,
-        },
-      })) as StudioWithOwner[];
+      return (data || []).map((studio) => {
+        const ownerProfile = studio.studio_owner_profiles;
+        const ownerUser = ownerProfile?.users;
+
+        return {
+          id: studio.id,
+          name: studio.name,
+          description: studio.description,
+          ownerId: studio.owner_id,
+          clubId: studio.club_id,
+          location: studio.location,
+          city: studio.city,
+          state: studio.state,
+          country: studio.country,
+          latitude: studio.latitude,
+          longitude: studio.longitude,
+          hourlyRate: studio.hourly_rate,
+          equipment: studio.equipment || [],
+          capacity: studio.capacity,
+          imageUrl: studio.image_url,
+          rating: studio.rating || 0,
+          reviewsCount: studio.reviews_count || 0,
+          isActive: studio.is_active,
+          createdAt: studio.created_at,
+          updatedAt: studio.updated_at,
+          owner: {
+            id: ownerUser?.id || '',
+            username: ownerUser?.username || '',
+            fullName: ownerUser?.full_name,
+            avatar: ownerUser?.avatar,
+          },
+        };
+      }) as StudioWithOwner[];
     },
   });
 }
@@ -91,11 +98,14 @@ export function useAllStudiosDebug() {
         .from('studios')
         .select(`
           *,
-          owner:users!owner_id (
+          studio_owner_profiles!owner_id (
             id,
-            username,
-            full_name,
-            avatar
+            users!user_id (
+              id,
+              username,
+              full_name,
+              avatar
+            )
           )
         `)
         .order('created_at', { ascending: false });
@@ -118,35 +128,39 @@ export function useAllStudiosDebug() {
       }
 
       // Transform the data
-      return (data || []).map((studio) => ({
-        id: studio.id,
-        name: studio.name,
-        description: studio.description,
-        ownerId: studio.owner_id,
-        clubId: studio.club_id,
-        address: studio.address,
-        city: studio.city,
-        state: studio.state,
-        country: studio.country,
-        postalCode: studio.postal_code,
-        latitude: studio.latitude,
-        longitude: studio.longitude,
-        hourlyRate: studio.hourly_rate,
-        equipment: studio.equipment || [],
-        capacity: studio.capacity,
-        imageUrl: studio.image_url,
-        rating: studio.rating || 0,
-        reviewsCount: studio.reviews_count || 0,
-        isActive: studio.is_active,
-        createdAt: studio.created_at,
-        updatedAt: studio.updated_at,
-        owner: {
-          id: studio.owner.id,
-          username: studio.owner.username,
-          fullName: studio.owner.full_name,
-          avatar: studio.owner.avatar,
-        },
-      })) as StudioWithOwner[];
+      return (data || []).map((studio) => {
+        const ownerProfile = studio.studio_owner_profiles;
+        const ownerUser = ownerProfile?.users;
+
+        return {
+          id: studio.id,
+          name: studio.name,
+          description: studio.description,
+          ownerId: studio.owner_id,
+          clubId: studio.club_id,
+          location: studio.location,
+          city: studio.city,
+          state: studio.state,
+          country: studio.country,
+          latitude: studio.latitude,
+          longitude: studio.longitude,
+          hourlyRate: studio.hourly_rate,
+          equipment: studio.equipment || [],
+          capacity: studio.capacity,
+          imageUrl: studio.image_url,
+          rating: studio.rating || 0,
+          reviewsCount: studio.reviews_count || 0,
+          isActive: studio.is_active,
+          createdAt: studio.created_at,
+          updatedAt: studio.updated_at,
+          owner: {
+            id: ownerUser?.id || '',
+            username: ownerUser?.username || '',
+            fullName: ownerUser?.full_name,
+            avatar: ownerUser?.avatar,
+          },
+        };
+      }) as StudioWithOwner[];
     },
   });
 }
@@ -191,11 +205,14 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
           .from('studios')
           .select(`
             *,
-            owner:users!owner_id (
+            studio_owner_profiles!owner_id (
               id,
-              username,
-              full_name,
-              avatar
+              users!user_id (
+                id,
+                username,
+                full_name,
+                avatar
+              )
             )
           `)
           .eq('is_active', true)
@@ -206,35 +223,40 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
 
         if (error) throw error;
 
-        return (data || []).map((studio) => ({
-          id: studio.id,
-          name: studio.name,
-          description: studio.description,
-          ownerId: studio.owner_id,
-          clubId: studio.club_id,
-          address: studio.address,
-          city: studio.city,
-          state: studio.state,
-          country: studio.country,
-          postalCode: studio.postal_code,
-          latitude: studio.latitude,
-          longitude: studio.longitude,
-          hourlyRate: studio.hourly_rate,
-          equipment: studio.equipment || [],
-          capacity: studio.capacity,
-          imageUrl: studio.image_url,
-          rating: studio.rating || 0,
-          reviewsCount: studio.reviews_count || 0,
-          isActive: studio.is_active,
-          createdAt: studio.created_at,
-          updatedAt: studio.updated_at,
-          owner: {
-            id: studio.owner.id,
-            username: studio.owner.username,
-            fullName: studio.owner.full_name,
-            avatar: studio.owner.avatar,
-          },
-        })) as StudioWithOwner[];
+        return (data || []).map((studio) => {
+          const ownerProfile = studio.studio_owner_profiles;
+          const ownerUser = ownerProfile?.users;
+
+          return {
+            id: studio.id,
+            name: studio.name,
+            description: studio.description,
+            ownerId: studio.owner_id,
+            clubId: studio.club_id,
+            address: studio.address,
+            city: studio.city,
+            state: studio.state,
+            country: studio.country,
+            postalCode: studio.postal_code,
+            latitude: studio.latitude,
+            longitude: studio.longitude,
+            hourlyRate: studio.hourly_rate,
+            equipment: studio.equipment || [],
+            capacity: studio.capacity,
+            imageUrl: studio.image_url,
+            rating: studio.rating || 0,
+            reviewsCount: studio.reviews_count || 0,
+            isActive: studio.is_active,
+            createdAt: studio.created_at,
+            updatedAt: studio.updated_at,
+            owner: {
+              id: ownerUser?.id || '',
+              username: ownerUser?.username || '',
+              fullName: ownerUser?.full_name,
+              avatar: ownerUser?.avatar,
+            },
+          };
+        }) as StudioWithOwner[];
       }
 
       // Use PostGIS earth_distance for proximity search
@@ -250,11 +272,14 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
           .from('studios')
           .select(`
             *,
-            owner:users!owner_id (
+            studio_owner_profiles!owner_id (
               id,
-              username,
-              full_name,
-              avatar
+              users!user_id (
+                id,
+                username,
+                full_name,
+                avatar
+              )
             )
           `)
           .eq('is_active', true)
@@ -265,35 +290,40 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
 
         if (fallbackError) throw fallbackError;
 
-        return (fallbackData || []).map((studio) => ({
-          id: studio.id,
-          name: studio.name,
-          description: studio.description,
-          ownerId: studio.owner_id,
-          clubId: studio.club_id,
-          address: studio.address,
-          city: studio.city,
-          state: studio.state,
-          country: studio.country,
-          postalCode: studio.postal_code,
-          latitude: studio.latitude,
-          longitude: studio.longitude,
-          hourlyRate: studio.hourly_rate,
-          equipment: studio.equipment || [],
-          capacity: studio.capacity,
-          imageUrl: studio.image_url,
-          rating: studio.rating || 0,
-          reviewsCount: studio.reviews_count || 0,
-          isActive: studio.is_active,
-          createdAt: studio.created_at,
-          updatedAt: studio.updated_at,
-          owner: {
-            id: studio.owner.id,
-            username: studio.owner.username,
-            fullName: studio.owner.full_name,
-            avatar: studio.owner.avatar,
-          },
-        })) as StudioWithOwner[];
+        return (fallbackData || []).map((studio) => {
+          const ownerProfile = studio.studio_owner_profiles;
+          const ownerUser = ownerProfile?.users;
+
+          return {
+            id: studio.id,
+            name: studio.name,
+            description: studio.description,
+            ownerId: studio.owner_id,
+            clubId: studio.club_id,
+            address: studio.address,
+            city: studio.city,
+            state: studio.state,
+            country: studio.country,
+            postalCode: studio.postal_code,
+            latitude: studio.latitude,
+            longitude: studio.longitude,
+            hourlyRate: studio.hourly_rate,
+            equipment: studio.equipment || [],
+            capacity: studio.capacity,
+            imageUrl: studio.image_url,
+            rating: studio.rating || 0,
+            reviewsCount: studio.reviews_count || 0,
+            isActive: studio.is_active,
+            createdAt: studio.created_at,
+            updatedAt: studio.updated_at,
+            owner: {
+              id: ownerUser?.id || '',
+              username: ownerUser?.username || '',
+              fullName: ownerUser?.full_name,
+              avatar: ownerUser?.avatar,
+            },
+          };
+        }) as StudioWithOwner[];
       }
 
       return data as StudioWithOwner[];
