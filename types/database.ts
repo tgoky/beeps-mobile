@@ -215,3 +215,29 @@ export interface Booking {
   createdAt: string;
   updatedAt: string;
 }
+
+// Club types
+export interface Club {
+  id: string;
+  name: string;
+  description?: string;
+  creatorId: string;
+  coverColor?: string;
+  coverImageUrl?: string;
+  iconName?: string;
+  category?: string;
+  tags?: string[];
+  memberCount: number;
+  isPrivate: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClubMembership {
+  id: string;
+  clubId: string;
+  userId: string;
+  role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  joinedAt: string;
+}
