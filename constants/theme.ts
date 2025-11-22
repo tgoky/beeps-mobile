@@ -1,15 +1,15 @@
 /**
  * Premium design system for Beeps Mobile
  * Using iOS System Fonts (San Francisco) - Clean, modern, optimized
- * Color palette optimized for music/creative industry
+ * Sophisticated ash gray color palette for professional feel
  */
 
 import { Platform } from 'react-native';
 
-// Brand colors
-const primaryColor = '#6366F1'; // Indigo - Premium, creative
-const secondaryColor = '#8B5CF6'; // Purple - Music/audio industry standard
-const accentColor = '#EC4899'; // Pink - Energy and creativity
+// Brand colors - Sophisticated ash gray palette
+const primaryColor = '#6B7280'; // Gray 500 - Professional, timeless
+const secondaryColor = '#9CA3AF'; // Gray 400 - Subtle accent
+const accentColor = '#4B5563'; // Gray 600 - Strong contrast
 
 export const Colors = {
   light: {
@@ -19,24 +19,24 @@ export const Colors = {
     accent: accentColor,
 
     // Text colors
-    text: '#0F172A', // Slate 900 - Deep, readable
-    textSecondary: '#475569', // Slate 600
-    textTertiary: '#94A3B8', // Slate 400
+    text: '#111827', // Gray 900 - Deep, readable
+    textSecondary: '#4B5563', // Gray 600
+    textTertiary: '#9CA3AF', // Gray 400
 
     // Backgrounds
     background: '#FFFFFF',
-    backgroundSecondary: '#F8FAFC', // Slate 50
-    backgroundTertiary: '#F1F5F9', // Slate 100
+    backgroundSecondary: '#F9FAFB', // Gray 50
+    backgroundTertiary: '#F3F4F6', // Gray 100
 
     // UI elements
-    border: '#E2E8F0', // Slate 200
+    border: '#E5E7EB', // Gray 200
     card: '#FFFFFF',
     tint: primaryColor,
 
     // Icons
-    icon: '#64748B', // Slate 500
-    tabIconDefault: '#94A3B8', // Slate 400
-    tabIconSelected: primaryColor,
+    icon: '#6B7280', // Gray 500
+    tabIconDefault: '#9CA3AF', // Gray 400
+    tabIconSelected: accentColor,
 
     // Status colors
     success: '#10B981', // Green
@@ -46,35 +46,35 @@ export const Colors = {
   },
   dark: {
     // Primary palette
-    primary: '#818CF8', // Indigo 400 - Lighter for dark mode
-    secondary: '#A78BFA', // Purple 400
-    accent: '#F472B6', // Pink 400
+    primary: '#9CA3AF', // Gray 400 - Lighter for dark mode
+    secondary: '#6B7280', // Gray 500
+    accent: '#D1D5DB', // Gray 300
 
     // Text colors
-    text: '#F1F5F9', // Slate 100
-    textSecondary: '#CBD5E1', // Slate 300
-    textTertiary: '#64748B', // Slate 500
+    text: '#F9FAFB', // Gray 50
+    textSecondary: '#D1D5DB', // Gray 300
+    textTertiary: '#6B7280', // Gray 500
 
     // Backgrounds
-    background: '#0F172A', // Slate 900
-    backgroundSecondary: '#1E293B', // Slate 800
-    backgroundTertiary: '#334155', // Slate 700
+    background: '#111827', // Gray 900
+    backgroundSecondary: '#1F2937', // Gray 800
+    backgroundTertiary: '#374151', // Gray 700
 
     // UI elements
-    border: '#334155', // Slate 700
-    card: '#1E293B', // Slate 800
-    tint: '#818CF8',
+    border: '#374151', // Gray 700
+    card: '#1F2937', // Gray 800
+    tint: '#9CA3AF',
 
     // Icons
-    icon: '#94A3B8', // Slate 400
-    tabIconDefault: '#64748B', // Slate 500
-    tabIconSelected: '#818CF8', // Indigo 400
+    icon: '#9CA3AF', // Gray 400
+    tabIconDefault: '#6B7280', // Gray 500
+    tabIconSelected: '#D1D5DB', // Gray 300
 
     // Status colors
     success: '#34D399', // Green 400
     warning: '#FBBF24', // Amber 400
     error: '#F87171', // Red 400
-    info: '#818CF8', // Indigo 400
+    info: '#9CA3AF', // Gray 400
   },
 };
 
