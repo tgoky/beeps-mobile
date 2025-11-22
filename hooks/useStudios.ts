@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Studio } from '@/types/database';
 
@@ -147,6 +147,36 @@ export function useAllStudiosDebug() {
           avatar: studio.owner.avatar,
         },
       })) as StudioWithOwner[];
+    },
+  });
+}
+
+// Mutation to update studio is_active status
+export function useUpdateStudioStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ studioId, isActive }: { studioId: string; isActive: boolean }) => {
+      console.log(`[useUpdateStudioStatus] Updating studio ${studioId} to is_active=${isActive}`);
+
+      const { data, error } = await supabase
+        .from('studios')
+        .update({ is_active: isActive })
+        .eq('id', studioId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[useUpdateStudioStatus] Error:', error);
+        throw error;
+      }
+
+      console.log('[useUpdateStudioStatus] Successfully updated studio');
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch studios queries
+      queryClient.invalidateQueries({ queryKey: ['studios'] });
     },
   });
 }

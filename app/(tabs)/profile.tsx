@@ -93,6 +93,12 @@ export default function ProfileScreen() {
         <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
           <Text style={[styles.menuText, { color: colors.text }]}>Notifications</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.menuItem, { borderBottomColor: colors.border }]}
+          onPress={() => router.push('/(tabs)/debug-studios')}
+        >
+          <Text style={[styles.menuText, { color: colors.accent }]}>🔧 Studio Manager (Debug)</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.menuItem, styles.menuItemDanger]} onPress={handleSignOut}>
           <Text style={styles.menuTextDanger}>Sign Out</Text>
         </TouchableOpacity>
