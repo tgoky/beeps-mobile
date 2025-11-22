@@ -1,68 +1,104 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 
-type MarketplaceTab = 'beats' | 'studios' | 'equipment';
+type MarketplaceTab = 'beats' | 'equipment';
 
 export default function MarketplaceScreen() {
+  const { effectiveTheme } = useTheme();
+  const colors = Colors[effectiveTheme];
   const [activeTab, setActiveTab] = useState<MarketplaceTab>('beats');
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Marketplace</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <View>
+          <Text style={[styles.title, { color: colors.text }]}>Marketplace</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Buy beats & equipment
+          </Text>
+        </View>
+        <TouchableOpacity style={[styles.filterButton, { backgroundColor: colors.backgroundSecondary }]}>
+          <Ionicons name="options-outline" size={20} color={colors.text} />
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.tabs}>
+      {/* Tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={[styles.tabsContainer, { backgroundColor: colors.background }]}
+      >
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'beats' && styles.tabActive]}
+          style={[
+            styles.tab,
+            { borderColor: colors.border },
+            activeTab === 'beats' && { backgroundColor: colors.accent, borderColor: colors.accent },
+          ]}
           onPress={() => setActiveTab('beats')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'beats' && styles.tabTextActive]}>
+          <MaterialCommunityIcons
+            name="music-box-multiple"
+            size={20}
+            color={activeTab === 'beats' ? '#fff' : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'beats' ? '#fff' : colors.textSecondary },
+            ]}
+          >
             Beats
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'studios' && styles.tabActive]}
-          onPress={() => setActiveTab('studios')}
-        >
-          <Text style={[styles.tabText, activeTab === 'studios' && styles.tabTextActive]}>
-            Studios
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'equipment' && styles.tabActive]}
+          style={[
+            styles.tab,
+            { borderColor: colors.border },
+            activeTab === 'equipment' && { backgroundColor: colors.accent, borderColor: colors.accent },
+          ]}
           onPress={() => setActiveTab('equipment')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'equipment' && styles.tabTextActive]}>
+          <MaterialCommunityIcons
+            name="microphone"
+            size={20}
+            color={activeTab === 'equipment' ? '#fff' : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'equipment' ? '#fff' : colors.textSecondary },
+            ]}
+          >
             Equipment
           </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
+      {/* Content */}
       <ScrollView style={styles.content}>
         {activeTab === 'beats' && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Browse Beats</Text>
-            <Text style={styles.emptyText}>
-              Discover and purchase high-quality beats from talented producers
-            </Text>
-          </View>
-        )}
-
-        {activeTab === 'studios' && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Find Studios</Text>
-            <Text style={styles.emptyText}>
-              Book recording studios in your area
+            <MaterialCommunityIcons name="music-box-multiple" size={64} color={colors.textTertiary} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Browse Beats</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Discover and purchase high-quality beats{'\n'}from talented producers
             </Text>
           </View>
         )}
 
         {activeTab === 'equipment' && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Equipment Market</Text>
-            <Text style={styles.emptyText}>
-              Buy or rent music production equipment
+            <MaterialCommunityIcons name="microphone" size={64} color={colors.textTertiary} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Equipment Market</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Buy or rent music production{'\n'}equipment from sellers
             </Text>
           </View>
         )}
@@ -74,55 +110,69 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
-    padding: 24,
-    paddingTop: 60,
-    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: FontSizes['3xl'],
+    fontWeight: FontWeights.bold,
+    letterSpacing: -0.5,
   },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    gap: 8,
-    marginBottom: 16,
+  subtitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.regular,
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabsContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
   },
   tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-  },
-  tabActive: {
-    backgroundColor: '#007AFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md + 4,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    borderWidth: 1,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  tabTextActive: {
-    color: '#fff',
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semiBold,
+    letterSpacing: 0.2,
   },
   content: {
     flex: 1,
   },
   emptyState: {
-    padding: 40,
+    padding: Spacing.xl * 2,
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.bold,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   emptyText: {
-    color: '#666',
-    fontSize: 16,
+    fontSize: FontSizes.sm,
     textAlign: 'center',
+    lineHeight: 22,
   },
 });

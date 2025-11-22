@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
@@ -27,7 +28,6 @@ try {
   Marker = Maps.Marker;
   PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
 } catch (e) {
-  // MapView not available in Expo Go
   console.log('MapView not available - requires custom development build');
 }
 
@@ -42,7 +42,7 @@ export default function HomeScreen() {
   const colors = Colors[effectiveTheme];
 
   const [activeTab, setActiveTab] = useState<TabType>('studios');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid'); // Default to grid since map requires custom dev build
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Fetch real data
   const { data: studios, isLoading: studiosLoading } = useStudios();
@@ -56,24 +56,22 @@ export default function HomeScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.authPrompt}>
-          <Text style={[styles.authTitle, { color: colors.text }]}>🎵</Text>
+          <MaterialCommunityIcons name="music-circle" size={80} color={colors.primary} />
           <Text style={[styles.authSubtitle, { color: colors.text }]}>Welcome to Beeps</Text>
           <Text style={[styles.authDescription, { color: colors.textSecondary }]}>
             Your music production marketplace
           </Text>
           <TouchableOpacity
-            style={[styles.authButton, { backgroundColor: colors.primary }]}
+            style={[styles.authButton, { backgroundColor: colors.accent }]}
             onPress={() => router.push('/(auth)/login')}
           >
             <Text style={styles.authButtonText}>Sign In</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.authButtonSecondary, { borderColor: colors.primary }]}
+            style={[styles.authButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]}
             onPress={() => router.push('/(auth)/register')}
           >
-            <Text style={[styles.authButtonTextSecondary, { color: colors.primary }]}>
-              Create Account
-            </Text>
+            <Text style={[styles.authButtonTextSecondary, { color: colors.text }]}>Create Account</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -124,8 +122,16 @@ export default function HomeScreen() {
     if (data.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+          <MaterialCommunityIcons
+            name={activeTab === 'studios' ? 'microphone' : activeTab === 'producers' ? 'music-box' : 'account-music'}
+            size={64}
+            color={colors.textTertiary}
+          />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
             No {activeTab} found
+          </Text>
+          <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+            Check back later for new listings
           </Text>
         </View>
       );
@@ -137,61 +143,71 @@ export default function HomeScreen() {
           let name = '';
           let price = 0;
           let rating = 0;
+          let location = '';
 
           if (activeTab === 'studios') {
             name = item.name;
             price = item.hourlyRate;
             rating = item.rating;
+            location = item.city || item.state || '';
           } else if (activeTab === 'producers') {
             name = item.user.fullName || item.user.username;
             price = item.productionRate || 0;
-            rating = 0; // Producers don't have ratings in schema
+            location = item.user.location || '';
           } else if (activeTab === 'artists') {
             name = item.user.fullName || item.user.username;
-            price = 0; // Artists don't have pricing
-            rating = 0;
+            location = item.user.location || '';
           }
 
           return (
             <TouchableOpacity
               key={item.id}
               style={[styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              activeOpacity={0.7}
             >
-              <View style={styles.gridCardContent}>
-                <View style={styles.gridCardHeader}>
-                  <View>
-                    <Text style={[styles.gridCardName, { color: colors.text }]}>{name}</Text>
-                    {price > 0 && (
-                      <Text style={[styles.gridCardPrice, { color: colors.textSecondary }]}>
-                        ${price}/hr
-                      </Text>
-                    )}
-                    {activeTab !== 'studios' && item.user.location && (
-                      <Text style={[styles.gridCardLocation, { color: colors.textTertiary }]}>
-                        📍 {item.user.location}
-                      </Text>
-                    )}
-                  </View>
-                  {rating > 0 && (
-                    <View style={styles.gridCardRating}>
-                      <Text style={styles.ratingText}>⭐ {rating.toFixed(1)}</Text>
-                    </View>
-                  )}
-                  {activeTab !== 'studios' && item.user.verified && (
-                    <View style={styles.verifiedBadge}>
-                      <Text style={styles.verifiedText}>✓</Text>
-                    </View>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardTitleContainer}>
+                  <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>
+                    {name}
+                  </Text>
+                  {activeTab !== 'studios' && item.user?.verified && (
+                    <Ionicons name="checkmark-circle" size={18} color={colors.success} />
                   )}
                 </View>
-                <TouchableOpacity style={[styles.bookButton, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.bookButtonText}>
-                    {activeTab === 'studios' ? 'Book Studio' : 'View Profile'}
-                  </Text>
-                </TouchableOpacity>
+                {rating > 0 && (
+                  <View style={[styles.ratingBadge, { backgroundColor: colors.backgroundSecondary }]}>
+                    <Ionicons name="star" size={14} color="#F59E0B" />
+                    <Text style={[styles.ratingText, { color: colors.text }]}>{rating.toFixed(1)}</Text>
+                  </View>
+                )}
               </View>
+
+              {location && (
+                <View style={styles.locationRow}>
+                  <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
+                  <Text style={[styles.locationText, { color: colors.textTertiary }]}>{location}</Text>
+                </View>
+              )}
+
+              {price > 0 && (
+                <Text style={[styles.priceText, { color: colors.textSecondary }]}>
+                  ${price}/hr
+                </Text>
+              )}
+
+              <TouchableOpacity
+                style={[styles.cardButton, { backgroundColor: colors.accent }]}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.cardButtonText}>
+                  {activeTab === 'studios' ? 'Book Now' : 'View Profile'}
+                </Text>
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </TouchableOpacity>
             </TouchableOpacity>
           );
         })}
+        <View style={{ height: 80 }} />
       </ScrollView>
     );
   };
@@ -200,18 +216,17 @@ export default function HomeScreen() {
     const data = getData();
     const loading = isLoading();
 
-    // Check if MapView is available
     if (!MapView) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.text }]}>🗺️</Text>
+          <Ionicons name="map-outline" size={64} color={colors.textTertiary} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>Map View Unavailable</Text>
           <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
             Map view requires a custom development build.{'\n'}
             Please use grid view or run: npx expo run:ios
           </Text>
           <TouchableOpacity
-            style={[styles.switchButton, { backgroundColor: colors.primary }]}
+            style={[styles.switchButton, { backgroundColor: colors.accent }]}
             onPress={() => setViewMode('grid')}
           >
             <Text style={styles.switchButtonText}>Switch to Grid View</Text>
@@ -231,27 +246,25 @@ export default function HomeScreen() {
       );
     }
 
-    // Filter items that have location data
     const itemsWithLocation = data.filter((item: any) => {
       if (activeTab === 'studios') {
         return item.latitude && item.longitude;
       }
-      // For producers/artists, we'd need geocoded location data
-      // For now, skip them or show in grid view
       return false;
     });
 
-    if (itemsWithLocation.length === 0 && activeTab !== 'studios') {
+    if (itemsWithLocation.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+          <Ionicons name="map-outline" size={64} color={colors.textTertiary} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
             Map view is only available for studios.
           </Text>
-          <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
+          <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
             Please use grid view for {activeTab}.
           </Text>
           <TouchableOpacity
-            style={[styles.switchButton, { backgroundColor: colors.primary }]}
+            style={[styles.switchButton, { backgroundColor: colors.accent }]}
             onPress={() => setViewMode('grid')}
           >
             <Text style={styles.switchButtonText}>Switch to Grid View</Text>
@@ -273,106 +286,112 @@ export default function HomeScreen() {
           }}
           customMapStyle={effectiveTheme === 'dark' ? darkMapStyle : []}
         >
-          {/* User location */}
           <Marker
             coordinate={userLocation}
             title="Your Location"
             pinColor={colors.primary}
           />
-
-          {/* Studios markers */}
-          {itemsWithLocation.map((item: any) => {
-            let name = '';
-            let description = '';
-
-            if (activeTab === 'studios') {
-              name = item.name;
-              description = `$${item.hourlyRate}/hr${item.rating > 0 ? ` • ⭐ ${item.rating.toFixed(1)}` : ''}`;
-            }
-
-            return (
-              <Marker
-                key={item.id}
-                coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-                title={name}
-                description={description}
-              />
-            );
-          })}
+          {itemsWithLocation.map((item: any) => (
+            <Marker
+              key={item.id}
+              coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+              title={item.name}
+              description={`$${item.hourlyRate}/hr${item.rating > 0 ? ` • ⭐ ${item.rating.toFixed(1)}` : ''}`}
+            />
+          ))}
         </MapView>
       </View>
     );
   };
 
-  const tabs: Array<{ key: TabType; label: string; icon: string }> = [
-    { key: 'studios', label: 'Studios', icon: '🎙️' },
-    { key: 'producers', label: 'Producers', icon: '🎵' },
-    { key: 'artists', label: 'Artists', icon: '🎤' },
+  const tabs = [
+    { key: 'studios' as TabType, label: 'Studios', icon: 'business' },
+    { key: 'producers' as TabType, label: 'Producers', icon: 'headset' },
+    { key: 'artists' as TabType, label: 'Artists', icon: 'mic' },
   ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <Text style={[styles.greeting, { color: colors.text }]}>
-          Hey, {user.fullName?.split(' ')[0] || user.username}! 👋
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Find your perfect {activeTab.slice(0, -1)}
-        </Text>
-      </View>
+        <View>
+          <Text style={[styles.greeting, { color: colors.text }]}>
+            Discover
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Find your perfect {activeTab.slice(0, -1)}
+          </Text>
+        </View>
 
-      {/* Tabs */}
-      <View style={[styles.tabsContainer, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[
-                styles.tab,
-                activeTab === tab.key && [styles.tabActive, { backgroundColor: colors.primary }],
-              ]}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <Text style={styles.tabIcon}>{tab.icon}</Text>
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: activeTab === tab.key ? '#fff' : colors.textSecondary },
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* View Mode Toggle */}
-        <View style={styles.viewToggle}>
+        {/* View Toggle */}
+        <View style={[styles.viewToggleContainer, { backgroundColor: colors.backgroundSecondary }]}>
           <TouchableOpacity
             style={[
-              styles.viewButton,
-              viewMode === 'map' && [styles.viewButtonActive, { backgroundColor: colors.primary }],
+              styles.viewToggleButton,
+              viewMode === 'grid' && { backgroundColor: colors.card },
             ]}
-            onPress={() => setViewMode('map')}
+            onPress={() => setViewMode('grid')}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.viewButtonText, { color: viewMode === 'map' ? '#fff' : colors.textSecondary }]}>
-              🗺️
-            </Text>
+            <Ionicons
+              name="grid"
+              size={18}
+              color={viewMode === 'grid' ? colors.accent : colors.textTertiary}
+            />
           </TouchableOpacity>
           <TouchableOpacity
             style={[
-              styles.viewButton,
-              viewMode === 'grid' && [styles.viewButtonActive, { backgroundColor: colors.primary }],
+              styles.viewToggleButton,
+              viewMode === 'map' && { backgroundColor: colors.card },
             ]}
-            onPress={() => setViewMode('grid')}
+            onPress={() => setViewMode('map')}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.viewButtonText, { color: viewMode === 'grid' ? '#fff' : colors.textSecondary }]}>
-              📋
-            </Text>
+            <Ionicons
+              name="map"
+              size={18}
+              color={viewMode === 'map' ? colors.accent : colors.textTertiary}
+            />
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={[styles.tabsContainer, { backgroundColor: colors.background }]}
+      >
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[
+              styles.tab,
+              { borderColor: colors.border },
+              activeTab === tab.key && {
+                backgroundColor: colors.accent,
+                borderColor: colors.accent
+              },
+            ]}
+            onPress={() => setActiveTab(tab.key)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={tab.icon as any}
+              size={20}
+              color={activeTab === tab.key ? '#fff' : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === tab.key ? '#fff' : colors.textSecondary },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* Content */}
       {viewMode === 'map' ? renderMapView() : renderGridView()}
@@ -391,165 +410,137 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  authPrompt: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
-  },
-  authTitle: {
-    fontSize: 64,
-    marginBottom: Spacing.md,
-  },
-  authSubtitle: {
-    fontSize: FontSizes['3xl'],
-    fontWeight: FontWeights.semiBold,
-    marginBottom: Spacing.sm,
-  },
-  authDescription: {
-    fontSize: FontSizes.base,
-    marginBottom: Spacing['2xl'],
-  },
-  authButton: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-    width: width - Spacing.xl * 2,
-  },
-  authButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
-    textAlign: 'center',
-  },
-  authButtonSecondary: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 2,
-    width: width - Spacing.xl * 2,
-  },
-  authButtonTextSecondary: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
-    textAlign: 'center',
-  },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing['3xl'] + 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
   },
   greeting: {
-    fontSize: FontSizes['2xl'],
-    fontWeight: FontWeights.semiBold,
-    marginBottom: Spacing.xs,
+    fontSize: FontSizes['3xl'],
+    fontWeight: FontWeights.bold,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: FontSizes.sm,
+    fontWeight: FontWeights.regular,
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  viewToggleContainer: {
+    flexDirection: 'row',
+    borderRadius: BorderRadius.md,
+    padding: 4,
+  },
+  viewToggleButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tabsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    paddingVertical: Spacing.sm,
-  },
-  tabs: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     gap: Spacing.sm,
   },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md + 4,
+    paddingVertical: Spacing.sm + 2,
     borderRadius: BorderRadius.lg,
-    gap: Spacing.xs,
-  },
-  tabActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tabIcon: {
-    fontSize: 18,
+    gap: Spacing.sm,
+    borderWidth: 1,
   },
   tabText: {
     fontSize: FontSizes.sm,
-    fontWeight: FontWeights.medium,
+    fontWeight: FontWeights.semiBold,
+    letterSpacing: 0.2,
   },
-  viewToggle: {
+  gridContainer: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+  },
+  gridCard: {
+    padding: Spacing.md + 2,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardHeader: {
     flexDirection: 'row',
-    marginRight: Spacing.md,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.sm,
+  },
+  cardTitleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.xs,
   },
-  viewButton: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.sm,
-    justifyContent: 'center',
-    alignItems: 'center',
+  cardName: {
+    fontSize: FontSizes.lg,
+    fontWeight: FontWeights.semiBold,
+    flex: 1,
+    letterSpacing: -0.2,
   },
-  viewButtonActive: {},
-  viewButtonText: {
-    fontSize: 18,
+  ratingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.semiBold,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: Spacing.xs,
+  },
+  locationText: {
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.regular,
+  },
+  priceText: {
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.medium,
+    marginBottom: Spacing.sm,
+  },
+  cardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  cardButtonText: {
+    color: '#fff',
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semiBold,
+    letterSpacing: 0.3,
   },
   mapContainer: {
     flex: 1,
   },
   map: {
     flex: 1,
-  },
-  gridContainer: {
-    flex: 1,
-    padding: Spacing.md,
-  },
-  gridCard: {
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-    overflow: 'hidden',
-  },
-  gridCardContent: {
-    padding: Spacing.md,
-  },
-  gridCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.sm,
-  },
-  gridCardName: {
-    fontSize: FontSizes.lg,
-    fontWeight: FontWeights.semiBold,
-    marginBottom: Spacing.xs,
-  },
-  gridCardPrice: {
-    fontSize: FontSizes.sm,
-  },
-  gridCardRating: {
-    backgroundColor: '#FFF7ED',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-  },
-  ratingText: {
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.medium,
-  },
-  bookButton: {
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    alignItems: 'center',
-  },
-  bookButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
   },
   loadingContainer: {
     flex: 1,
@@ -560,6 +551,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: Spacing.md,
     fontSize: FontSizes.base,
+    fontWeight: FontWeights.medium,
   },
   emptyContainer: {
     flex: 1,
@@ -567,15 +559,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: Spacing.xl,
   },
-  emptyText: {
-    fontSize: 48,
-    textAlign: 'center',
-    marginBottom: Spacing.md,
-  },
   emptyTitle: {
     fontSize: FontSizes.xl,
     fontWeight: FontWeights.bold,
     textAlign: 'center',
+    marginTop: Spacing.md,
     marginBottom: Spacing.sm,
   },
   emptySubtext: {
@@ -583,34 +571,50 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing.xl,
   },
   switchButton: {
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-    marginTop: Spacing.md,
+    marginTop: Spacing.xl,
   },
   switchButtonText: {
     color: '#fff',
     fontSize: FontSizes.base,
     fontWeight: FontWeights.semiBold,
   },
-  gridCardLocation: {
-    fontSize: FontSizes.xs,
-    marginTop: Spacing.xs,
-  },
-  verifiedBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
+  authPrompt: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: Spacing.xl,
   },
-  verifiedText: {
+  authSubtitle: {
+    fontSize: FontSizes['3xl'],
+    fontWeight: FontWeights.semiBold,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  authDescription: {
+    fontSize: FontSizes.base,
+    marginBottom: Spacing['2xl'],
+    textAlign: 'center',
+  },
+  authButton: {
+    paddingHorizontal: Spacing['2xl'],
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    width: width - Spacing.xl * 2,
+    alignItems: 'center',
+  },
+  authButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: FontWeights.bold,
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
+  },
+  authButtonTextSecondary: {
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semiBold,
   },
 });
