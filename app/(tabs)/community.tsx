@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
+import { useClubs, useMyClubs, useJoinClub } from '@/hooks/useClubs';
+import CreateClubModal from '@/components/CreateClubModal';
 
 type CommunityTab = 'feed' | 'clubs';
 
@@ -12,34 +14,12 @@ export default function CommunityScreen() {
   const { effectiveTheme } = useTheme();
   const colors = Colors[effectiveTheme];
   const [activeTab, setActiveTab] = useState<CommunityTab>('feed');
+  const [createModalVisible, setCreateModalVisible] = useState(false);
 
-  // Mock clubs data - replace with real Supabase data
-  const mockClubs = [
-    {
-      id: '1',
-      name: 'Hip-Hop Producers',
-      description: 'Connect with hip-hop producers worldwide',
-      memberCount: 1234,
-      icon: 'music',
-      coverColor: '#EF4444',
-    },
-    {
-      id: '2',
-      name: 'Studio Owners Network',
-      description: 'Share tips and grow your studio business',
-      memberCount: 892,
-      icon: 'business',
-      coverColor: '#8B5CF6',
-    },
-    {
-      id: '3',
-      name: 'Beat Makers Hub',
-      description: 'Share beats, get feedback, collaborate',
-      memberCount: 2156,
-      icon: 'musical-notes',
-      coverColor: '#10B981',
-    },
-  ];
+  // Fetch data
+  const { data: clubs, isLoading: clubsLoading } = useClubs();
+  const { data: myClubs, isLoading: myClubsLoading } = useMyClubs(user?.id);
+  const joinClub = useJoinClub();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -51,7 +31,10 @@ export default function CommunityScreen() {
             Connect with creators
           </Text>
         </View>
-        <TouchableOpacity style={[styles.createButton, { backgroundColor: colors.accent }]}>
+        <TouchableOpacity
+          style={[styles.createButton, { backgroundColor: colors.accent }]}
+          onPress={() => setCreateModalVisible(true)}
+        >
           <Ionicons name="add" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -131,70 +114,145 @@ export default function CommunityScreen() {
         )}
 
         {activeTab === 'clubs' && (
-          <View style={styles.clubsContainer}>
-            {/* Featured Clubs Header */}
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Featured Clubs</Text>
-              <TouchableOpacity>
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>See All</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Clubs List */}
-            {mockClubs.map((club) => (
-              <TouchableOpacity
-                key={club.id}
-                style={[styles.clubCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                activeOpacity={0.7}
-              >
-                {/* Club Cover */}
-                <View style={[styles.clubCover, { backgroundColor: club.coverColor }]}>
-                  <View style={[styles.clubIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
-                    <Ionicons name={club.icon as any} size={24} color="#fff" />
-                  </View>
-                </View>
-
-                {/* Club Info */}
-                <View style={styles.clubInfo}>
-                  <Text style={[styles.clubName, { color: colors.text }]}>{club.name}</Text>
-                  <Text style={[styles.clubDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                    {club.description}
-                  </Text>
-
-                  {/* Stats */}
-                  <View style={styles.clubStats}>
-                    <View style={styles.statItem}>
-                      <Ionicons name="people" size={14} color={colors.textTertiary} />
-                      <Text style={[styles.statText, { color: colors.textTertiary }]}>
-                        {club.memberCount.toLocaleString()} members
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Join Button */}
-                  <TouchableOpacity style={[styles.joinButton, { backgroundColor: colors.accent }]}>
-                    <Text style={styles.joinButtonText}>Join Club</Text>
+          <>
+            {clubsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Loading clubs...
+                </Text>
+              </View>
+            ) : clubs && clubs.length > 0 ? (
+              <View style={styles.clubsContainer}>
+                {/* Featured Clubs Header */}
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Featured Clubs</Text>
+                  <TouchableOpacity>
+                    <Text style={[styles.seeAllText, { color: colors.primary }]}>See All</Text>
                   </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            ))}
 
-            {/* Create Club CTA */}
-            <TouchableOpacity
-              style={[styles.createClubCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.createClubIcon, { backgroundColor: colors.primary }]}>
-                <Ionicons name="add" size={24} color="#fff" />
+                {/* Clubs List */}
+                {clubs.map((club) => {
+                  const isMember = myClubs?.some((mc: any) => mc.id === club.id);
+
+                  return (
+                    <TouchableOpacity
+                      key={club.id}
+                      style={[styles.clubCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                      activeOpacity={0.7}
+                    >
+                      {/* Club Cover */}
+                      <View style={[styles.clubCover, { backgroundColor: club.coverColor || colors.primary }]}>
+                        <View style={[styles.clubIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+                          <Ionicons name={(club.iconName || 'musical-notes') as any} size={24} color="#fff" />
+                        </View>
+                      </View>
+
+                      {/* Club Info */}
+                      <View style={styles.clubInfo}>
+                        <View style={styles.clubHeader}>
+                          <Text style={[styles.clubName, { color: colors.text }]}>{club.name}</Text>
+                          {club.isPrivate && (
+                            <View style={[styles.privateBadge, { backgroundColor: colors.backgroundSecondary }]}>
+                              <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
+                              <Text style={[styles.privateBadgeText, { color: colors.textSecondary }]}>Private</Text>
+                            </View>
+                          )}
+                        </View>
+                        {club.description && (
+                          <Text style={[styles.clubDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+                            {club.description}
+                          </Text>
+                        )}
+
+                        {/* Stats */}
+                        <View style={styles.clubStats}>
+                          <View style={styles.statItem}>
+                            <Ionicons name="people" size={14} color={colors.textTertiary} />
+                            <Text style={[styles.statText, { color: colors.textTertiary }]}>
+                              {club.memberCount.toLocaleString()} members
+                            </Text>
+                          </View>
+                          {club.category && (
+                            <View style={styles.statItem}>
+                              <Ionicons name="pricetag" size={14} color={colors.textTertiary} />
+                              <Text style={[styles.statText, { color: colors.textTertiary }]}>
+                                {club.category}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Join Button */}
+                        <TouchableOpacity
+                          style={[
+                            styles.joinButton,
+                            { backgroundColor: isMember ? colors.backgroundSecondary : colors.accent },
+                          ]}
+                          onPress={() => {
+                            if (!isMember && user?.id) {
+                              joinClub.mutate({ clubId: club.id, userId: user.id });
+                            }
+                          }}
+                          disabled={isMember || joinClub.isPending}
+                        >
+                          {joinClub.isPending ? (
+                            <ActivityIndicator color={isMember ? colors.text : '#fff'} size="small" />
+                          ) : (
+                            <Text style={[styles.joinButtonText, isMember && { color: colors.text }]}>
+                              {isMember ? 'Joined' : 'Join Club'}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Create Club CTA */}
+                <TouchableOpacity
+                  style={[styles.createClubCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                  activeOpacity={0.7}
+                  onPress={() => setCreateModalVisible(true)}
+                >
+                  <View style={[styles.createClubIcon, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="add" size={24} color="#fff" />
+                  </View>
+                  <Text style={[styles.createClubTitle, { color: colors.text }]}>Create Your Own Club</Text>
+                  <Text style={[styles.createClubSubtitle, { color: colors.textSecondary }]}>
+                    Build a community around your passion
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <Text style={[styles.createClubTitle, { color: colors.text }]}>Create Your Own Club</Text>
-              <Text style={[styles.createClubSubtitle, { color: colors.textSecondary }]}>
-                Build a community around your passion
-              </Text>
-            </TouchableOpacity>
-          </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <MaterialCommunityIcons name="account-group" size={64} color={colors.textTertiary} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Clubs Yet</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  Be the first to create a club{'\n'}and build your community
+                </Text>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.accent }]}
+                  onPress={() => setCreateModalVisible(true)}
+                >
+                  <Ionicons name="add-circle" size={16} color="#fff" />
+                  <Text style={styles.actionButtonText}>Create Club</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
+
+      {/* Create Club Modal */}
+      {user && (
+        <CreateClubModal
+          visible={createModalVisible}
+          onClose={() => setCreateModalVisible(false)}
+          userId={user.id}
+        />
+      )}
     </View>
   );
 }
@@ -251,6 +309,17 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl * 2,
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.medium,
   },
   emptyState: {
     padding: Spacing.xl * 2,
@@ -323,6 +392,24 @@ const styles = StyleSheet.create({
   },
   clubInfo: {
     padding: Spacing.md + 2,
+  },
+  clubHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xs,
+  },
+  privateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  privateBadgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.medium,
   },
   clubName: {
     fontSize: FontSizes.lg,
