@@ -61,11 +61,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       });
 
       return () => {
-        if (notificationListener.current) {
+        // Check if removeNotificationSubscription exists (not available in Expo Go SDK 53+)
+        if (notificationListener.current && Notifications.removeNotificationSubscription) {
           Notifications.removeNotificationSubscription(notificationListener.current);
+        } else if (notificationListener.current?.remove) {
+          notificationListener.current.remove();
         }
-        if (responseListener.current) {
+        if (responseListener.current && Notifications.removeNotificationSubscription) {
           Notifications.removeNotificationSubscription(responseListener.current);
+        } else if (responseListener.current?.remove) {
+          responseListener.current.remove();
         }
       };
     }
@@ -87,8 +92,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     const count = notifications.filter(n => !n.isRead).length;
     setUnreadCount(count);
-    // Update app badge
-    Notifications.setBadgeCountAsync(count);
+    // Update app badge (if available)
+    if (Notifications.setBadgeCountAsync) {
+      Notifications.setBadgeCountAsync(count).catch(error => {
+        console.log('Badge count not supported:', error.message);
+      });
+    }
   }, [notifications]);
 
   const refreshNotifications = async () => {
@@ -195,18 +204,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   const showLocalNotification = async (notification: Notification) => {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: notification.title,
-        body: notification.message,
-        data: {
-          notificationId: notification.id,
-          referenceId: notification.referenceId,
-          referenceType: notification.referenceType,
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: notification.title,
+          body: notification.message,
+          data: {
+            notificationId: notification.id,
+            referenceId: notification.referenceId,
+            referenceType: notification.referenceType,
+          },
         },
-      },
-      trigger: null, // Show immediately
-    });
+        trigger: null, // Show immediately
+      });
+    } catch (error) {
+      console.log('Could not schedule local notification:', error);
+      // This is expected in Expo Go
+    }
   };
 
   const markAsRead = async (notificationId: string) => {
@@ -335,11 +349,14 @@ async function registerForPushNotificationsAsync() {
   }
 
   try {
-    token = (await Notifications.getExpoPushTokenAsync({
-      projectId: 'your-project-id', // Replace with your Expo project ID
-    })).data;
+    // Note: Push tokens don't work in Expo Go for SDK 53+
+    // This will only work in development builds or production
+    token = (await Notifications.getExpoPushTokenAsync()).data;
   } catch (error) {
+    console.log('Failed to get push token for push notification!');
     console.error('Error getting push token:', error);
+    // This is expected in Expo Go - push notifications require a development build
+    return undefined;
   }
 
   return token;
