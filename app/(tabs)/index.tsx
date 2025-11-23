@@ -8,7 +8,6 @@ import {
   Dimensions,
   ActivityIndicator,
   Platform,
-  Alert,
   TextInput,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -223,7 +222,7 @@ export default function HomeScreen() {
                 activeOpacity={0.7}
                 onPress={() => {
                   if (activeTab === 'studios') {
-                    Alert.alert('Coming Soon', 'Studio booking feature will be available soon!');
+                    router.push(`/studio/${item.id}`);
                   } else if (activeTab === 'producers') {
                     router.push(`/producer/${item.userId}`);
                   } else {

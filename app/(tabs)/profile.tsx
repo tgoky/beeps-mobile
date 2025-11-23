@@ -378,11 +378,17 @@ export default function ProfileScreen() {
           <Ionicons name="settings-outline" size={20} color={colors.text} />
           <Text style={[styles.menuText, { color: colors.text }]}>Settings</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          style={[styles.menuItem, { borderBottomColor: colors.border }]}
+          onPress={() => router.push('/bookings')}
+        >
           <Ionicons name="calendar-outline" size={20} color={colors.text} />
           <Text style={[styles.menuText, { color: colors.text }]}>Bookings</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          style={[styles.menuItem, { borderBottomColor: colors.border }]}
+          onPress={() => router.push('/transactions')}
+        >
           <Ionicons name="receipt-outline" size={20} color={colors.text} />
           <Text style={[styles.menuText, { color: colors.text }]}>Transactions</Text>
         </TouchableOpacity>
