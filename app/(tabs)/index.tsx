@@ -158,8 +158,11 @@ export default function HomeScreen() {
                 if (activeTab === 'studios') {
                   // TODO: Navigate to studio detail/booking page
                   Alert.alert('Coming Soon', 'Studio booking feature will be available soon!');
+                } else if (activeTab === 'producers') {
+                  // Navigate to producer detail page with service request functionality
+                  router.push(`/producer/${item.userId}`);
                 } else {
-                  // Navigate to user profile
+                  // Navigate to user profile for artists
                   router.push(`/profile/${item.user.id}`);
                 }
               }}
