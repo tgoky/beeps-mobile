@@ -6,9 +6,56 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 import { useClubs, useMyClubs, useJoinClub } from '@/hooks/useClubs';
+import { useUserRoles } from '@/hooks/useCommunities';
+import { UserRole } from '@/types/database';
 import CreateClubModal from '@/components/CreateClubModal';
 
-type CommunityTab = 'feed' | 'clubs';
+type CommunityTab = 'feed' | 'clubs' | 'communities';
+
+// Role display configuration
+const ROLE_CONFIG: Record<UserRole, {
+  name: string;
+  icon: string;
+  color: string;
+  bg: string;
+  description: string;
+}> = {
+  ARTIST: {
+    name: 'Artists',
+    icon: '🎤',
+    color: '#A855F7',
+    bg: 'rgba(168, 85, 247, 0.1)',
+    description: 'Vocalists, musicians, performers'
+  },
+  PRODUCER: {
+    name: 'Producers',
+    icon: '🎚️',
+    color: '#3B82F6',
+    bg: 'rgba(59, 130, 246, 0.1)',
+    description: 'Beat makers, music producers'
+  },
+  STUDIO_OWNER: {
+    name: 'Studio Owners',
+    icon: '🏠',
+    color: '#10B981',
+    bg: 'rgba(16, 185, 129, 0.1)',
+    description: 'Recording studio operators'
+  },
+  GEAR_SELLER: {
+    name: 'Gear Specialists',
+    icon: '🎸',
+    color: '#F59E0B',
+    bg: 'rgba(245, 158, 11, 0.1)',
+    description: 'Equipment sellers & renters'
+  },
+  LYRICIST: {
+    name: 'Lyricists',
+    icon: '✍️',
+    color: '#EC4899',
+    bg: 'rgba(236, 72, 153, 0.1)',
+    description: 'Songwriters, lyricists'
+  },
+};
 
 export default function CommunityScreen() {
   const { user } = useAuth();
@@ -21,6 +68,7 @@ export default function CommunityScreen() {
   // Fetch data
   const { data: clubs, isLoading: clubsLoading } = useClubs();
   const { data: myClubs, isLoading: myClubsLoading } = useMyClubs(user?.id);
+  const { data: userRoles, isLoading: rolesLoading } = useUserRoles(user?.id);
   const joinClub = useJoinClub();
 
   return (
@@ -92,6 +140,30 @@ export default function CommunityScreen() {
             ]}
           >
             Clubs
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            { borderColor: colors.border },
+            activeTab === 'communities' && { backgroundColor: colors.accent, borderColor: colors.accent },
+          ]}
+          onPress={() => setActiveTab('communities')}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="earth"
+            size={20}
+            color={activeTab === 'communities' ? '#fff' : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'communities' ? '#fff' : colors.textSecondary },
+            ]}
+          >
+            Communities
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -227,6 +299,74 @@ export default function CommunityScreen() {
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: colors.accent }]}
                   onPress={() => setCreateModalVisible(true)}
+                >
+                  <Ionicons name="add-circle" size={16} color="#fff" />
+                  <Text style={styles.actionButtonText}>Create Club</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
+
+        {activeTab === 'communities' && (
+          <>
+            {rolesLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Loading communities...
+                </Text>
+              </View>
+            ) : userRoles && userRoles.length > 0 ? (
+              <View style={styles.communitiesContainer}>
+                <View style={styles.infoSection}>
+                  <Text style={[styles.infoTitle, { color: colors.text }]}>Your Communities</Text>
+                  <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                    Access communities based on your roles. Create clubs to unlock new communities!
+                  </Text>
+                </View>
+
+                <View style={styles.communitiesGrid}>
+                  {userRoles.map((role) => {
+                    const config = ROLE_CONFIG[role];
+                    return (
+                      <TouchableOpacity
+                        key={role}
+                        style={[
+                          styles.communityCard,
+                          { backgroundColor: config.bg, borderColor: config.color }
+                        ]}
+                        onPress={() => router.push(`/community/${role.toLowerCase()}`)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.communityIcon}>{config.icon}</Text>
+                        <Text style={[styles.communityName, { color: colors.text }]}>
+                          {config.name}
+                        </Text>
+                        <Text style={[styles.communityDescription, { color: colors.textSecondary }]}>
+                          {config.description}
+                        </Text>
+                        <View style={[styles.communityBadge, { backgroundColor: config.color }]}>
+                          <Ionicons name="arrow-forward" size={14} color="#fff" />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <MaterialCommunityIcons name="earth" size={64} color={colors.textTertiary} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Communities Yet</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  Create a club to unlock access{'\n'}to role-based communities
+                </Text>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.accent }]}
+                  onPress={() => {
+                    setActiveTab('clubs');
+                    setCreateModalVisible(true);
+                  }}
                 >
                   <Ionicons name="add-circle" size={16} color="#fff" />
                   <Text style={styles.actionButtonText}>Create Club</Text>
@@ -459,5 +599,52 @@ const styles = StyleSheet.create({
   createClubSubtitle: {
     fontSize: FontSizes.sm,
     textAlign: 'center',
+  },
+  communitiesContainer: {
+    padding: Spacing.lg,
+  },
+  infoSection: {
+    marginBottom: Spacing.xl,
+  },
+  infoTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.bold,
+    marginBottom: Spacing.xs,
+  },
+  infoText: {
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
+  },
+  communitiesGrid: {
+    gap: Spacing.md,
+  },
+  communityCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+    position: 'relative',
+  },
+  communityIcon: {
+    fontSize: 40,
+    marginBottom: Spacing.sm,
+  },
+  communityName: {
+    fontSize: FontSizes.lg,
+    fontWeight: FontWeights.bold,
+    marginBottom: Spacing.xs,
+  },
+  communityDescription: {
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
+  },
+  communityBadge: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.md,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
