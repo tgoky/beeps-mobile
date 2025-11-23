@@ -8,6 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -187,6 +188,15 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={[styles.cardButton, { backgroundColor: colors.accent }]}
                 activeOpacity={0.8}
+                onPress={() => {
+                  if (activeTab === 'studios') {
+                    // TODO: Navigate to studio booking page
+                    Alert.alert('Coming Soon', 'Studio booking feature will be available soon!');
+                  } else {
+                    // TODO: Navigate to user profile page
+                    Alert.alert('Profile', `View ${name}'s full profile\n\nProfile pages coming soon!`);
+                  }
+                }}
               >
                 <Text style={styles.cardButtonText}>
                   {activeTab === 'studios' ? 'Book Now' : 'View Profile'}

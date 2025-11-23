@@ -74,8 +74,9 @@ export default function CreateClubModal({ visible, onClose, userId }: CreateClub
 
       Alert.alert('Success', 'Club created successfully!');
       handleClose();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create club. Please try again.');
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to create club. Please try again.';
+      Alert.alert('Error', errorMessage);
       console.error('Create club error:', error);
     }
   };

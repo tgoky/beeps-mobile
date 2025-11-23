@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 import { useCollaborations, useMyCollaborations } from '@/hooks/useCollaborations';
+import CreateCollaborationModal from '@/components/CreateCollaborationModal';
 
 type CollabTab = 'browse' | 'my-collabs';
 
@@ -14,6 +15,7 @@ export default function CollaborationsScreen() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<CollabTab>('browse');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Fetch data
   const { data: collaborations, isLoading: collaborationsLoading } = useCollaborations();
@@ -86,7 +88,16 @@ export default function CollaborationsScreen() {
             Find your next creative partner
           </Text>
         </View>
-        <TouchableOpacity style={[styles.createButton, { backgroundColor: colors.accent }]}>
+        <TouchableOpacity
+          style={[styles.createButton, { backgroundColor: colors.accent }]}
+          onPress={() => {
+            if (!user?.id) {
+              Alert.alert('Sign In Required', 'Please sign in to create a collaboration');
+              return;
+            }
+            setShowCreateModal(true);
+          }}
+        >
           <Ionicons name="add" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -389,6 +400,15 @@ export default function CollaborationsScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Create Collaboration Modal */}
+      {user?.id && (
+        <CreateCollaborationModal
+          visible={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          userId={user.id}
+        />
+      )}
     </View>
   );
 }
