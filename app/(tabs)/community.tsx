@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
@@ -13,6 +14,7 @@ export default function CommunityScreen() {
   const { user } = useAuth();
   const { effectiveTheme } = useTheme();
   const colors = Colors[effectiveTheme];
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<CommunityTab>('feed');
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
@@ -141,6 +143,7 @@ export default function CommunityScreen() {
                       key={club.id}
                       style={[styles.clubCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                       activeOpacity={0.7}
+                      onPress={() => router.push(`/club/${club.id}`)}
                     >
                       {/* Club Cover */}
                       <View style={[styles.clubCover, { backgroundColor: colors.card }]}>
