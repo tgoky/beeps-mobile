@@ -20,6 +20,7 @@ import { useStudios } from '@/hooks/useStudios';
 import { useProducers } from '@/hooks/useProducers';
 import { useArtists } from '@/hooks/useArtists';
 import CustomMapView from '@/components/CustomMapView';
+import { NotificationBell } from '@/components/NotificationBell';
 
 const { width } = Dimensions.get('window');
 
@@ -357,6 +358,7 @@ export default function HomeScreen() {
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <Text style={[styles.greeting, { color: colors.text }]}>Discover</Text>
         <View style={styles.headerActions}>
+          <NotificationBell size={20} />
           {hasActiveFilters && (
             <View style={[styles.filterBadge, { backgroundColor: colors.accent }]}>
               <Text style={styles.filterBadgeText}>{filteredData.length}</Text>

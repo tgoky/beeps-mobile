@@ -9,6 +9,7 @@ import { useClubs, useMyClubs, useJoinClub } from '@/hooks/useClubs';
 import { useUserRoles } from '@/hooks/useCommunities';
 import { UserRole } from '@/types/database';
 import CreateClubModal from '@/components/CreateClubModal';
+import { NotificationBell } from '@/components/NotificationBell';
 
 type CommunityTab = 'feed' | 'clubs' | 'communities';
 
@@ -81,12 +82,15 @@ export default function CommunityScreen() {
             Connect with creators
           </Text>
         </View>
-        <TouchableOpacity
-          style={[styles.createButton, { backgroundColor: colors.accent }]}
-          onPress={() => setCreateModalVisible(true)}
-        >
-          <Ionicons name="add" size={18} color="#fff" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <NotificationBell size={20} />
+          <TouchableOpacity
+            style={[styles.createButton, { backgroundColor: colors.accent }]}
+            onPress={() => setCreateModalVisible(true)}
+          >
+            <Ionicons name="add" size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Tabs */}

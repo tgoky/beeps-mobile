@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 import { useUserProfile, useUserBeats, useUserEquipment, useUserCollaborations } from '@/hooks/useProfile';
 import { useMyClubs } from '@/hooks/useClubs';
+import { NotificationBell } from '@/components/NotificationBell';
 
 type ProfileTab = 'beats' | 'equipment' | 'collabs' | 'clubs';
 
@@ -164,6 +165,17 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      {/* Top Navigation Bar */}
+      <View style={[styles.topNav, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <Text style={[styles.topNavTitle, { color: colors.text }]}>Profile</Text>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <NotificationBell size={20} />
+          <TouchableOpacity onPress={() => router.push('/settings')}>
+            <Ionicons name="settings-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={[styles.header, { backgroundColor: colors.background }]}>
         <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
           <Text style={styles.avatarText}>
@@ -395,6 +407,19 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  topNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 60,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+  },
+  topNavTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.semiBold,
   },
   header: {
     alignItems: 'center',

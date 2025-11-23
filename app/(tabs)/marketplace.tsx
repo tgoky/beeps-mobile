@@ -5,6 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 import { useBeats } from '@/hooks/useBeats';
 import { useEquipment } from '@/hooks/useEquipment';
+import { NotificationBell } from '@/components/NotificationBell';
 
 type MarketplaceTab = 'beats' | 'equipment';
 
@@ -53,9 +54,12 @@ export default function MarketplaceScreen() {
             Buy beats & equipment
           </Text>
         </View>
-        <TouchableOpacity style={[styles.filterButton, { backgroundColor: colors.backgroundSecondary }]}>
-          <Ionicons name="options-outline" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <NotificationBell size={20} />
+          <TouchableOpacity style={[styles.filterButton, { backgroundColor: colors.backgroundSecondary }]}>
+            <Ionicons name="options-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Tabs */}
