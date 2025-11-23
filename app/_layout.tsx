@@ -25,6 +25,7 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === '(onboarding)';
     const inTabsGroup = segments[0] === '(tabs)';
+    const inAppGroup = inTabsGroup || segments[0] === 'studio' || segments[0] === 'producer' || segments[0] === 'profile' || segments[0] === 'club' || segments[0] === 'community' || segments[0] === 'bookings' || segments[0] === 'transactions' || segments[0] === 'settings' || segments[0] === 'modal';
 
     if (!session) {
       // User not authenticated - redirect to auth
@@ -39,8 +40,8 @@ function RootLayoutNav() {
           router.replace('/(onboarding)/welcome');
         }
       } else {
-        // User authenticated and onboarded - show main app
-        if (!inTabsGroup) {
+        // User authenticated and onboarded - allow main app and detail pages
+        if (!inAppGroup) {
           router.replace('/(tabs)');
         }
       }
@@ -58,6 +59,14 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="studio/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="producer/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="profile/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="club/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="community/[role]" options={{ headerShown: false }} />
+        <Stack.Screen name="bookings" options={{ headerShown: false }} />
+        <Stack.Screen name="transactions" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
