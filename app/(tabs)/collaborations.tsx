@@ -145,7 +145,8 @@ export default function CollaborationsScreen() {
             onPress={() => handleCreateByType(activeTab)}
           >
             <Ionicons name="add" size={20} color="#fff" />
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filters Section */}
