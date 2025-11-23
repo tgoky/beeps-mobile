@@ -154,6 +154,15 @@ export default function HomeScreen() {
               key={item.id}
               style={[styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border }]}
               activeOpacity={0.7}
+              onPress={() => {
+                if (activeTab === 'studios') {
+                  // TODO: Navigate to studio detail/booking page
+                  Alert.alert('Coming Soon', 'Studio booking feature will be available soon!');
+                } else {
+                  // Navigate to user profile
+                  router.push(`/profile/${item.user.id}`);
+                }
+              }}
             >
               <View style={styles.cardHeader}>
                 <View style={styles.cardTitleContainer}>
@@ -185,24 +194,12 @@ export default function HomeScreen() {
                 </Text>
               )}
 
-              <TouchableOpacity
-                style={[styles.cardButton, { backgroundColor: colors.accent }]}
-                activeOpacity={0.8}
-                onPress={() => {
-                  if (activeTab === 'studios') {
-                    // TODO: Navigate to studio booking page
-                    Alert.alert('Coming Soon', 'Studio booking feature will be available soon!');
-                  } else {
-                    // TODO: Navigate to user profile page
-                    Alert.alert('Profile', `View ${name}'s full profile\n\nProfile pages coming soon!`);
-                  }
-                }}
-              >
-                <Text style={styles.cardButtonText}>
-                  {activeTab === 'studios' ? 'Book Now' : 'View Profile'}
+              <View style={styles.cardFooter}>
+                <Text style={[styles.tapToView, { color: colors.textTertiary }]}>
+                  Tap to {activeTab === 'studios' ? 'view details' : 'view profile'}
                 </Text>
-                <Ionicons name="arrow-forward" size={16} color="#fff" />
-              </TouchableOpacity>
+                <Ionicons name="arrow-forward" size={16} color={colors.textTertiary} />
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -498,20 +495,16 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
     marginBottom: Spacing.sm,
   },
-  cardButton: {
+  cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.sm + 2,
-    borderRadius: BorderRadius.sm,
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
+    justifyContent: 'space-between',
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
   },
-  cardButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-    letterSpacing: 0.3,
+  tapToView: {
+    fontSize: FontSizes.xs,
+    fontStyle: 'italic',
   },
   mapContainer: {
     flex: 1,
