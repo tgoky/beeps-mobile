@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Collaboration } from '@/types/database';
+import { Collaboration, CollaborationType } from '@/types/database';
 
 export interface CollaborationWithCreator extends Collaboration {
   creator: {
@@ -238,5 +238,55 @@ export function useMyCollaborations(userId?: string) {
       }) as CollaborationWithCreator[];
     },
     enabled: !!userId,
+  });
+}
+
+// Create a collaboration
+export function useCreateCollaboration() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (collaboration: {
+      type: CollaborationType;
+      title: string;
+      description?: string;
+      userId: string;
+      price?: number;
+      minBid?: number;
+      duration?: number;
+      location?: string;
+      genre?: string;
+      equipment?: string[];
+      slots?: number;
+      availableDate?: string;
+    }) => {
+      const { data, error } = await supabase
+        .from('collaborations')
+        .insert({
+          type: collaboration.type,
+          status: 'OPEN',
+          title: collaboration.title,
+          description: collaboration.description,
+          creator_id: collaboration.userId,
+          price: collaboration.price,
+          min_bid: collaboration.minBid,
+          duration: collaboration.duration,
+          location: collaboration.location,
+          genre: collaboration.genre,
+          equipment: collaboration.equipment,
+          slots: collaboration.slots,
+          available_date: collaboration.availableDate,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collaborations'] });
+      queryClient.invalidateQueries({ queryKey: ['collaborations', 'my'] });
+    },
   });
 }
