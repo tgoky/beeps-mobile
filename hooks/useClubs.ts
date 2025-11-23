@@ -1,6 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Club, ClubType } from '@/types/database';
+import { Club, ClubType, UserRole } from '@/types/database';
+
+// Map club types to the roles they grant
+const CLUB_TYPE_TO_ROLE_MAP: Record<ClubType, UserRole> = {
+  RECORDING: 'ARTIST',
+  PRODUCTION: 'PRODUCER',
+  RENTAL: 'STUDIO_OWNER',
+  MANAGEMENT: 'ARTIST', // Changed from OTHER to ARTIST for better UX
+  DISTRIBUTION: 'ARTIST', // Changed from OTHER to ARTIST for better UX
+  CREATIVE: 'LYRICIST',
+};
 
 export interface ClubWithOwner extends Club {
   owner: {
@@ -187,11 +197,29 @@ export function useCreateClub() {
 
       if (memberError) throw memberError;
 
-      return clubData;
+      // Grant the corresponding role to the user
+      const grantedRole = CLUB_TYPE_TO_ROLE_MAP[club.type];
+      const { error: roleGrantError } = await supabase
+        .from('user_role_grants')
+        .upsert({
+          user_id: club.ownerId,
+          role_type: grantedRole,
+          granted_by: clubData.id,
+        }, {
+          onConflict: 'user_id,role_type',
+        });
+
+      if (roleGrantError) {
+        console.warn('Failed to grant role:', roleGrantError);
+        // Don't throw - club was created successfully
+      }
+
+      return { club: clubData, grantedRole };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clubs'] });
       queryClient.invalidateQueries({ queryKey: ['clubs', 'my'] });
+      queryClient.invalidateQueries({ queryKey: ['user-roles'] });
     },
   });
 }

@@ -240,3 +240,12 @@ export interface ClubMembership {
   role: ClubMemberRole;
   joinedAt: string;
 }
+
+// User Role Grant - for accessing communities
+export interface UserRoleGrant {
+  id: string;
+  userId: string;
+  roleType: UserRole;
+  grantedBy?: string; // Club ID that granted this role
+  createdAt: string;
+}

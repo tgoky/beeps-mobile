@@ -94,7 +94,7 @@ export default function CreateClubModal({ visible, onClose, userId }: CreateClub
     }
 
     try {
-      await createClub.mutateAsync({
+      const result = await createClub.mutateAsync({
         name: name.trim(),
         type: selectedType,
         description: description.trim() || undefined,
@@ -102,7 +102,11 @@ export default function CreateClubModal({ visible, onClose, userId }: CreateClub
         ownerId: userId,
       });
 
-      Alert.alert('Success', 'Club created successfully!');
+      const grantedRole = CLUB_TYPES.find(t => t.value === selectedType)?.grantsRole;
+      Alert.alert(
+        'Success!',
+        `Club created successfully!\n\n🎉 You now have access to the ${grantedRole} community.`
+      );
       handleClose();
     } catch (error: any) {
       const errorMessage = error?.message || 'Failed to create club. Please try again.';
