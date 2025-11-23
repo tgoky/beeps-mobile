@@ -62,25 +62,29 @@ export default function NotificationsScreen() {
   const filteredNotifications = notifications.filter(notification => {
     if (filter === 'all') return true;
     if (filter === 'unread') return !notification.isRead;
-    if (filter === 'bookings') return notification.type === 'BOOKING';
-    if (filter === 'messages') return notification.type === 'MESSAGE';
+    if (filter === 'bookings') return notification.type.includes('BOOKING');
+    if (filter === 'messages') return notification.type.includes('JOB'); // Service requests
     return true;
   });
 
   const getNotificationIcon = (type: string): keyof typeof Ionicons.glyphMap => {
     switch (type) {
-      case 'BOOKING':
+      case 'BOOKING_CONFIRMED':
+      case 'BOOKING_CANCELLED':
         return 'calendar';
-      case 'MESSAGE':
-        return 'chatbubble';
-      case 'COLLABORATION':
-        return 'people';
-      case 'GEAR':
-        return 'hardware-chip';
-      case 'FOLLOW':
+      case 'JOB_REQUEST':
+      case 'JOB_ACCEPTED':
+      case 'JOB_REJECTED':
+      case 'JOB_UPDATED':
+        return 'briefcase';
+      case 'NEW_FOLLOWER':
         return 'person-add';
-      case 'LIKE':
-        return 'heart';
+      case 'NEW_REVIEW':
+        return 'star';
+      case 'CLUB_INVITATION':
+        return 'people';
+      case 'TRANSACTION_COMPLETED':
+        return 'card';
       default:
         return 'notifications';
     }

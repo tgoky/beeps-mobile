@@ -99,12 +99,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('userId', user.id)
-        .order('createdAt', { ascending: false })
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      setNotifications(data || []);
+
+      // Transform snake_case to camelCase
+      const transformedData = data?.map(notification => ({
+        id: notification.id,
+        userId: notification.user_id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        isRead: notification.is_read,
+        referenceId: notification.reference_id,
+        referenceType: notification.reference_type,
+        createdAt: notification.created_at,
+      })) || [];
+
+      setNotifications(transformedData);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
@@ -124,10 +138,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `userId=eq.${user.id}`,
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const newNotification = payload.new as Notification;
+          const rawNotification = payload.new as any;
+          // Transform snake_case to camelCase
+          const newNotification: Notification = {
+            id: rawNotification.id,
+            userId: rawNotification.user_id,
+            type: rawNotification.type,
+            title: rawNotification.title,
+            message: rawNotification.message,
+            isRead: rawNotification.is_read,
+            referenceId: rawNotification.reference_id,
+            referenceType: rawNotification.reference_type,
+            createdAt: rawNotification.created_at,
+          };
           setNotifications(prev => [newNotification, ...prev]);
 
           // Show local notification
@@ -140,10 +166,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           event: 'UPDATE',
           schema: 'public',
           table: 'notifications',
-          filter: `userId=eq.${user.id}`,
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const updatedNotification = payload.new as Notification;
+          const rawNotification = payload.new as any;
+          // Transform snake_case to camelCase
+          const updatedNotification: Notification = {
+            id: rawNotification.id,
+            userId: rawNotification.user_id,
+            type: rawNotification.type,
+            title: rawNotification.title,
+            message: rawNotification.message,
+            isRead: rawNotification.is_read,
+            referenceId: rawNotification.reference_id,
+            referenceType: rawNotification.reference_type,
+            createdAt: rawNotification.created_at,
+          };
           setNotifications(prev =>
             prev.map(n => (n.id === updatedNotification.id ? updatedNotification : n))
           );
@@ -175,7 +213,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ isRead: true })
+        .update({ is_read: true })
         .eq('id', notificationId);
 
       if (error) throw error;
@@ -194,9 +232,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ isRead: true })
-        .eq('userId', user.id)
-        .eq('isRead', false);
+        .update({ is_read: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
 
       if (error) throw error;
 
