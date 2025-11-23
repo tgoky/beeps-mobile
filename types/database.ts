@@ -249,3 +249,20 @@ export interface UserRoleGrant {
   grantedBy?: string; // Club ID that granted this role
   createdAt: string;
 }
+
+// Transaction types
+export type TransactionType = 'BEAT_PURCHASE' | 'EQUIPMENT_PURCHASE' | 'STUDIO_BOOKING' | 'SERVICE_PAYMENT' | 'SUBSCRIPTION';
+export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+
+export interface Transaction {
+  id: string;
+  userId: string;
+  type: TransactionType;
+  amount: number;
+  status: TransactionStatus;
+  referenceId?: string;
+  referenceType?: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
