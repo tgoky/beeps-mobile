@@ -80,21 +80,27 @@ export function useUserProfile(userId?: string) {
         }
       }
 
-      // Count user's resources
-      const { count: studioCount } = await supabase
+      // Count user's resources - with error handling
+      const { count: studioCount, error: studioError } = await supabase
         .from('studios')
         .select('*', { count: 'exact', head: true })
         .eq('owner_id', userId);
 
-      const { count: collaborationCount } = await supabase
+      if (studioError) console.log('Studio count error:', studioError);
+
+      const { count: collaborationCount, error: collabError } = await supabase
         .from('collaborations')
         .select('*', { count: 'exact', head: true })
         .eq('creator_id', userId);
 
-      const { count: clubCount } = await supabase
+      if (collabError) console.log('Collaboration count error:', collabError);
+
+      const { count: clubCount, error: clubError } = await supabase
         .from('club_memberships')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId);
+
+      if (clubError) console.log('Club count error:', clubError);
 
       return {
         id: userData.id,
