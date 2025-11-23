@@ -216,28 +216,27 @@ export interface Booking {
   updatedAt: string;
 }
 
-// Club types
+// Club types - Aligned with web app Prisma schema
+export type ClubType = 'RECORDING' | 'PRODUCTION' | 'RENTAL' | 'MANAGEMENT' | 'DISTRIBUTION' | 'CREATIVE';
+
 export interface Club {
   id: string;
   name: string;
+  type: ClubType;
   description?: string;
-  creatorId: string;
-  coverColor?: string;
-  coverImageUrl?: string;
-  iconName?: string;
-  category?: string;
-  tags?: string[];
-  memberCount: number;
-  isPrivate: boolean;
+  icon: string; // Emoji icon (e.g., 🎵, 🎸, etc.)
+  ownerId: string; // Changed from creatorId to match Prisma schema
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
+export type ClubMemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+
 export interface ClubMembership {
   id: string;
   clubId: string;
   userId: string;
-  role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  role: ClubMemberRole;
   joinedAt: string;
 }
