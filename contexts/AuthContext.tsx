@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { User } from '@/types/database';
 
@@ -7,29 +8,47 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  hasCompletedOnboarding: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, userData: Partial<User>) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const ONBOARDING_STORAGE_KEY = '@beeps_onboarding_completed';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
+    // Initialize app - check auth and onboarding status
+    const initializeApp = async () => {
+      try {
+        // Check onboarding status first
+        const onboardingStatus = await AsyncStorage.getItem(ONBOARDING_STORAGE_KEY);
+        setHasCompletedOnboarding(onboardingStatus === 'true');
+
+        // Get initial session
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing app:', error);
         setLoading(false);
       }
-    });
+    };
+
+    initializeApp();
 
     // Listen for auth changes
     const {
@@ -100,16 +119,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
+  const completeOnboarding = async () => {
+    try {
+      await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
+      setHasCompletedOnboarding(true);
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
         session,
         user,
         loading,
+        hasCompletedOnboarding,
         signIn,
         signUp,
         signOut,
         resetPassword,
+        completeOnboarding,
       }}
     >
       {children}
