@@ -24,6 +24,7 @@ import {
 } from '@/hooks/useCollaborations';
 import { CollaborationType } from '@/types/database';
 import CreateCollaborationModal from '@/components/CreateCollaborationModal';
+import { NotificationBell } from '@/components/NotificationBell';
 
 type CollabTab = 'deal' | 'collab' | 'bid';
 
@@ -137,11 +138,13 @@ export default function CollaborationsScreen() {
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={[styles.createButton, { backgroundColor: colors.accent }]}
-          onPress={() => handleCreateByType(activeTab)}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <NotificationBell size={20} />
+          <TouchableOpacity
+            style={[styles.createButton, { backgroundColor: colors.accent }]}
+            onPress={() => handleCreateByType(activeTab)}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
 
