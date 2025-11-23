@@ -97,28 +97,28 @@ export const FontWeights: { [key: string]: any } = {
   bold: '700',
 };
 
-// Typography scale (reduced sizes for friendlier feel)
+// Typography scale (compact & sleek)
 export const FontSizes = {
-  xs: 11,
-  sm: 13,
-  base: 15,
-  lg: 17,
-  xl: 19,
-  '2xl': 22,
-  '3xl': 26,
-  '4xl': 32,
-  '5xl': 42,
+  xs: 10,
+  sm: 12,
+  base: 14,
+  lg: 16,
+  xl: 18,
+  '2xl': 20,
+  '3xl': 24,
+  '4xl': 28,
+  '5xl': 36,
 };
 
-// Spacing scale
+// Spacing scale (tighter for compact UI)
 export const Spacing = {
   xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  '2xl': 48,
-  '3xl': 64,
+  sm: 6,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  '2xl': 32,
+  '3xl': 48,
 };
 
 // Border radius
