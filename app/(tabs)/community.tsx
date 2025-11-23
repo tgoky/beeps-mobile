@@ -143,22 +143,19 @@ export default function CommunityScreen() {
                       activeOpacity={0.7}
                     >
                       {/* Club Cover */}
-                      <View style={[styles.clubCover, { backgroundColor: club.coverColor || colors.primary }]}>
-                        <View style={[styles.clubIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
-                          <Ionicons name={(club.iconName || 'musical-notes') as any} size={24} color="#fff" />
-                        </View>
+                      <View style={[styles.clubCover, { backgroundColor: colors.card }]}>
+                        <Text style={styles.clubCoverIcon}>{club.icon || '🎵'}</Text>
                       </View>
 
                       {/* Club Info */}
                       <View style={styles.clubInfo}>
                         <View style={styles.clubHeader}>
                           <Text style={[styles.clubName, { color: colors.text }]}>{club.name}</Text>
-                          {club.isPrivate && (
-                            <View style={[styles.privateBadge, { backgroundColor: colors.backgroundSecondary }]}>
-                              <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
-                              <Text style={[styles.privateBadgeText, { color: colors.textSecondary }]}>Private</Text>
-                            </View>
-                          )}
+                          <View style={[styles.typeBadge, { backgroundColor: colors.backgroundSecondary }]}>
+                            <Text style={[styles.typeBadgeText, { color: colors.textSecondary }]}>
+                              {club.type}
+                            </Text>
+                          </View>
                         </View>
                         {club.description && (
                           <Text style={[styles.clubDescription, { color: colors.textSecondary }]} numberOfLines={2}>
@@ -171,17 +168,9 @@ export default function CommunityScreen() {
                           <View style={styles.statItem}>
                             <Ionicons name="people" size={14} color={colors.textTertiary} />
                             <Text style={[styles.statText, { color: colors.textTertiary }]}>
-                              {club.memberCount.toLocaleString()} members
+                              {(club.memberCount || 0).toLocaleString()} members
                             </Text>
                           </View>
-                          {club.category && (
-                            <View style={styles.statItem}>
-                              <Ionicons name="pricetag" size={14} color={colors.textTertiary} />
-                              <Text style={[styles.statText, { color: colors.textTertiary }]}>
-                                {club.category}
-                              </Text>
-                            </View>
-                          )}
                         </View>
 
                         {/* Join Button */}
@@ -383,12 +372,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  clubIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
+  clubCoverIcon: {
+    fontSize: 48,
   },
   clubInfo: {
     padding: Spacing.md + 2,
@@ -399,7 +384,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.xs,
   },
-  privateBadge: {
+  typeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.xs + 2,
@@ -407,9 +392,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     gap: 4,
   },
-  privateBadgeText: {
+  typeBadgeText: {
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.medium,
+    textTransform: 'capitalize',
   },
   clubName: {
     fontSize: FontSizes.lg,
