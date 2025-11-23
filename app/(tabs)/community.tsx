@@ -85,7 +85,7 @@ export default function CommunityScreen() {
           style={[styles.createButton, { backgroundColor: colors.accent }]}
           onPress={() => setCreateModalVisible(true)}
         >
-          <Ionicons name="add" size={20} color="#fff" />
+          <Ionicons name="add" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -106,7 +106,7 @@ export default function CommunityScreen() {
         >
           <MaterialCommunityIcons
             name="newspaper-variant"
-            size={20}
+            size={16}
             color={activeTab === 'feed' ? '#fff' : colors.textSecondary}
           />
           <Text
@@ -130,7 +130,7 @@ export default function CommunityScreen() {
         >
           <MaterialCommunityIcons
             name="account-group"
-            size={20}
+            size={16}
             color={activeTab === 'clubs' ? '#fff' : colors.textSecondary}
           />
           <Text
@@ -154,7 +154,7 @@ export default function CommunityScreen() {
         >
           <MaterialCommunityIcons
             name="earth"
-            size={20}
+            size={16}
             color={activeTab === 'communities' ? '#fff' : colors.textSecondary}
           />
           <Text
@@ -396,48 +396,45 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: Spacing.md,
+    paddingTop: Platform.OS === 'ios' ? 48 : 32,
+    paddingBottom: Spacing.sm,
     borderBottomWidth: 1,
   },
   title: {
-    fontSize: FontSizes['3xl'],
+    fontSize: FontSizes['2xl'],
     fontWeight: FontWeights.bold,
-    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     fontWeight: FontWeights.regular,
     marginTop: 2,
-    letterSpacing: 0.2,
   },
   createButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.md,
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
     justifyContent: 'center',
     alignItems: 'center',
   },
   tabsContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     gap: Spacing.sm,
   },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md + 4,
-    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     borderWidth: 1,
   },
   tabText: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     fontWeight: FontWeights.semiBold,
-    letterSpacing: 0.2,
   },
   content: {
     flex: 1,
