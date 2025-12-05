@@ -431,7 +431,11 @@ export default function StudioDetailScreen() {
             {/* Date Selection */}
             <View style={styles.bookingSection}>
               <Text style={[styles.bookingLabel, { color: colors.text }]}>Select Date</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.dateScrollContent}
+              >
                 {Array.from({ length: 14 }, (_, i) => {
                   const date = dayjs().add(i, 'day');
                   const isSelected = selectedDate.format('YYYY-MM-DD') === date.format('YYYY-MM-DD');
@@ -810,15 +814,15 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.semiBold,
     marginBottom: Spacing.sm,
   },
-  dateScroll: {
-    marginBottom: Spacing.xs,
+  dateScrollContent: {
+    paddingRight: Spacing.lg,
+    gap: Spacing.sm,
   },
   dateChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    marginRight: Spacing.sm,
     minWidth: 60,
     alignItems: 'center',
   },

@@ -102,16 +102,20 @@ export function useCreateBooking() {
       totalAmount: number;
       notes?: string;
     }) => {
+      // Generate UUID for the booking
+      const bookingId = crypto.randomUUID();
+
       const { data, error } = await supabase
         .from('bookings')
         .insert({
+          id: bookingId,
           studio_id: booking.studioId,
           user_id: booking.userId,
           start_time: booking.startTime,
           end_time: booking.endTime,
           status: 'PENDING',
           total_amount: booking.totalAmount,
-          notes: booking.notes,
+          notes: booking.notes || '',
         })
         .select()
         .single();
