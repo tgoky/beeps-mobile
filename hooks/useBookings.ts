@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Booking, BookingStatus } from '@/types/database';
+import * as Crypto from 'expo-crypto';
 
 export interface BookingWithStudio extends Booking {
   studio: {
@@ -103,7 +104,7 @@ export function useCreateBooking() {
       notes?: string;
     }) => {
       // Generate UUID for the booking
-      const bookingId = crypto.randomUUID();
+      const bookingId = Crypto.randomUUID();
 
       const { data, error } = await supabase
         .from('bookings')
