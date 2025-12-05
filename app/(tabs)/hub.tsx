@@ -9,24 +9,19 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
-  Image,
-  Modal,
   Dimensions,
+  Image,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
 import { useBeats } from '@/hooks/useBeats';
 import { useEquipment } from '@/hooks/useEquipment';
-import {
-  useCollaborations,
-  useCreateCollaboration,
-  CollaborationWithCreator,
-} from '@/hooks/useCollaborations';
+import { useCollaborations, CollaborationWithCreator } from '@/hooks/useCollaborations';
 import { CollaborationType } from '@/types/database';
-import CreateCollaborationModal from '@/components/CreateCollaborationModal';
 import { NotificationBell } from '@/components/NotificationBell';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -34,95 +29,33 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
 
 const { width } = Dimensions.get('window');
+const CARD_WIDTH = width - Spacing.lg * 2;
 
-type HubTab = 'beats' | 'equipment' | 'deals' | 'collabs' | 'bids';
+type HubTab = 'all' | 'beats' | 'equipment' | 'deals' | 'collabs' | 'bids';
+
+const GRADIENT_COLORS = {
+  beats: ['#8B5CF6', '#EC4899'],
+  equipment: ['#10B981', '#059669'],
+  deals: ['#F59E0B', '#EF4444'],
+  collabs: ['#3B82F6', '#8B5CF6'],
+  bids: ['#EF4444', '#F97316'],
+};
 
 export default function HubScreen() {
   const { effectiveTheme } = useTheme();
   const colors = Colors[effectiveTheme];
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<HubTab>('beats');
+  const [activeTab, setActiveTab] = useState<HubTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGenre, setSelectedGenre] = useState('all');
-  const [selectedLocation, setSelectedLocation] = useState('all');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showBidModal, setShowBidModal] = useState(false);
-  const [selectedCollabId, setSelectedCollabId] = useState<string | null>(null);
-  const [bidPrice, setBidPrice] = useState(50);
-  const [bidMessage, setBidMessage] = useState('');
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
 
-  // Fetch marketplace data
-  const { data: beats, isLoading: beatsLoading } = useBeats();
-  const { data: equipment, isLoading: equipmentLoading } = useEquipment();
-
-  // Fetch collaborations data
-  const collabTypeMap: Record<'deals' | 'collabs' | 'bids', CollaborationType> = {
-    deals: 'PROJECT',
-    collabs: 'SESSION',
-    bids: 'AUCTION',
-  };
-
-  const { data: collaborations, isLoading: collabsLoading } = useCollaborations(
-    activeTab === 'deals' ? collabTypeMap.deals :
-    activeTab === 'collabs' ? collabTypeMap.collabs :
-    activeTab === 'bids' ? collabTypeMap.bids :
-    undefined
-  );
-
-  const createCollab = useCreateCollaboration();
-
-  // Filter marketplace data
-  const filteredBeats = useMemo(() => {
-    if (!beats || !searchQuery.trim()) return beats;
-    const query = searchQuery.toLowerCase();
-    return beats.filter(
-      (beat) =>
-        beat.title.toLowerCase().includes(query) ||
-        beat.producer.username.toLowerCase().includes(query) ||
-        beat.producer.fullName?.toLowerCase().includes(query) ||
-        beat.genres.some((genre) => genre.toLowerCase().includes(query))
-    );
-  }, [beats, searchQuery]);
-
-  const filteredEquipment = useMemo(() => {
-    if (!equipment || !searchQuery.trim()) return equipment;
-    const query = searchQuery.toLowerCase();
-    return equipment.filter(
-      (item) =>
-        item.name.toLowerCase().includes(query) ||
-        item.category.toLowerCase().includes(query) ||
-        item.seller.username.toLowerCase().includes(query) ||
-        item.seller.fullName?.toLowerCase().includes(query)
-    );
-  }, [equipment, searchQuery]);
-
-  // Filter collaborations data
-  const filteredCollabs = useMemo(() => {
-    if (!collaborations) return [];
-    let filtered = collaborations;
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (collab) =>
-          collab.title.toLowerCase().includes(query) ||
-          collab.description?.toLowerCase().includes(query) ||
-          collab.creator.username.toLowerCase().includes(query)
-      );
-    }
-
-    if (selectedGenre !== 'all') {
-      filtered = filtered.filter((collab) => collab.genre?.includes(selectedGenre));
-    }
-
-    if (selectedLocation !== 'all') {
-      filtered = filtered.filter((collab) => collab.location?.toLowerCase().includes(selectedLocation.toLowerCase()));
-    }
-
-    return filtered;
-  }, [collaborations, searchQuery, selectedGenre, selectedLocation]);
+  // Fetch data
+  const { data: beats = [], isLoading: beatsLoading } = useBeats();
+  const { data: equipment = [], isLoading: equipmentLoading } = useEquipment();
+  const { data: dealsData = [], isLoading: dealsLoading } = useCollaborations('PROJECT');
+  const { data: collabsData = [], isLoading: collabsLoading } = useCollaborations('SESSION');
+  const { data: bidsData = [], isLoading: bidsLoading } = useCollaborations('AUCTION');
 
   const toggleLike = (id: string) => {
     setLikedItems((prev) => {
@@ -136,293 +69,363 @@ export default function HubScreen() {
     });
   };
 
-  const handleCreateCollab = () => {
-    if (!user) {
-      Alert.alert('Sign In Required', 'Please sign in to create a collaboration');
-      return;
-    }
-    setShowCreateModal(true);
-  };
+  // Filter and combine all data based on active tab
+  const filteredData = useMemo(() => {
+    let allItems: any[] = [];
 
-  const handlePlaceBid = (collabId: string) => {
-    if (!user) {
-      Alert.alert('Sign In Required', 'Please sign in to place a bid');
-      return;
+    if (activeTab === 'all' || activeTab === 'beats') {
+      allItems = [...allItems, ...beats.map(b => ({ ...b, type: 'beat' }))];
     }
-    setSelectedCollabId(collabId);
-    setShowBidModal(true);
-  };
+    if (activeTab === 'all' || activeTab === 'equipment') {
+      allItems = [...allItems, ...equipment.map(e => ({ ...e, type: 'equipment' }))];
+    }
+    if (activeTab === 'all' || activeTab === 'deals') {
+      allItems = [...allItems, ...dealsData.map(d => ({ ...d, type: 'deal' }))];
+    }
+    if (activeTab === 'all' || activeTab === 'collabs') {
+      allItems = [...allItems, ...collabsData.map(c => ({ ...c, type: 'collab' }))];
+    }
+    if (activeTab === 'all' || activeTab === 'bids') {
+      allItems = [...allItems, ...bidsData.map(b => ({ ...b, type: 'bid' }))];
+    }
 
-  const tabs: { key: HubTab; label: string; icon: string }[] = [
-    { key: 'beats', label: 'Beats', icon: 'musical-notes' },
-    { key: 'equipment', label: 'Gear', icon: 'hardware-chip' },
-    { key: 'deals', label: 'Deals', icon: 'flash' },
-    { key: 'collabs', label: 'Collabs', icon: 'people' },
-    { key: 'bids', label: 'Bids', icon: 'trending-up' },
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      allItems = allItems.filter(item => {
+        if (item.type === 'beat') {
+          return item.title?.toLowerCase().includes(query) ||
+                 item.producer?.username?.toLowerCase().includes(query);
+        }
+        if (item.type === 'equipment') {
+          return item.name?.toLowerCase().includes(query) ||
+                 item.category?.toLowerCase().includes(query);
+        }
+        return item.title?.toLowerCase().includes(query) ||
+               item.creator?.username?.toLowerCase().includes(query);
+      });
+    }
+
+    return allItems;
+  }, [beats, equipment, dealsData, collabsData, bidsData, activeTab, searchQuery]);
+
+  const tabs = [
+    { key: 'all' as HubTab, label: 'All', icon: 'apps', count: filteredData.length },
+    { key: 'beats' as HubTab, label: 'Beats', icon: 'musical-notes', count: beats.length },
+    { key: 'equipment' as HubTab, label: 'Gear', icon: 'hardware-chip', count: equipment.length },
+    { key: 'deals' as HubTab, label: 'Deals', icon: 'flash', count: dealsData.length },
+    { key: 'collabs' as HubTab, label: 'Collabs', icon: 'people', count: collabsData.length },
+    { key: 'bids' as HubTab, label: 'Bids', icon: 'trending-up', count: bidsData.length },
   ];
 
-  const renderMarketplaceContent = () => {
-    if (activeTab === 'beats') {
-      if (beatsLoading) {
-        return (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        );
-      }
-
-      if (!filteredBeats || filteredBeats.length === 0) {
-        return (
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="music-note-off" size={64} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No beats found</Text>
-          </View>
-        );
-      }
-
-      return (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.grid}>
-            {filteredBeats.map((beat) => (
-              <TouchableOpacity
-                key={beat.id}
-                style={[styles.beatCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.beatImage, { backgroundColor: colors.backgroundSecondary }]}>
-                  <MaterialCommunityIcons name="music" size={32} color={colors.textTertiary} />
-                </View>
-                <View style={styles.beatInfo}>
-                  <Text style={[styles.beatTitle, { color: colors.text }]} numberOfLines={1}>
-                    {beat.title}
-                  </Text>
-                  <Text style={[styles.beatProducer, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {beat.producer.fullName || beat.producer.username}
-                  </Text>
-                  <View style={styles.beatMeta}>
-                    <Text style={[styles.beatPrice, { color: colors.accent }]}>${beat.price}</Text>
-                    <View style={styles.beatStats}>
-                      <Ionicons name="play" size={12} color={colors.textTertiary} />
-                      <Text style={[styles.beatStat, { color: colors.textTertiary }]}>{beat.plays}</Text>
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={{ height: 80 }} />
-        </ScrollView>
-      );
-    }
-
-    if (activeTab === 'equipment') {
-      if (equipmentLoading) {
-        return (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        );
-      }
-
-      if (!filteredEquipment || filteredEquipment.length === 0) {
-        return (
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="tools" size={64} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No equipment found</Text>
-          </View>
-        );
-      }
-
-      return (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.grid}>
-            {filteredEquipment.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.equipCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.equipImage, { backgroundColor: colors.backgroundSecondary }]}>
-                  <MaterialCommunityIcons name="microphone" size={32} color={colors.textTertiary} />
-                </View>
-                <View style={styles.equipInfo}>
-                  <Text style={[styles.equipName, { color: colors.text }]} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={[styles.equipCategory, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {item.category}
-                  </Text>
-                  <View style={styles.equipMeta}>
-                    <Text style={[styles.equipPrice, { color: colors.accent }]}>${item.price}</Text>
-                    <Text style={[styles.equipCondition, { color: colors.textTertiary }]}>{item.condition}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={{ height: 80 }} />
-        </ScrollView>
-      );
-    }
-
-    return null;
-  };
-
-  const renderCollabsContent = () => {
-    if (collabsLoading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      );
-    }
-
-    if (!filteredCollabs || filteredCollabs.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons
-            name={activeTab === 'deals' ? 'flash-off' : activeTab === 'collabs' ? 'handshake' : 'gavel'}
-            size={64}
-            color={colors.textTertiary}
+  const renderBeatCard = (beat: any) => (
+    <TouchableOpacity
+      key={beat.id}
+      style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
+      activeOpacity={0.9}
+      onPress={() => {
+        // Navigate to beat detail or play preview
+        Alert.alert('Beat', `Playing ${beat.title}`);
+      }}
+    >
+      <View style={styles.cardImageContainer}>
+        <LinearGradient
+          colors={GRADIENT_COLORS.beats}
+          style={styles.cardGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <MaterialCommunityIcons name="music-note" size={48} color="rgba(255,255,255,0.9)" />
+        </LinearGradient>
+        <TouchableOpacity
+          style={styles.likeButton}
+          onPress={() => toggleLike(beat.id)}
+        >
+          <Ionicons
+            name={likedItems.has(beat.id) ? 'heart' : 'heart-outline'}
+            size={24}
+            color={likedItems.has(beat.id) ? '#EF4444' : '#fff'}
           />
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            No {activeTab} found
-          </Text>
-          <TouchableOpacity
-            style={[styles.createButton, { backgroundColor: colors.accent }]}
-            onPress={handleCreateCollab}
-          >
-            <Text style={styles.createButtonText}>Create {activeTab === 'deals' ? 'Deal' : activeTab === 'collabs' ? 'Collab' : 'Bid'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+              {beat.title}
+            </Text>
+            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+              {beat.producer?.fullName || beat.producer?.username}
+            </Text>
+          </View>
+          <View style={[styles.typeBadge, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
+            <Text style={[styles.typeBadgeText, { color: '#8B5CF6' }]}>BEAT</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardMeta}>
+          <View style={styles.metaItem}>
+            <Ionicons name="musical-note" size={14} color={colors.textTertiary} />
+            <Text style={[styles.metaText, { color: colors.textTertiary }]}>{beat.bpm} BPM</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="play" size={14} color={colors.textTertiary} />
+            <Text style={[styles.metaText, { color: colors.textTertiary }]}>{beat.plays || 0}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="heart" size={14} color={colors.textTertiary} />
+            <Text style={[styles.metaText, { color: colors.textTertiary }]}>{beat.likes || 0}</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          <Text style={[styles.priceText, { color: colors.accent }]}>${beat.price}</Text>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.accent }]}>
+            <Ionicons name="cart" size={16} color="#fff" />
+            <Text style={styles.actionButtonText}>Buy</Text>
           </TouchableOpacity>
         </View>
-      );
-    }
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderEquipmentCard = (item: any) => (
+    <TouchableOpacity
+      key={item.id}
+      style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
+      activeOpacity={0.9}
+      onPress={() => {
+        Alert.alert('Equipment', `Viewing ${item.name}`);
+      }}
+    >
+      <View style={styles.cardImageContainer}>
+        <LinearGradient
+          colors={GRADIENT_COLORS.equipment}
+          style={styles.cardGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <MaterialCommunityIcons name="microphone" size={48} color="rgba(255,255,255,0.9)" />
+        </LinearGradient>
+        <TouchableOpacity
+          style={styles.likeButton}
+          onPress={() => toggleLike(item.id)}
+        >
+          <Ionicons
+            name={likedItems.has(item.id) ? 'heart' : 'heart-outline'}
+            size={24}
+            color={likedItems.has(item.id) ? '#EF4444' : '#fff'}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.category}
+            </Text>
+          </View>
+          <View style={[styles.typeBadge, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+            <Text style={[styles.typeBadgeText, { color: '#10B981' }]}>GEAR</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardMeta}>
+          <View style={styles.metaItem}>
+            <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+            <Text style={[styles.metaText, { color: colors.text }]}>{item.condition}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="location" size={14} color={colors.textTertiary} />
+            <Text style={[styles.metaText, { color: colors.textTertiary }]} numberOfLines={1}>
+              {item.location || 'N/A'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          <Text style={[styles.priceText, { color: colors.accent }]}>${item.price}</Text>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.accent }]}>
+            <Ionicons name="cart" size={16} color="#fff" />
+            <Text style={styles.actionButtonText}>Buy</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderCollabCard = (collab: any, type: 'deal' | 'collab' | 'bid') => {
+    const gradientColors = type === 'deal' ? GRADIENT_COLORS.deals :
+                          type === 'collab' ? GRADIENT_COLORS.collabs :
+                          GRADIENT_COLORS.bids;
+    const badgeColor = type === 'deal' ? '#F59E0B' :
+                      type === 'collab' ? '#3B82F6' :
+                      '#EF4444';
+    const badgeLabel = type === 'deal' ? 'DEAL' :
+                      type === 'collab' ? 'COLLAB' :
+                      'BID';
+    const icon = type === 'deal' ? 'flash' :
+                type === 'collab' ? 'people' :
+                'trending-up';
 
     return (
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {filteredCollabs.map((collab) => (
-          <TouchableOpacity
-            key={collab.id}
-            style={[styles.collabCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            activeOpacity={0.7}
+      <TouchableOpacity
+        key={collab.id}
+        style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
+        activeOpacity={0.9}
+        onPress={() => {
+          Alert.alert(badgeLabel, `Viewing ${collab.title}`);
+        }}
+      >
+        <View style={styles.cardImageContainer}>
+          <LinearGradient
+            colors={gradientColors}
+            style={styles.cardGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            <View style={styles.collabHeader}>
-              <View style={styles.collabUser}>
-                <View style={[styles.collabAvatar, { backgroundColor: colors.backgroundSecondary }]}>
-                  <Text style={[styles.collabAvatarText, { color: colors.text }]}>
-                    {collab.creator.username.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View>
-                  <Text style={[styles.collabUsername, { color: colors.text }]}>
-                    {collab.creator.fullName || collab.creator.username}
-                  </Text>
-                  <Text style={[styles.collabTime, { color: colors.textTertiary }]}>
-                    {dayjs(collab.createdAt).fromNow()}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity onPress={() => toggleLike(collab.id)}>
-                <Ionicons
-                  name={likedItems.has(collab.id) ? 'heart' : 'heart-outline'}
-                  size={24}
-                  color={likedItems.has(collab.id) ? '#EF4444' : colors.textTertiary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.collabTitle, { color: colors.text }]}>{collab.title}</Text>
-            {collab.description && (
-              <Text style={[styles.collabDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                {collab.description}
-              </Text>
-            )}
-
-            <View style={styles.collabMeta}>
-              {collab.price && (
-                <View style={[styles.collabMetaItem, { backgroundColor: colors.backgroundSecondary }]}>
-                  <Ionicons name="cash-outline" size={14} color={colors.accent} />
-                  <Text style={[styles.collabMetaText, { color: colors.text }]}>${collab.price}</Text>
-                </View>
-              )}
-              {collab.location && (
-                <View style={[styles.collabMetaItem, { backgroundColor: colors.backgroundSecondary }]}>
-                  <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
-                  <Text style={[styles.collabMetaText, { color: colors.text }]}>{collab.location}</Text>
-                </View>
-              )}
-              {collab.duration && (
-                <View style={[styles.collabMetaItem, { backgroundColor: colors.backgroundSecondary }]}>
-                  <Ionicons name="time-outline" size={14} color={colors.textTertiary} />
-                  <Text style={[styles.collabMetaText, { color: colors.text }]}>{collab.duration}</Text>
-                </View>
-              )}
-            </View>
-
-            {activeTab === 'bids' && (
-              <TouchableOpacity
-                style={[styles.bidButton, { backgroundColor: colors.accent }]}
-                onPress={() => handlePlaceBid(collab.id)}
-              >
-                <Text style={styles.bidButtonText}>Place Bid</Text>
-              </TouchableOpacity>
-            )}
+            <Ionicons name={icon as any} size={48} color="rgba(255,255,255,0.9)" />
+          </LinearGradient>
+          <TouchableOpacity
+            style={styles.likeButton}
+            onPress={() => toggleLike(collab.id)}
+          >
+            <Ionicons
+              name={likedItems.has(collab.id) ? 'heart' : 'heart-outline'}
+              size={24}
+              color={likedItems.has(collab.id) ? '#EF4444' : '#fff'}
+            />
           </TouchableOpacity>
-        ))}
-        <View style={{ height: 80 }} />
-      </ScrollView>
+        </View>
+
+        <View style={styles.cardContent}>
+          <View style={styles.cardHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+                {collab.title}
+              </Text>
+              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                by {collab.creator?.fullName || collab.creator?.username}
+              </Text>
+            </View>
+            <View style={[styles.typeBadge, { backgroundColor: `${badgeColor}1A` }]}>
+              <Text style={[styles.typeBadgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+            </View>
+          </View>
+
+          {collab.description && (
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+              {collab.description}
+            </Text>
+          )}
+
+          <View style={styles.cardMeta}>
+            {collab.location && (
+              <View style={styles.metaItem}>
+                <Ionicons name="location" size={14} color={colors.textTertiary} />
+                <Text style={[styles.metaText, { color: colors.textTertiary }]} numberOfLines={1}>
+                  {collab.location}
+                </Text>
+              </View>
+            )}
+            {collab.duration && (
+              <View style={styles.metaItem}>
+                <Ionicons name="time" size={14} color={colors.textTertiary} />
+                <Text style={[styles.metaText, { color: colors.textTertiary }]}>
+                  {collab.duration}
+                </Text>
+              </View>
+            )}
+            <View style={styles.metaItem}>
+              <Ionicons name="time-outline" size={14} color={colors.textTertiary} />
+              <Text style={[styles.metaText, { color: colors.textTertiary }]}>
+                {dayjs(collab.createdAt).fromNow()}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.cardFooter}>
+            {collab.price && (
+              <Text style={[styles.priceText, { color: colors.accent }]}>${collab.price}</Text>
+            )}
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: badgeColor }]}
+              onPress={() => {
+                if (type === 'bid') {
+                  Alert.alert('Place Bid', `Bidding on ${collab.title}`);
+                } else if (type === 'collab') {
+                  Alert.alert('Request Collab', `Requesting to collaborate on ${collab.title}`);
+                } else {
+                  Alert.alert('Claim Deal', `Claiming ${collab.title}`);
+                }
+              }}
+            >
+              <Ionicons
+                name={type === 'bid' ? 'hammer' : type === 'collab' ? 'handshake' : 'flash'}
+                size={16}
+                color="#fff"
+              />
+              <Text style={styles.actionButtonText}>
+                {type === 'bid' ? 'Bid' : type === 'collab' ? 'Request' : 'Claim'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
+
+  const isLoading = beatsLoading || equipmentLoading || dealsLoading || collabsLoading || bidsLoading;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Hub</Text>
-        <View style={styles.headerActions}>
-          <NotificationBell size={20} />
-          {(activeTab === 'deals' || activeTab === 'collabs' || activeTab === 'bids') && (
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.accent }]}
-              onPress={handleCreateCollab}
-            >
-              <Ionicons name="add" size={20} color="#fff" />
-            </TouchableOpacity>
-          )}
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Hub</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            Discover beats, gear & collabs
+          </Text>
         </View>
+        <NotificationBell size={24} />
       </View>
 
       {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.background }]}>
+      <View style={styles.searchSection}>
         <View style={[styles.searchBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-          <Ionicons name="search" size={16} color={colors.textTertiary} />
+          <Ionicons name="search" size={20} color={colors.textTertiary} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder={`Search ${activeTab}...`}
+            placeholder="Search beats, gear, deals..."
             placeholderTextColor={colors.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
+              <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Tabs */}
+      {/* Category Tabs - Horizontal Scroll */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[styles.tabsContainer, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.tabsScroll}
       >
         {tabs.map((tab) => (
           <TouchableOpacity
             key={tab.key}
             style={[
-              styles.tab,
-              { borderColor: colors.border },
+              styles.categoryChip,
+              { backgroundColor: colors.backgroundSecondary, borderColor: colors.border },
               activeTab === tab.key && {
                 backgroundColor: colors.accent,
                 borderColor: colors.accent,
@@ -431,37 +434,74 @@ export default function HubScreen() {
             onPress={() => setActiveTab(tab.key)}
             activeOpacity={0.7}
           >
-            <Ionicons name={tab.icon as any} size={16} color={activeTab === tab.key ? '#fff' : colors.textSecondary} />
+            <Ionicons
+              name={tab.icon as any}
+              size={18}
+              color={activeTab === tab.key ? '#fff' : colors.textSecondary}
+            />
             <Text
               style={[
-                styles.tabText,
-                { color: activeTab === tab.key ? '#fff' : colors.textSecondary },
+                styles.categoryChipText,
+                { color: activeTab === tab.key ? '#fff' : colors.text },
               ]}
             >
               {tab.label}
             </Text>
+            <View
+              style={[
+                styles.countBadge,
+                {
+                  backgroundColor: activeTab === tab.key
+                    ? 'rgba(255,255,255,0.2)'
+                    : colors.background,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.countBadgeText,
+                  { color: activeTab === tab.key ? '#fff' : colors.textSecondary },
+                ]}
+              >
+                {tab.count}
+              </Text>
+            </View>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
       {/* Content */}
-      {activeTab === 'beats' || activeTab === 'equipment' ? renderMarketplaceContent() : renderCollabsContent()}
-
-      {/* Create Collaboration Modal */}
-      {showCreateModal && (
-        <CreateCollaborationModal
-          visible={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onCreate={async (data) => {
-            try {
-              await createCollab.mutateAsync(data);
-              setShowCreateModal(false);
-              Alert.alert('Success', 'Collaboration created successfully!');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to create collaboration');
-            }
-          }}
-        />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Loading amazing content...
+          </Text>
+        </View>
+      ) : filteredData.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <MaterialCommunityIcons name="inbox" size={80} color={colors.textTertiary} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No items found</Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+            {searchQuery ? 'Try a different search' : 'Be the first to add something!'}
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredData.map((item) => {
+            if (item.type === 'beat') return renderBeatCard(item);
+            if (item.type === 'equipment') return renderEquipmentCard(item);
+            if (item.type === 'deal') return renderCollabCard(item, 'deal');
+            if (item.type === 'collab') return renderCollabCard(item, 'collab');
+            if (item.type === 'bid') return renderCollabCard(item, 'bid');
+            return null;
+          })}
+          <View style={{ height: 100 }} />
+        </ScrollView>
       )}
     </View>
   );
@@ -476,241 +516,193 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === 'ios' ? 48 : 32,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: Spacing.md,
   },
   headerTitle: {
-    fontSize: FontSizes['2xl'],
+    fontSize: FontSizes['3xl'],
     fontWeight: FontWeights.bold,
+    marginBottom: 2,
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
+  headerSubtitle: {
+    fontSize: FontSizes.sm,
   },
-  addButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchContainer: {
+  searchSection: {
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.xl,
     gap: Spacing.sm,
+    borderWidth: 1,
   },
   searchInput: {
     flex: 1,
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.base,
     padding: 0,
   },
-  tabsContainer: {
+  tabsScroll: {
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
-  tab: {
+  categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     gap: Spacing.xs,
     borderWidth: 1,
   },
-  tabText: {
-    fontSize: FontSizes.xs,
+  categoryChipText: {
+    fontSize: FontSizes.sm,
     fontWeight: FontWeights.semiBold,
+  },
+  countBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  countBadgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.bold,
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: Spacing.lg,
+  },
+  card: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  cardImageContainer: {
+    height: 180,
+    position: 'relative',
+  },
+  cardGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  likeButton: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardContent: {
+    padding: Spacing.md,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.sm,
+  },
+  cardTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: FontWeights.bold,
+    marginBottom: 2,
+  },
+  cardSubtitle: {
+    fontSize: FontSizes.sm,
+  },
+  typeBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    marginLeft: Spacing.sm,
+  },
+  typeBadgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.bold,
+  },
+  cardDescription: {
+    fontSize: FontSizes.sm,
+    marginBottom: Spacing.sm,
+    lineHeight: 20,
+  },
+  cardMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontSize: FontSizes.xs,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  priceText: {
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.bold,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.xs,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semiBold,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: Spacing.md,
+  },
+  loadingText: {
+    fontSize: FontSizes.base,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.bold,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   emptyText: {
     fontSize: FontSizes.base,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  createButton: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-  },
-  createButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  beatCard: {
-    width: (width - Spacing.lg * 2 - Spacing.sm) / 2,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  beatImage: {
-    height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  beatInfo: {
-    padding: Spacing.sm,
-  },
-  beatTitle: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-    marginBottom: 2,
-  },
-  beatProducer: {
-    fontSize: FontSizes.xs,
-    marginBottom: Spacing.xs,
-  },
-  beatMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  beatPrice: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.bold,
-  },
-  beatStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  beatStat: {
-    fontSize: FontSizes.xs,
-  },
-  equipCard: {
-    width: (width - Spacing.lg * 2 - Spacing.sm) / 2,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  equipImage: {
-    height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  equipInfo: {
-    padding: Spacing.sm,
-  },
-  equipName: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-    marginBottom: 2,
-  },
-  equipCategory: {
-    fontSize: FontSizes.xs,
-    marginBottom: Spacing.xs,
-  },
-  equipMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  equipPrice: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.bold,
-  },
-  equipCondition: {
-    fontSize: FontSizes.xs,
-  },
-  collabCard: {
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-  },
-  collabHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  collabUser: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  collabAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  collabAvatarText: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
-  },
-  collabUsername: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-  },
-  collabTime: {
-    fontSize: FontSizes.xs,
-  },
-  collabTitle: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.bold,
-    marginBottom: Spacing.xs,
-  },
-  collabDescription: {
-    fontSize: FontSizes.sm,
-    marginBottom: Spacing.sm,
-  },
-  collabMeta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-  },
-  collabMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
-    gap: 4,
-  },
-  collabMetaText: {
-    fontSize: FontSizes.xs,
-  },
-  bidButton: {
-    marginTop: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-  },
-  bidButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
+    textAlign: 'center',
   },
 });
