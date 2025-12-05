@@ -105,6 +105,7 @@ export function useCreateBooking() {
     }) => {
       // Generate UUID for the booking
       const bookingId = Crypto.randomUUID();
+      const now = new Date().toISOString();
 
       const { data, error } = await supabase
         .from('bookings')
@@ -117,6 +118,8 @@ export function useCreateBooking() {
           status: 'PENDING',
           total_amount: booking.totalAmount,
           notes: booking.notes || '',
+          created_at: now,
+          updated_at: now,
         })
         .select()
         .single();
