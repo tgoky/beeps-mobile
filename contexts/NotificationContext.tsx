@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { Notification } from '@/types/database';
@@ -351,7 +352,14 @@ async function registerForPushNotificationsAsync() {
   try {
     // Note: Push tokens don't work in Expo Go for SDK 53+
     // This will only work in development builds or production
-    token = (await Notifications.getExpoPushTokenAsync()).data;
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+
+    if (!projectId) {
+      console.log('No projectId found - push notifications require a development build');
+      return undefined;
+    }
+
+    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   } catch (error) {
     console.log('Failed to get push token for push notification!');
     console.error('Error getting push token:', error);

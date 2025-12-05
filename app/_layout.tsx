@@ -9,10 +9,6 @@ import { AppProviders } from '@/providers/AppProviders';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLoadingScreen } from '@/components/ui/shared/AppLoadingScreen';
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { session, loading, hasCompletedOnboarding } = useAuth();
@@ -25,7 +21,7 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === '(onboarding)';
     const inTabsGroup = segments[0] === '(tabs)';
-    const inAppGroup = inTabsGroup || segments[0] === 'studio' || segments[0] === 'producer' || segments[0] === 'profile' || segments[0] === 'club' || segments[0] === 'community' || segments[0] === 'bookings' || segments[0] === 'transactions' || segments[0] === 'settings' || segments[0] === 'modal';
+    const inAppGroup = inTabsGroup || segments[0] === 'studio' || segments[0] === 'producer' || segments[0] === 'profile' || segments[0] === 'club' || segments[0] === 'community' || segments[0] === 'bookings' || segments[0] === 'transactions' || segments[0] === 'settings' || segments[0] === 'notifications' || segments[0] === 'modal';
 
     if (!session) {
       // User not authenticated - redirect to auth
@@ -67,6 +63,7 @@ function RootLayoutNav() {
         <Stack.Screen name="bookings" options={{ headerShown: false }} />
         <Stack.Screen name="transactions" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
