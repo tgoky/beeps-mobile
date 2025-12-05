@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -18,8 +18,9 @@ import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constan
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCreateBooking, useStudioBookings } from '@/hooks/useBookings';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
+
+type TabType = 'details' | 'equipment' | 'reviews';
 
 export default function StudioDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,11 +30,11 @@ export default function StudioDetailScreen() {
   const colors = Colors[effectiveTheme];
 
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date(Date.now() + 3600000)); // 1 hour later
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [selectedTime, setSelectedTime] = useState('');
+  const [sessionLength, setSessionLength] = useState(2);
   const [notes, setNotes] = useState('');
+  const [activeTab, setActiveTab] = useState<TabType>('details');
 
   const createBooking = useCreateBooking();
 
@@ -94,19 +95,93 @@ export default function StudioDetailScreen() {
   // Fetch existing bookings for this studio
   const { data: existingBookings = [] } = useStudioBookings(id);
 
+  const amenities = [
+    { icon: 'wifi', label: 'High-speed WiFi' },
+    { icon: 'car', label: 'Free Parking' },
+    { icon: 'cafe', label: 'Coffee Bar' },
+    { icon: 'people', label: 'Green Room' },
+    { icon: 'volume-high', label: 'Sound Proof' },
+  ];
+
+  const timeSlots = [
+    '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
+    '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'
+  ];
+
+  // Check if a time slot is available
+  const isTimeSlotAvailable = (time: string) => {
+    if (!existingBookings || existingBookings.length === 0) return true;
+
+    // Parse the time slot
+    const timeParts = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!timeParts) return true;
+
+    let hours = parseInt(timeParts[1]);
+    const minutes = parseInt(timeParts[2]);
+    const period = timeParts[3].toUpperCase();
+
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+
+    const slotStart = selectedDate.hour(hours).minute(minutes).second(0);
+    const slotEnd = slotStart.add(sessionLength, 'hour');
+
+    // Check against existing bookings
+    return !existingBookings.some((booking) => {
+      const bookingStart = dayjs(booking.startTime);
+      const bookingEnd = dayjs(booking.endTime);
+      const bookingDate = bookingStart.format('YYYY-MM-DD');
+      const selectedDateStr = selectedDate.format('YYYY-MM-DD');
+
+      // Only check bookings on the selected date
+      if (bookingDate !== selectedDateStr) return false;
+
+      // Only check confirmed or pending bookings
+      if (booking.status === 'CANCELLED') return false;
+
+      // Check if time slots overlap
+      return (
+        (slotStart.isBefore(bookingEnd) && slotEnd.isAfter(bookingStart)) ||
+        (slotStart.isSame(bookingStart)) ||
+        (slotEnd.isSame(bookingEnd))
+      );
+    });
+  };
+
   const handleBooking = async () => {
     if (!user || !studio) {
       Alert.alert('Error', 'Please sign in to book a studio');
       return;
     }
 
-    if (endDate <= startDate) {
-      Alert.alert('Invalid Time', 'End time must be after start time');
+    if (!selectedTime) {
+      Alert.alert('Select Time', 'Please select a time slot for your booking');
       return;
     }
 
-    const hours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-    const totalAmount = hours * studio.hourlyRate;
+    // Check if the selected time slot is available
+    if (!isTimeSlotAvailable(selectedTime)) {
+      Alert.alert('Time Unavailable', 'This time slot is already booked. Please select a different time.');
+      return;
+    }
+
+    // Parse selected time to create start and end dates
+    const timeParts = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!timeParts) {
+      Alert.alert('Error', 'Invalid time format');
+      return;
+    }
+
+    let hours = parseInt(timeParts[1]);
+    const minutes = parseInt(timeParts[2]);
+    const period = timeParts[3].toUpperCase();
+
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+
+    const startDate = selectedDate.hour(hours).minute(minutes).second(0).toDate();
+    const endDate = selectedDate.hour(hours).minute(minutes).add(sessionLength, 'hour').second(0).toDate();
+    const totalAmount = studio.hourlyRate * sessionLength;
 
     try {
       await createBooking.mutateAsync({
@@ -119,12 +194,15 @@ export default function StudioDetailScreen() {
       });
 
       Alert.alert(
-        'Booking Created',
-        `Your booking request has been submitted!\n\nTotal: $${totalAmount.toFixed(2)} for ${hours.toFixed(1)} hours`,
+        'Booking Submitted',
+        `Your booking request has been submitted!\n\nTotal: $${totalAmount.toFixed(2)} for ${sessionLength} hours\n\nYou'll be notified when the studio owner responds.`,
         [
           {
             text: 'View Bookings',
-            onPress: () => router.push('/bookings'),
+            onPress: () => {
+              setBookingModalVisible(false);
+              router.push('/bookings');
+            },
           },
           { text: 'OK', onPress: () => setBookingModalVisible(false) },
         ]
@@ -166,8 +244,15 @@ export default function StudioDetailScreen() {
   }
 
   const calculateBookingPrice = () => {
-    const hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
-    return hours * studio.hourlyRate;
+    return studio.hourlyRate * sessionLength;
+  };
+
+  const calculateServiceFee = () => {
+    return calculateBookingPrice() * 0.1;
+  };
+
+  const calculateTotal = () => {
+    return calculateBookingPrice() + calculateServiceFee();
   };
 
   return (
@@ -184,7 +269,7 @@ export default function StudioDetailScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Studio Cover */}
         <View style={[styles.cover, { backgroundColor: colors.card }]}>
-          <Ionicons name="business" size={64} color={colors.textTertiary} />
+          <MaterialCommunityIcons name="microphone" size={64} color={colors.textTertiary} />
         </View>
 
         {/* Studio Info */}
@@ -214,28 +299,90 @@ export default function StudioDetailScreen() {
           </View>
         </View>
 
-        {/* Description */}
-        {studio.description && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-            <Text style={[styles.description, { color: colors.textSecondary }]}>{studio.description}</Text>
+        {/* Tabs */}
+        <View style={[styles.tabsContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.tabsHeader, { borderBottomColor: colors.border }]}>
+            {(['details', 'equipment', 'reviews'] as TabType[]).map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                style={[
+                  styles.tab,
+                  activeTab === tab && { borderBottomColor: colors.accent, borderBottomWidth: 2 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: activeTab === tab ? colors.accent : colors.textSecondary },
+                  ]}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
 
-        {/* Equipment */}
-        {studio.equipment && studio.equipment.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Equipment</Text>
-            <View style={styles.equipmentList}>
-              {studio.equipment.map((item, index) => (
-                <View key={index} style={[styles.equipmentChip, { backgroundColor: colors.backgroundSecondary }]}>
-                  <Ionicons name="checkmark-circle" size={16} color={colors.accent} />
-                  <Text style={[styles.equipmentText, { color: colors.text }]}>{item}</Text>
+          <View style={styles.tabContent}>
+            {activeTab === 'details' && (
+              <View style={styles.tabPanel}>
+                {/* About */}
+                <View style={styles.detailSection}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>About this studio</Text>
+                  <Text style={[styles.description, { color: colors.textSecondary }]}>
+                    {studio.description || 'Professional recording studio with state-of-the-art equipment and comfortable environment for artists and producers.'}
+                  </Text>
                 </View>
-              ))}
-            </View>
+
+                {/* Amenities */}
+                <View style={styles.detailSection}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
+                  <View style={styles.amenitiesList}>
+                    {amenities.map((amenity, index) => (
+                      <View
+                        key={index}
+                        style={[styles.amenityChip, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                      >
+                        <Ionicons name={amenity.icon as any} size={16} color={colors.accent} />
+                        <Text style={[styles.amenityText, { color: colors.text }]}>{amenity.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {activeTab === 'equipment' && (
+              <View style={styles.tabPanel}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Featured Equipment</Text>
+                {studio.equipment && studio.equipment.length > 0 ? (
+                  <View style={styles.equipmentList}>
+                    {studio.equipment.map((item, index) => (
+                      <View
+                        key={index}
+                        style={[styles.equipmentChip, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                      >
+                        <Ionicons name="checkmark-circle" size={16} color={colors.accent} />
+                        <Text style={[styles.equipmentText, { color: colors.text }]}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No equipment listed</Text>
+                )}
+              </View>
+            )}
+
+            {activeTab === 'reviews' && (
+              <View style={styles.tabPanel}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Customer Reviews</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary, textAlign: 'center', paddingVertical: Spacing.xl }]}>
+                  No reviews yet
+                </Text>
+              </View>
+            )}
           </View>
-        )}
+        </View>
 
         {/* Owner Info */}
         <View style={styles.section}>
@@ -280,97 +427,149 @@ export default function StudioDetailScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
-            {/* Start Time */}
-            <View style={styles.timeSection}>
-              <Text style={[styles.timeLabel, { color: colors.text }]}>Start Time</Text>
-              <TouchableOpacity
-                style={[styles.timeButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => setShowStartPicker(true)}
-              >
-                <Ionicons name="time-outline" size={20} color={colors.accent} />
-                <Text style={[styles.timeText, { color: colors.text }]}>
-                  {dayjs(startDate).format('MMM D, YYYY • h:mm A')}
-                </Text>
-              </TouchableOpacity>
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Date Selection */}
+            <View style={styles.bookingSection}>
+              <Text style={[styles.bookingLabel, { color: colors.text }]}>Select Date</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
+                {Array.from({ length: 14 }, (_, i) => {
+                  const date = dayjs().add(i, 'day');
+                  const isSelected = selectedDate.format('YYYY-MM-DD') === date.format('YYYY-MM-DD');
+
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setSelectedDate(date)}
+                      style={[
+                        styles.dateChip,
+                        { borderColor: colors.border, backgroundColor: colors.backgroundSecondary },
+                        isSelected && { backgroundColor: colors.accent, borderColor: colors.accent },
+                      ]}
+                    >
+                      <Text style={[styles.dateDay, { color: isSelected ? '#fff' : colors.textSecondary }]}>
+                        {date.format('ddd')}
+                      </Text>
+                      <Text style={[styles.dateNumber, { color: isSelected ? '#fff' : colors.text }]}>
+                        {date.format('D')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <Text style={[styles.selectedDateText, { color: colors.textSecondary }]}>
+                Selected: {selectedDate.format('MMMM D, YYYY')}
+              </Text>
             </View>
 
-            {/* End Time */}
-            <View style={styles.timeSection}>
-              <Text style={[styles.timeLabel, { color: colors.text }]}>End Time</Text>
-              <TouchableOpacity
-                style={[styles.timeButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => setShowEndPicker(true)}
-              >
-                <Ionicons name="time-outline" size={20} color={colors.accent} />
-                <Text style={[styles.timeText, { color: colors.text }]}>
-                  {dayjs(endDate).format('MMM D, YYYY • h:mm A')}
+            {/* Time Slots */}
+            <View style={styles.bookingSection}>
+              <Text style={[styles.bookingLabel, { color: colors.text }]}>Available Times</Text>
+              <View style={styles.timeSlots}>
+                {timeSlots.map((time) => {
+                  const isAvailable = isTimeSlotAvailable(time);
+                  const isSelected = selectedTime === time;
+
+                  return (
+                    <TouchableOpacity
+                      key={time}
+                      onPress={() => isAvailable && setSelectedTime(time)}
+                      disabled={!isAvailable}
+                      style={[
+                        styles.timeSlot,
+                        { borderColor: colors.border, backgroundColor: colors.backgroundSecondary },
+                        !isAvailable && { opacity: 0.4 },
+                        isSelected && { backgroundColor: colors.accent, borderColor: colors.accent },
+                      ]}
+                    >
+                      <Text style={[styles.timeSlotText, { color: isSelected ? '#fff' : colors.text }]}>
+                        {time}
+                      </Text>
+                      {!isAvailable && (
+                        <Ionicons name="close-circle" size={12} color={colors.error} style={styles.bookedIcon} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {existingBookings && existingBookings.length > 0 && (
+                <Text style={[styles.helpText, { color: colors.textSecondary }]}>
+                  <Ionicons name="close-circle" size={12} color={colors.error} /> = Already booked
                 </Text>
-              </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Session Length */}
+            <View style={styles.bookingSection}>
+              <Text style={[styles.bookingLabel, { color: colors.text }]}>Session Length</Text>
+              <View style={styles.sessionLengths}>
+                {[2, 4, 8].map((hours) => (
+                  <TouchableOpacity
+                    key={hours}
+                    onPress={() => setSessionLength(hours)}
+                    style={[
+                      styles.sessionChip,
+                      { borderColor: colors.border, backgroundColor: colors.backgroundSecondary },
+                      sessionLength === hours && { backgroundColor: colors.accent, borderColor: colors.accent },
+                    ]}
+                  >
+                    <Text style={[styles.sessionText, { color: sessionLength === hours ? '#fff' : colors.text }]}>
+                      {hours} hours
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             {/* Price Summary */}
             <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Duration</Text>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                  {sessionLength} hours × ${studio.hourlyRate}/hr
+                </Text>
                 <Text style={[styles.summaryValue, { color: colors.text }]}>
-                  {((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)).toFixed(1)} hours
+                  ${calculateBookingPrice().toFixed(2)}
                 </Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Rate</Text>
-                <Text style={[styles.summaryValue, { color: colors.text }]}>${studio.hourlyRate}/hr</Text>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Service fee</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  ${calculateServiceFee().toFixed(2)}
+                </Text>
               </View>
               <View style={[styles.summaryRow, styles.summaryTotal, { borderTopColor: colors.border }]}>
                 <Text style={[styles.summaryLabel, { color: colors.text, fontWeight: FontWeights.bold }]}>
                   Total
                 </Text>
                 <Text style={[styles.summaryValue, { color: colors.accent, fontWeight: FontWeights.bold }]}>
-                  ${calculateBookingPrice().toFixed(2)}
+                  ${calculateTotal().toFixed(2)}
                 </Text>
               </View>
             </View>
 
             {/* Confirm Button */}
             <TouchableOpacity
-              style={[styles.confirmButton, { backgroundColor: colors.accent }]}
+              style={[
+                styles.confirmButton,
+                { backgroundColor: colors.accent },
+                (!selectedTime || createBooking.isPending) && { opacity: 0.5 },
+              ]}
               onPress={handleBooking}
-              disabled={createBooking.isPending}
+              disabled={!selectedTime || createBooking.isPending}
             >
               {createBooking.isPending ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={styles.confirmButtonText}>Confirm Booking</Text>
+                  <Text style={styles.confirmButtonText}>Request to Book</Text>
                 </>
               )}
             </TouchableOpacity>
-          </ScrollView>
 
-          {/* Date/Time Pickers */}
-          {showStartPicker && (
-            <DateTimePicker
-              value={startDate}
-              mode="datetime"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, date) => {
-                setShowStartPicker(Platform.OS === 'ios');
-                if (date) setStartDate(date);
-              }}
-            />
-          )}
-          {showEndPicker && (
-            <DateTimePicker
-              value={endDate}
-              mode="datetime"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, date) => {
-                setShowEndPicker(Platform.OS === 'ios');
-                if (date) setEndDate(date);
-              }}
-            />
-          )}
+            <Text style={[styles.noteText, { color: colors.textSecondary }]}>
+              You will only be charged when the studio confirms
+            </Text>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -462,21 +661,66 @@ const styles = StyleSheet.create({
     fontSize: FontSizes['3xl'],
     fontWeight: FontWeights.bold,
   },
-  section: {
+  tabsContainer: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  tabsHeader: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  tabText: {
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semiBold,
+  },
+  tabContent: {
     padding: Spacing.lg,
+  },
+  tabPanel: {
+    gap: Spacing.lg,
+  },
+  detailSection: {
+    gap: Spacing.sm,
+  },
+  section: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
   },
   sectionTitle: {
     fontSize: FontSizes.lg,
     fontWeight: FontWeights.bold,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   description: {
     fontSize: FontSizes.base,
-    lineHeight: 24,
+    lineHeight: 22,
   },
-  equipmentList: {
+  amenitiesList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  amenityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+    borderWidth: 1,
+  },
+  amenityText: {
+    fontSize: FontSizes.sm,
+  },
+  equipmentList: {
     gap: Spacing.sm,
   },
   equipmentChip: {
@@ -486,6 +730,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     gap: Spacing.xs,
+    borderWidth: 1,
   },
   equipmentText: {
     fontSize: FontSizes.sm,
@@ -557,24 +802,81 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
   },
-  timeSection: {
-    marginBottom: Spacing.lg,
+  bookingSection: {
+    marginBottom: Spacing.xl,
   },
-  timeLabel: {
+  bookingLabel: {
     fontSize: FontSizes.base,
     fontWeight: FontWeights.semiBold,
     marginBottom: Spacing.sm,
   },
-  timeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
+  dateScroll: {
+    marginBottom: Spacing.xs,
+  },
+  dateChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
+    marginRight: Spacing.sm,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  dateDay: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.medium,
+    marginBottom: 2,
+  },
+  dateNumber: {
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.bold,
+  },
+  selectedDateText: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.xs,
+  },
+  timeSlots: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  timeSlot: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    flexBasis: '30%',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  timeSlotText: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.medium,
+  },
+  bookedIcon: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+  },
+  helpText: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.xs,
+  },
+  sessionLengths: {
+    flexDirection: 'row',
     gap: Spacing.sm,
   },
-  timeText: {
-    fontSize: FontSizes.base,
+  sessionChip: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  sessionText: {
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.medium,
   },
   summaryCard: {
     borderWidth: 1,
@@ -595,10 +897,10 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   summaryLabel: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
   },
   summaryValue: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
   },
   confirmButton: {
     flexDirection: 'row',
@@ -607,10 +909,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   confirmButtonText: {
     color: '#fff',
     fontSize: FontSizes.base,
     fontWeight: FontWeights.semiBold,
+  },
+  noteText: {
+    fontSize: FontSizes.xs,
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
   },
 });
