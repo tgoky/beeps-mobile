@@ -60,10 +60,10 @@ function RootLayoutNav() {
         <Stack.Screen name="profile/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="club/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="community/[role]" options={{ headerShown: false }} />
-        <Stack.Screen name="bookings" options={{ headerShown: false }} />
-        <Stack.Screen name="transactions" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ headerShown: false }} />
-        <Stack.Screen name="notifications" options={{ headerShown: false }} />
+        <Stack.Screen name="bookings/index" options={{ headerShown: false }} />
+        <Stack.Screen name="transactions/index" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/index" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications/index" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
