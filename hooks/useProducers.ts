@@ -339,9 +339,19 @@ export function useRequestService() {
       budget?: number;
       deadline?: string;
     }) => {
+      // Generate a UUID for the id field
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
       const { data, error } = await supabase
         .from('service_requests')
         .insert({
+          id: generateUUID(),
           producer_id: request.producerId,
           client_id: request.clientId,
           project_title: request.projectTitle,
@@ -349,6 +359,8 @@ export function useRequestService() {
           budget: request.budget,
           deadline: request.deadline,
           status: 'PENDING',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .select()
         .single();
