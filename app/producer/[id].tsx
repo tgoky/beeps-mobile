@@ -6,16 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
-  TextInput,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
-import { useProducerDetail, useRequestService } from '@/hooks/useProducers';
+import { useProducerDetail } from '@/hooks/useProducers';
+import { RequestServiceModal } from '@/components/RequestServiceModal';
 
 type Tab = 'about' | 'studios' | 'beats' | 'services';
 
@@ -34,39 +32,8 @@ export default function ProducerDetailScreen() {
 
   const [activeTab, setActiveTab] = useState<Tab>('about');
   const [showRequestModal, setShowRequestModal] = useState(false);
-  const [projectTitle, setProjectTitle] = useState('');
-  const [projectDescription, setProjectDescription] = useState('');
-  const [budget, setBudget] = useState('');
 
   const { data: producer, isLoading } = useProducerDetail(id);
-  const requestService = useRequestService();
-
-  const handleRequestService = async () => {
-    if (!projectTitle.trim() || !projectDescription.trim()) {
-      Alert.alert('Error', 'Please fill in project title and description');
-      return;
-    }
-
-    if (!user || !id) return;
-
-    try {
-      await requestService.mutateAsync({
-        producerId: id,
-        clientId: user.id,
-        projectTitle: projectTitle.trim(),
-        projectDescription: projectDescription.trim(),
-        budget: budget ? parseFloat(budget) : undefined,
-      });
-
-      Alert.alert('Success', 'Service request sent successfully!');
-      setShowRequestModal(false);
-      setProjectTitle('');
-      setProjectDescription('');
-      setBudget('');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send request');
-    }
-  };
 
   if (isLoading) {
     return (
@@ -382,80 +349,15 @@ export default function ProducerDetailScreen() {
       </ScrollView>
 
       {/* Request Service Modal */}
-      <Modal
-        visible={showRequestModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowRequestModal(false)}
-      >
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowRequestModal(false)}>
-              <Ionicons name="close" size={24} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Request Service</Text>
-            <View style={{ width: 24 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Project Title *</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-                placeholder="e.g., Mix & Master my EP"
-                placeholderTextColor={colors.textTertiary}
-                value={projectTitle}
-                onChangeText={setProjectTitle}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Project Description *</Text>
-              <TextInput
-                style={[styles.textArea, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-                placeholder="Describe your project, timeline, and expectations..."
-                placeholderTextColor={colors.textTertiary}
-                value={projectDescription}
-                onChangeText={setProjectDescription}
-                multiline
-                numberOfLines={6}
-                textAlignVertical="top"
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Budget (Optional)</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-                placeholder="e.g., 500"
-                placeholderTextColor={colors.textTertiary}
-                value={budget}
-                onChangeText={setBudget}
-                keyboardType="decimal-pad"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                { backgroundColor: colors.accent },
-                (!projectTitle.trim() || !projectDescription.trim() || requestService.isPending) && styles.submitButtonDisabled,
-              ]}
-              onPress={handleRequestService}
-              disabled={!projectTitle.trim() || !projectDescription.trim() || requestService.isPending}
-            >
-              {requestService.isPending ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="send" size={18} color="#fff" />
-                  <Text style={styles.submitButtonText}>Send Request</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
+      {showRequestModal && user && id && (
+        <RequestServiceModal
+          visible={showRequestModal}
+          onClose={() => setShowRequestModal(false)}
+          producerId={id}
+          producerName={producer?.user.fullName || producer?.user.username || ''}
+          clientId={user.id}
+        />
+      )}
     </View>
   );
 }
@@ -646,65 +548,5 @@ const styles = StyleSheet.create({
   },
   listText: {
     fontSize: FontSizes.sm,
-  },
-  modalContainer: {
-    flex: 1,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-  },
-  modalTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: FontWeights.bold,
-  },
-  modalContent: {
-    flex: 1,
-    padding: Spacing.lg,
-  },
-  formGroup: {
-    marginBottom: Spacing.md,
-  },
-  label: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-    marginBottom: Spacing.xs,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontSize: FontSizes.base,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontSize: FontSizes.base,
-    height: 120,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.xs,
-    marginTop: Spacing.md,
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
   },
 });
