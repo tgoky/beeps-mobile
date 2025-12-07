@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { ProducerProfile } from '@/types/database';
+import * as Crypto from 'expo-crypto';
 
 export interface ProducerWithUser extends ProducerProfile {
   user: {
@@ -339,9 +340,14 @@ export function useRequestService() {
       budget?: number;
       deadline?: string;
     }) => {
+      // Generate UUID using expo-crypto
+      const requestId = Crypto.randomUUID();
+      const now = new Date().toISOString();
+
       const { data, error } = await supabase
         .from('service_requests')
         .insert({
+          id: requestId,
           producer_id: request.producerId,
           client_id: request.clientId,
           project_title: request.projectTitle,
@@ -349,6 +355,8 @@ export function useRequestService() {
           budget: request.budget,
           deadline: request.deadline,
           status: 'PENDING',
+          created_at: now,
+          updated_at: now,
         })
         .select()
         .single();
