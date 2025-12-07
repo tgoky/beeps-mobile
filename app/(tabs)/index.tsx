@@ -20,6 +20,7 @@ import { useProducers } from '@/hooks/useProducers';
 import { useArtists } from '@/hooks/useArtists';
 import CustomMapView from '@/components/CustomMapView';
 import { NotificationBell } from '@/components/NotificationBell';
+import { RequestServiceModal } from '@/components/RequestServiceModal';
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +42,7 @@ export default function HomeScreen() {
   const [maxDistance, setMaxDistance] = useState<number>(50); // km
   const [minRating, setMinRating] = useState<number>(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [requestServiceProducer, setRequestServiceProducer] = useState<{ id: string; name: string } | null>(null);
 
   // Fetch real data
   const { data: studios, isLoading: studiosLoading } = useStudios();
@@ -216,64 +218,85 @@ export default function HomeScreen() {
             }
 
             return (
-              <TouchableOpacity
+              <View
                 key={item.id}
                 style={[styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                activeOpacity={0.7}
-                onPress={() => {
-                  if (activeTab === 'studios') {
-                    router.push(`/studio/${item.id}`);
-                  } else if (activeTab === 'producers') {
-                    router.push(`/producer/${item.userId}`);
-                  } else {
-                    router.push(`/profile/${item.user.id}`);
-                  }
-                }}
               >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardHeader}>
-                    <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>
-                      {name}
-                    </Text>
-                    {rating > 0 && (
-                      <View style={styles.ratingContainer}>
-                        <Ionicons name="star" size={10} color="#F59E0B" />
-                        <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                          {rating.toFixed(1)}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (activeTab === 'studios') {
+                      router.push(`/studio/${item.id}`);
+                    } else if (activeTab === 'producers') {
+                      router.push(`/producer/${item.userId}`);
+                    } else {
+                      router.push(`/profile/${item.user.id}`);
+                    }
+                  }}
+                  style={styles.cardTouchable}
+                >
+                  <View style={styles.cardContent}>
+                    <View style={styles.cardHeader}>
+                      <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>
+                        {name}
+                      </Text>
+                      {rating > 0 && (
+                        <View style={styles.ratingContainer}>
+                          <Ionicons name="star" size={10} color="#F59E0B" />
+                          <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
+                            {rating.toFixed(1)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {location && (
+                      <View style={styles.locationRow}>
+                        <Ionicons name="location" size={10} color={colors.textTertiary} />
+                        <Text style={[styles.locationText, { color: colors.textTertiary }]} numberOfLines={1}>
+                          {location}
                         </Text>
                       </View>
                     )}
-                  </View>
 
-                  {location && (
-                    <View style={styles.locationRow}>
-                      <Ionicons name="location" size={10} color={colors.textTertiary} />
-                      <Text style={[styles.locationText, { color: colors.textTertiary }]} numberOfLines={1}>
-                        {location}
+                    {genres.length > 0 && (
+                      <View style={styles.genresRow}>
+                        {genres.slice(0, 2).map((genre, index) => (
+                          <View key={index} style={[styles.genreChip, { backgroundColor: colors.backgroundSecondary }]}>
+                            <Text style={[styles.genreText, { color: colors.textSecondary }]}>{genre}</Text>
+                          </View>
+                        ))}
+                        {genres.length > 2 && (
+                          <Text style={[styles.moreGenres, { color: colors.textTertiary }]}>+{genres.length - 2}</Text>
+                        )}
+                      </View>
+                    )}
+
+                    {price > 0 && (
+                      <Text style={[styles.priceText, { color: colors.text }]}>
+                        ${price}/hr
                       </Text>
-                    </View>
-                  )}
+                    )}
+                  </View>
+                </TouchableOpacity>
 
-                  {genres.length > 0 && (
-                    <View style={styles.genresRow}>
-                      {genres.slice(0, 2).map((genre, index) => (
-                        <View key={index} style={[styles.genreChip, { backgroundColor: colors.backgroundSecondary }]}>
-                          <Text style={[styles.genreText, { color: colors.textSecondary }]}>{genre}</Text>
-                        </View>
-                      ))}
-                      {genres.length > 2 && (
-                        <Text style={[styles.moreGenres, { color: colors.textTertiary }]}>+{genres.length - 2}</Text>
-                      )}
-                    </View>
-                  )}
-
-                  {price > 0 && (
-                    <Text style={[styles.priceText, { color: colors.text }]}>
-                      ${price}/hr
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
+                {/* Request Service Button for Producers */}
+                {activeTab === 'producers' && user && user.id !== item.userId && (
+                  <TouchableOpacity
+                    style={[styles.requestServiceButton, { backgroundColor: colors.accent }]}
+                    onPress={(e) => {
+                      setRequestServiceProducer({
+                        id: item.userId,
+                        name: name,
+                      });
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="briefcase" size={12} color="#fff" />
+                    <Text style={styles.requestServiceText}>Request</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             );
           })}
         </View>
@@ -514,6 +537,17 @@ export default function HomeScreen() {
 
       {/* Content */}
       {viewMode === 'map' ? renderMapView() : renderGridView()}
+
+      {/* Request Service Modal */}
+      {requestServiceProducer && user && (
+        <RequestServiceModal
+          visible={!!requestServiceProducer}
+          onClose={() => setRequestServiceProducer(null)}
+          producerId={requestServiceProducer.id}
+          producerName={requestServiceProducer.name}
+          clientId={user.id}
+        />
+      )}
     </View>
   );
 }
@@ -673,8 +707,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
+  cardTouchable: {
+    flex: 1,
+  },
   cardContent: {
     padding: Spacing.sm,
+  },
+  requestServiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    gap: 4,
+    marginTop: Spacing.xs,
+    marginHorizontal: Spacing.xs,
+    marginBottom: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  requestServiceText: {
+    color: '#fff',
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.semiBold,
   },
   cardHeader: {
     marginBottom: Spacing.xs,
