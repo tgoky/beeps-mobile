@@ -387,6 +387,13 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.menuItem, { borderBottomColor: colors.border }]}
+          onPress={() => router.push('/service-requests')}
+        >
+          <Ionicons name="briefcase-outline" size={20} color={colors.text} />
+          <Text style={[styles.menuText, { color: colors.text }]}>Service Requests</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.menuItem, { borderBottomColor: colors.border }]}
           onPress={() => router.push('/transactions')}
         >
           <Ionicons name="receipt-outline" size={20} color={colors.text} />

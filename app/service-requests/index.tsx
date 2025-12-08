@@ -168,7 +168,9 @@ export default function ServiceRequestsScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Service Requests</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={() => router.push('/bookings')} style={styles.headerAction}>
+          <Ionicons name="calendar-outline" size={22} color={colors.text} />
+        </TouchableOpacity>
       </View>
 
       {/* View Mode Toggle */}
@@ -441,6 +443,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerAction: {
     width: 40,
     height: 40,
     justifyContent: 'center',
