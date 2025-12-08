@@ -14,13 +14,14 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
-import { useBookings, useCancelBooking } from '@/hooks/useBookings';
+import { useBookings, useCancelBooking, useStudioOwnerBookings, useConfirmBooking, useRejectBooking } from '@/hooks/useBookings';
 import { BookingStatus } from '@/types/database';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
+type ViewMode = 'my_bookings' | 'received_bookings';
 type FilterType = 'all' | 'upcoming' | 'past' | 'cancelled';
 
 const STATUS_COLORS: Record<BookingStatus, string> = {
@@ -43,15 +44,26 @@ export default function BookingsScreen() {
   const { effectiveTheme } = useTheme();
   const colors = Colors[effectiveTheme];
 
+  const [viewMode, setViewMode] = useState<ViewMode>('my_bookings');
   const [filter, setFilter] = useState<FilterType>('all');
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data: bookings = [], isLoading, refetch } = useBookings(user?.id);
+  const { data: myBookings = [], isLoading: myBookingsLoading, refetch: refetchMyBookings } = useBookings(user?.id);
+  const { data: receivedBookings = [], isLoading: receivedBookingsLoading, refetch: refetchReceivedBookings } = useStudioOwnerBookings(user?.id);
   const cancelBooking = useCancelBooking();
+  const confirmBooking = useConfirmBooking();
+  const rejectBooking = useRejectBooking();
+
+  const bookings = viewMode === 'my_bookings' ? myBookings : receivedBookings;
+  const isLoading = viewMode === 'my_bookings' ? myBookingsLoading : receivedBookingsLoading;
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    if (viewMode === 'my_bookings') {
+      await refetchMyBookings();
+    } else {
+      await refetchReceivedBookings();
+    }
     setRefreshing(false);
   };
 
@@ -70,6 +82,49 @@ export default function BookingsScreen() {
               Alert.alert('Success', 'Booking cancelled successfully');
             } catch (error) {
               Alert.alert('Error', 'Failed to cancel booking');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleConfirmBooking = (bookingId: string, clientName: string) => {
+    Alert.alert(
+      'Confirm Booking',
+      `Confirm booking from ${clientName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              await confirmBooking.mutateAsync(bookingId);
+              Alert.alert('Success', 'Booking confirmed');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to confirm booking');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRejectBooking = (bookingId: string, clientName: string) => {
+    Alert.alert(
+      'Reject Booking',
+      `Reject booking from ${clientName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await rejectBooking.mutateAsync(bookingId);
+              Alert.alert('Success', 'Booking rejected');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reject booking');
             }
           },
         },
@@ -103,8 +158,54 @@ export default function BookingsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>My Bookings</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Bookings</Text>
         <View style={{ width: 40 }} />
+      </View>
+
+      {/* View Mode Toggle */}
+      <View style={[styles.viewModeContainer, { backgroundColor: colors.backgroundSecondary }]}>
+        <TouchableOpacity
+          style={[
+            styles.viewModeTab,
+            viewMode === 'my_bookings' && { backgroundColor: colors.accent },
+          ]}
+          onPress={() => setViewMode('my_bookings')}
+        >
+          <Ionicons
+            name="calendar"
+            size={16}
+            color={viewMode === 'my_bookings' ? '#fff' : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.viewModeText,
+              { color: viewMode === 'my_bookings' ? '#fff' : colors.textSecondary },
+            ]}
+          >
+            My Bookings
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.viewModeTab,
+            viewMode === 'received_bookings' && { backgroundColor: colors.accent },
+          ]}
+          onPress={() => setViewMode('received_bookings')}
+        >
+          <Ionicons
+            name="business"
+            size={16}
+            color={viewMode === 'received_bookings' ? '#fff' : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.viewModeText,
+              { color: viewMode === 'received_bookings' ? '#fff' : colors.textSecondary },
+            ]}
+          >
+            Studio Bookings
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Filter Tabs */}
@@ -173,7 +274,9 @@ export default function BookingsScreen() {
             const endTime = dayjs(booking.endTime);
             const duration = endTime.diff(startTime, 'hour', true);
             const isUpcoming = new Date(booking.startTime) > new Date();
-            const canCancel = booking.status === 'PENDING' || booking.status === 'CONFIRMED';
+            const isReceivedBooking = viewMode === 'received_bookings';
+            const canCancel = !isReceivedBooking && (booking.status === 'PENDING' || booking.status === 'CONFIRMED');
+            const canManage = isReceivedBooking && booking.status === 'PENDING';
 
             return (
               <View
@@ -184,6 +287,11 @@ export default function BookingsScreen() {
                 <View style={styles.bookingHeader}>
                   <View style={styles.studioInfo}>
                     <Text style={[styles.studioName, { color: colors.text }]}>{booking.studio.name}</Text>
+                    {isReceivedBooking && (booking as any).client && (
+                      <Text style={[styles.clientName, { color: colors.textSecondary }]}>
+                        Client: {(booking as any).client.fullName || (booking as any).client.username}
+                      </Text>
+                    )}
                     <View style={styles.locationRow}>
                       <Ionicons name="location" size={14} color={colors.textTertiary} />
                       <Text style={[styles.locationText, { color: colors.textTertiary }]}>
@@ -239,6 +347,24 @@ export default function BookingsScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
+                {canManage && (
+                  <View style={styles.actions}>
+                    <TouchableOpacity
+                      style={[styles.confirmButton, { backgroundColor: colors.accent }]}
+                      onPress={() => handleConfirmBooking(booking.id, (booking as any).client?.fullName || (booking as any).client?.username || 'Client')}
+                    >
+                      <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                      <Text style={styles.confirmButtonText}>Confirm</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.rejectButton, { borderColor: colors.error }]}
+                      onPress={() => handleRejectBooking(booking.id, (booking as any).client?.fullName || (booking as any).client?.username || 'Client')}
+                    >
+                      <Ionicons name="close-circle" size={18} color={colors.error} />
+                      <Text style={[styles.rejectButtonText, { color: colors.error }]}>Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             );
           })}
@@ -270,6 +396,24 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: FontSizes['2xl'],
+    fontWeight: FontWeights.semiBold,
+  },
+  viewModeContainer: {
+    flexDirection: 'row',
+    padding: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  viewModeTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  viewModeText: {
+    fontSize: FontSizes.sm,
     fontWeight: FontWeights.semiBold,
   },
   filterContainer: {
@@ -348,6 +492,10 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.semiBold,
     marginBottom: Spacing.xs,
   },
+  clientName: {
+    fontSize: FontSizes.sm,
+    marginBottom: Spacing.xs,
+  },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -405,6 +553,34 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   cancelButtonText: {
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semiBold,
+  },
+  confirmButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semiBold,
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    gap: Spacing.xs,
+  },
+  rejectButtonText: {
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.semiBold,
   },
