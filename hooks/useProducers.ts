@@ -428,3 +428,40 @@ export function useServiceRequests(userId?: string) {
     enabled: !!userId,
   });
 }
+
+// Update service request status
+export function useUpdateServiceRequestStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      status,
+      producerResponse
+    }: {
+      requestId: string;
+      status: 'ACCEPTED' | 'REJECTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+      producerResponse?: string;
+    }) => {
+      const now = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('service_requests')
+        .update({
+          status,
+          producer_response: producerResponse,
+          responded_at: now,
+          updated_at: now,
+        })
+        .eq('id', requestId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service-requests'] });
+    },
+  });
+}
