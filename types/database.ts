@@ -32,7 +32,7 @@ export interface ArtistProfile {
   updatedAt: string;
 }
 
-export interface ProducerProfile {
+export interface  ProducerProfile {
   id: string;
   userId: string;
   genres: string[];

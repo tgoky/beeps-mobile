@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { User, ArtistProfile, ProducerProfile } from '@/types/database';
+import { ArtistProfile, ProducerProfile, User } from '@/types/database';
+import { useQuery } from '@tanstack/react-query';
 
 export interface UserProfile extends User {
   artistProfile?: ArtistProfile;
@@ -16,10 +16,11 @@ export function useUserProfile(userId?: string) {
       const { data: user, error } = await supabase
         .from('users')
         .select('*')
-        .eq('id', userId)
-        .single();
+        .eq('id', userId) // ✅ Correct - using Prisma id
+        .maybeSingle();
 
       if (error) throw error;
+      if (!user) return null;
 
       // Fetch artist profile if applicable
       let artistProfile = null;
@@ -27,8 +28,8 @@ export function useUserProfile(userId?: string) {
         const { data } = await supabase
           .from('artist_profiles')
           .select('*')
-          .eq('user_id', userId)
-          .single();
+          .eq('user_id', userId) // ✅ Correct - user_id references Prisma id
+          .maybeSingle();
         artistProfile = data;
       }
 
@@ -38,8 +39,8 @@ export function useUserProfile(userId?: string) {
         const { data } = await supabase
           .from('producer_profiles')
           .select('*')
-          .eq('user_id', userId)
-          .single();
+          .eq('user_id', userId) // ✅ Correct - user_id references Prisma id
+          .maybeSingle();
         producerProfile = data;
       }
 
@@ -99,7 +100,7 @@ export function useUserBeats(userId?: string) {
       const { data, error } = await supabase
         .from('beats')
         .select('*')
-        .eq('producer_id', userId)
+        .eq('producer_id', userId) // ✅ Correct - producer_id references Prisma id
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -131,17 +132,28 @@ export function useUserBeats(userId?: string) {
   });
 }
 
-// Fetch user's equipment
+// ❌ PROBLEM: Equipment table uses seller_id which references GearSalesProfile.id, not User.id
+// We need to first get the GearSalesProfile.id for this user
 export function useUserEquipment(userId?: string) {
   return useQuery({
     queryKey: ['profile', userId, 'equipment'],
     queryFn: async () => {
       if (!userId) return [];
 
+      // First, get the gear sales profile for this user
+      const { data: gearProfile } = await supabase
+        .from('gear_sales_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!gearProfile) return []; // User doesn't have a gear sales profile
+
+      // Then get equipment for this profile
       const { data, error } = await supabase
         .from('equipment')
         .select('*')
-        .eq('seller_id', userId)
+        .eq('seller_id', gearProfile.id) // ✅ seller_id references GearSalesProfile.id
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -157,7 +169,7 @@ export function useUserEquipment(userId?: string) {
         price: item.price,
         rentalRate: item.rental_rate,
         condition: item.condition,
-        address: item.address,
+        location: item.location,
         city: item.city,
         state: item.state,
         country: item.country,
@@ -181,7 +193,7 @@ export function useUserCollaborations(userId?: string) {
       const { data, error } = await supabase
         .from('collaborations')
         .select('*')
-        .eq('creator_id', userId)
+        .eq('creator_id', userId) // ✅ Correct - creator_id references Prisma id
         .order('created_at', { ascending: false });
 
       if (error) throw error;

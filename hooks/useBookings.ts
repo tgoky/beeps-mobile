@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Booking, BookingStatus } from '@/types/database';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 
 export interface BookingWithStudio extends Booking {
@@ -19,6 +19,7 @@ export function useBookings(userId?: string) {
     queryFn: async () => {
       if (!userId) return [];
 
+      // userId here is the Prisma UUID, not supabase_id
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -31,7 +32,7 @@ export function useBookings(userId?: string) {
             image_url
           )
         `)
-        .eq('user_id', userId)
+        .eq('user_id', userId) // This expects Prisma's id field
         .order('start_time', { ascending: false });
 
       if (error) throw error;

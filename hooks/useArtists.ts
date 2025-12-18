@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { ArtistProfile } from '@/types/database';
+import { useQuery } from '@tanstack/react-query';
 
 export interface ArtistWithUser extends ArtistProfile {
   user: {
@@ -41,7 +41,7 @@ export function useArtists() {
       // Transform the data to match our TypeScript types
       return (data || []).map((artist) => ({
         id: artist.id,
-        userId: artist.user_id,
+        userId: artist.user_id, // ✅ This is the Prisma User.id
         genres: artist.genres || [],
         skills: artist.skills || [],
         createdAt: artist.created_at,

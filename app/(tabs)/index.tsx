@@ -1,26 +1,26 @@
-import React, { useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Dimensions,
-  ActivityIndicator,
-  Platform,
-  TextInput,
-} from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { router } from 'expo-router';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
-import { useStudios } from '@/hooks/useStudios';
-import { useProducers } from '@/hooks/useProducers';
-import { useArtists } from '@/hooks/useArtists';
 import CustomMapView from '@/components/CustomMapView';
 import { NotificationBell } from '@/components/NotificationBell';
 import { RequestServiceModal } from '@/components/RequestServiceModal';
+import { BorderRadius, Colors, FontSizes, FontWeights, Spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useArtists } from '@/hooks/useArtists';
+import { useProducers } from '@/hooks/useProducers';
+import { useStudios } from '@/hooks/useStudios';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
 
