@@ -1,82 +1,109 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import "react-native-reanimated";
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useTheme } from '@/contexts/ThemeContext';
+import { AppLoadingScreen } from "@/components/ui/shared/AppLoadingScreen";
+import { useAuth } from "@/contexts/AuthContext";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AppProviders } from "@/providers/AppProviders";
 
-export default function TabLayout() {
-  const { effectiveTheme } = useTheme();
-  const colors = Colors[effectiveTheme];
+function RootLayoutNav() {
+  const colorScheme = useColorScheme();
+  const { session, loading, hasCompletedOnboarding } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return; // Don't navigate while loading
+
+    const inAuthGroup = segments[0] === "(auth)";
+    const inOnboardingGroup = segments[0] === "(onboarding)";
+    const inTabsGroup = segments[0] === "(tabs)";
+    const inAppGroup =
+      inTabsGroup ||
+      segments[0] === "studio" ||
+      segments[0] === "producer" ||
+      segments[0] === "profile" ||
+      segments[0] === "club" ||
+      segments[0] === "community" ||
+      segments[0] === "bookings" ||
+      segments[0] === "transactions" ||
+      segments[0] === "settings" ||
+      segments[0] === "notifications" ||
+      segments[0] === "explore" ||
+      segments[0] === "modal";
+
+    if (!session) {
+      // User not authenticated - redirect to auth
+      if (!inAuthGroup) {
+        router.replace("/(auth)/login");
+      }
+    } else {
+      // User authenticated
+      if (!hasCompletedOnboarding) {
+        // User hasn't completed onboarding - show welcome screens
+        if (!inOnboardingGroup) {
+          router.replace("/(onboarding)/welcome");
+        }
+      } else {
+        // User authenticated and onboarded - allow main app and detail pages
+        if (!inAppGroup) {
+          router.replace("/(tabs)");
+        }
+      }
+    }
+  }, [session, loading, hasCompletedOnboarding, segments]);
+
+  // Show loading screen while checking auth
+  if (loading) {
+    return <AppLoadingScreen />;
+  }
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.tabIconSelected,
-        tabBarInactiveTintColor: colors.tabIconDefault,
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-        },
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="hub"
-        options={{
-          title: 'Hub',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="sparkles" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="bookings"
-        options={{
-          title: 'Bookings',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="community"
-        options={{
-          title: 'Community',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="bubble.left.and.bubble.right.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
-        }}
-      />
-      {/* Hidden tabs - keep but don't show in tab bar */}
-      <Tabs.Screen
-        name="marketplace"
-        options={{
-          href: null, // Hide from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="collaborations"
-        options={{
-          href: null, // Hide from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="producers"
-        options={{
-          href: null, // Hide from tab bar
-        }}
-      />
-    </Tabs>
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="studio/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="producer/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="profile/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="club/[id]" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="community/[role]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="bookings/index" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="transactions/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="settings/index" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="notifications/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="explore" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="modal"
+          options={{ presentation: "modal", title: "Modal" }}
+        />
+      </Stack>
+      <StatusBar style="auto" />
+    </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AppProviders>
+      <RootLayoutNav />
+    </AppProviders>
   );
 }
