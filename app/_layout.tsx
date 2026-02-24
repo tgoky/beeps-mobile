@@ -1,13 +1,17 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import "react-native-reanimated";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { AppProviders } from '@/providers/AppProviders';
-import { useAuth } from '@/contexts/AuthContext';
-import { AppLoadingScreen } from '@/components/ui/shared/AppLoadingScreen';
+import { AppLoadingScreen } from "@/components/ui/shared/AppLoadingScreen";
+import { useAuth } from "@/contexts/AuthContext";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AppProviders } from "@/providers/AppProviders";
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
@@ -18,27 +22,40 @@ function RootLayoutNav() {
   useEffect(() => {
     if (loading) return; // Don't navigate while loading
 
-    const inAuthGroup = segments[0] === '(auth)';
-    const inOnboardingGroup = segments[0] === '(onboarding)';
-    const inTabsGroup = segments[0] === '(tabs)';
-    const inAppGroup = inTabsGroup || segments[0] === 'studio' || segments[0] === 'producer' || segments[0] === 'profile' || segments[0] === 'club' || segments[0] === 'community' || segments[0] === 'bookings' || segments[0] === 'transactions' || segments[0] === 'settings' || segments[0] === 'notifications' || segments[0] === 'modal';
+    const inAuthGroup = segments[0] === "(auth)";
+    const inOnboardingGroup = segments[0] === "(onboarding)";
+    const inTabsGroup = segments[0] === "(tabs)";
+    const inAppGroup =
+      inTabsGroup ||
+      segments[0] === "studio" ||
+      segments[0] === "producer" ||
+      segments[0] === "profile" ||
+      segments[0] === "club" ||
+      segments[0] === "community" ||
+      segments[0] === "bookings" ||
+      segments[0] === "transactions" ||
+      segments[0] === "settings" ||
+      segments[0] === "notifications" ||
+      segments[0] === "service-requests" ||
+      segments[0] === "explore" ||
+      segments[0] === "modal";
 
     if (!session) {
       // User not authenticated - redirect to auth
       if (!inAuthGroup) {
-        router.replace('/(auth)/login');
+        router.replace("/(auth)/login");
       }
     } else {
       // User authenticated
       if (!hasCompletedOnboarding) {
         // User hasn't completed onboarding - show welcome screens
         if (!inOnboardingGroup) {
-          router.replace('/(onboarding)/welcome');
+          router.replace("/(onboarding)/welcome");
         }
       } else {
         // User authenticated and onboarded - allow main app and detail pages
         if (!inAppGroup) {
-          router.replace('/(tabs)');
+          router.replace("/(tabs)");
         }
       }
     }
@@ -50,7 +67,7 @@ function RootLayoutNav() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
@@ -59,12 +76,29 @@ function RootLayoutNav() {
         <Stack.Screen name="producer/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="profile/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="club/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="community/[role]" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="community/[role]"
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="bookings/index" options={{ headerShown: false }} />
-        <Stack.Screen name="transactions/index" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="transactions/index"
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="settings/index" options={{ headerShown: false }} />
-        <Stack.Screen name="notifications/index" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen
+          name="notifications/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="service-requests/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="explore" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="modal"
+          options={{ presentation: "modal", title: "Modal" }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
