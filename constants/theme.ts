@@ -33,6 +33,8 @@ export const Colors = {
     card: '#FFFFFF',
     tint: primaryColor,
 
+
+     shadow: '#000000',
     // Icons
     icon: '#6B7280', // Gray 500
     tabIconDefault: '#9CA3AF', // Gray 400
@@ -49,6 +51,8 @@ export const Colors = {
     primary: '#9CA3AF', // Gray 400 - Lighter for dark mode
     secondary: '#6B7280', // Gray 500
     accent: '#D1D5DB', // Gray 300
+
+     shadow: '#000000',
 
     // Text colors
     text: '#F9FAFB', // Gray 50

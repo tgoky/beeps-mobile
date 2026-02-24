@@ -1,553 +1,515 @@
-import CustomMapView from '@/components/CustomMapView';
-import { NotificationBell } from '@/components/NotificationBell';
-import { RequestServiceModal } from '@/components/RequestServiceModal';
-import { BorderRadius, Colors, FontSizes, FontWeights, Spacing } from '@/constants/theme';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useArtists } from '@/hooks/useArtists';
-import { useProducers } from '@/hooks/useProducers';
-import { useStudios } from '@/hooks/useStudios';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import CustomMapView from "@/components/CustomMapView";
+import { NotificationBell } from "@/components/NotificationBell";
+import { RequestServiceModal } from "@/components/RequestServiceModal";
+import { Colors, Spacing } from "@/constants/theme";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useArtists } from "@/hooks/useArtists";
+import { useProducers } from "@/hooks/useProducers";
+import { useStudios } from "@/hooks/useStudios";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { router } from "expo-router";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  Platform,
+  FlatList,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from 'react-native';
+  View
+} from "react-native";
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
-type TabType = 'studios' | 'producers' | 'artists';
-type ViewMode = 'map' | 'grid';
+type TabType = "studios" | "producers" | "artists";
+type ViewMode = "map" | "list"; // Renamed 'grid' to 'list' for clarity
 
-const GENRES = ['Hip Hop', 'R&B', 'Pop', 'Rock', 'Electronic', 'Jazz', 'Classical', 'Country'];
+const GENRES = [
+  "Hip Hop",
+  "R&B",
+  "Pop",
+  "Rock",
+  "Electronic",
+  "Jazz",
+  "Classical",
+  "Country",
+];
 
 export default function HomeScreen() {
   const { user } = useAuth();
   const { effectiveTheme } = useTheme();
   const colors = Colors[effectiveTheme];
+  const isDark = effectiveTheme === "dark";
 
-  const [activeTab, setActiveTab] = useState<TabType>('studios');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [activeTab, setActiveTab] = useState<TabType>("studios");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedStudio, setSelectedStudio] = useState<any | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [maxDistance, setMaxDistance] = useState<number>(50); // km
   const [minRating, setMinRating] = useState<number>(0);
   const [showFilters, setShowFilters] = useState(false);
-  const [requestServiceProducer, setRequestServiceProducer] = useState<{ id: string; name: string } | null>(null);
+  const [requestServiceProducer, setRequestServiceProducer] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
-  // Fetch real data
   const { data: studios, isLoading: studiosLoading } = useStudios();
   const { data: producers, isLoading: producersLoading } = useProducers();
   const { data: artists, isLoading: artistsLoading } = useArtists();
 
-  // User location (San Francisco for demo)
   const userLocation = { latitude: 37.7849, longitude: -122.4094 };
 
   const toggleGenre = (genre: string) => {
-    setSelectedGenres(prev =>
-      prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]
+    setSelectedGenres((prev) =>
+      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre],
     );
   };
 
   const clearFilters = () => {
-    setSearchQuery('');
+    setSearchQuery("");
     setSelectedGenres([]);
-    setMaxDistance(50);
     setMinRating(0);
   };
 
-  const hasActiveFilters = searchQuery || selectedGenres.length > 0 || maxDistance < 50 || minRating > 0;
+  const hasActiveFilters =
+    searchQuery || selectedGenres.length > 0 || minRating > 0;
 
-  if (!user) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.authPrompt}>
-          <MaterialCommunityIcons name="music-circle" size={64} color={colors.primary} />
-          <Text style={[styles.authSubtitle, { color: colors.text }]}>Welcome to Beeps</Text>
-          <Text style={[styles.authDescription, { color: colors.textSecondary }]}>
-            Your music production marketplace
-          </Text>
-          <TouchableOpacity
-            style={[styles.authButton, { backgroundColor: colors.accent }]}
-            onPress={() => router.push('/(auth)/login')}
-          >
-            <Text style={styles.authButtonText}>Sign In</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.authButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]}
-            onPress={() => router.push('/(auth)/register')}
-          >
-            <Text style={[styles.authButtonTextSecondary, { color: colors.text }]}>Create Account</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
+  // --- Logic for Filtering ---
   const getFilteredData = () => {
     let data: any[] = [];
     switch (activeTab) {
-      case 'studios':
+      case "studios":
         data = studios || [];
         break;
-      case 'producers':
+      case "producers":
         data = producers || [];
         break;
-      case 'artists':
+      case "artists":
         data = artists || [];
         break;
     }
-
-    // Apply filters
     return data.filter((item: any) => {
-      // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        const name = activeTab === 'studios'
-          ? item.name?.toLowerCase()
-          : (item.user?.fullName?.toLowerCase() || item.user?.username?.toLowerCase() || '');
+        let name = "";
+        if (activeTab === "studios") {
+          name = item.name?.toLowerCase() || "";
+        } else {
+          name =
+            item.user?.fullName?.toLowerCase() ||
+            item.user?.username?.toLowerCase() ||
+            "";
+        }
         if (!name.includes(query)) return false;
       }
-
-      // Genre filter
-      if (selectedGenres.length > 0 && activeTab !== 'studios') {
+      if (selectedGenres.length > 0) {
         const itemGenres = item.genres || [];
-        if (!itemGenres.some((g: string) => selectedGenres.includes(g))) return false;
+        if (!itemGenres.some((g: string) => selectedGenres.includes(g)))
+          return false;
       }
-
-      // Rating filter
       if (minRating > 0) {
-        const rating = activeTab === 'studios' ? item.rating : item.user?.rating || 0;
+        const rating =
+          activeTab === "studios" ? item.rating : item.user?.rating || 0;
         if (rating < minRating) return false;
       }
-
       return true;
     });
   };
 
-  const filteredData = useMemo(() => getFilteredData(), [
-    activeTab,
-    studios,
-    producers,
-    artists,
-    searchQuery,
-    selectedGenres,
-    maxDistance,
-    minRating,
-  ]);
+  const filteredData = useMemo(
+    () => getFilteredData(),
+    [
+      activeTab,
+      studios,
+      producers,
+      artists,
+      searchQuery,
+      selectedGenres,
+      minRating,
+    ],
+  );
 
   const isLoading = () => {
     switch (activeTab) {
-      case 'studios':
+      case "studios":
         return studiosLoading;
-      case 'producers':
+      case "producers":
         return producersLoading;
-      case 'artists':
+      case "artists":
         return artistsLoading;
       default:
         return false;
     }
   };
 
-  const renderGridView = () => {
-    const loading = isLoading();
+  if (!user) return null; // Auth wall handled in layout usually
 
-    if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={colors.primary} />
+  // --- NEW COMPACT LIST ITEM ---
+  const renderCompactItem = ({ item }: { item: any }) => {
+    let name = "",
+      price = 0,
+      rating = 0,
+      location = "",
+      imageUrl = "";
+
+    if (activeTab === "studios") {
+      name = item.name;
+      price = item.hourlyRate;
+      rating = item.rating;
+      location = item.city || "Downtown";
+      imageUrl =
+        item.imageUrl ||
+        `https://images.unsplash.com/photo-1598653222000-6b7b7a552625?auto=format&fit=crop&w=400&q=80`;
+    } else {
+      name = item.user?.fullName || item.user?.username || "Unknown";
+      price = item.productionRate || 0;
+      rating = item.user?.rating || 0;
+      location = item.user?.location || "Remote";
+      imageUrl =
+        item.user?.avatarUrl ||
+        `https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=400&q=80`;
+    }
+
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        style={[
+          styles.compactCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+        onPress={() => {
+          if (activeTab === "studios") router.push(`/studio/${item.id}`);
+          else if (activeTab === "producers")
+            router.push(`/producer/${item.userId}`);
+          else router.push(`/profile/${item.user.id}`);
+        }}
+      >
+        {/* Left: Image (Square) */}
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.compactImage}
+          contentFit="cover"
+          transition={200}
+        />
+
+        {/* Right: Details */}
+        <View style={styles.compactContent}>
+          <View style={styles.compactHeader}>
+            <Text
+              style={[styles.compactTitle, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {name}
+            </Text>
+            {rating > 0 && (
+              <View style={styles.compactRating}>
+                <Ionicons name="star" size={12} color="#F59E0B" />
+                <Text
+                  style={[styles.compactRatingText, { color: colors.text }]}
+                >
+                  {rating.toFixed(1)}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <Text
+            style={[styles.compactLocation, { color: colors.textSecondary }]}
+            numberOfLines={1}
+          >
+            <Ionicons
+              name="location-sharp"
+              size={10}
+              color={colors.textTertiary}
+            />{" "}
+            {location}
+          </Text>
+
+          <View style={styles.compactFooter}>
+            <Text style={[styles.compactPrice, { color: colors.primary }]}>
+              {price > 0 ? `$${price}` : "Contact"}
+              {price > 0 && (
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "400",
+                    color: colors.textTertiary,
+                  }}
+                >
+                  /hr
+                </Text>
+              )}
+            </Text>
+
+            {activeTab === "producers" && user.id !== item.userId && (
+              <TouchableOpacity
+                style={[
+                  styles.compactAddBtn,
+                  { backgroundColor: colors.backgroundSecondary },
+                ]}
+                onPress={() =>
+                  setRequestServiceProducer({ id: item.userId, name })
+                }
+              >
+                <Ionicons name="add" size={16} color={colors.text} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderContent = () => {
+    if (isLoading()) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      );
+    }
+
+    if (viewMode === "map") {
+      if (activeTab !== "studios") {
+        return (
+          <View style={styles.centerContainer}>
+            <MaterialCommunityIcons
+              name="map-marker-off"
+              size={48}
+              color={colors.textTertiary}
+            />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Map view only available for Studios
+            </Text>
+            <TouchableOpacity
+              onPress={() => setViewMode("list")}
+              style={{ marginTop: 20 }}
+            >
+              <Text style={{ color: colors.primary, fontWeight: "bold" }}>
+                Return to List
+              </Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+
+      const studiosWithLocation = filteredData.map(
+        (studio: any, index: number) => ({
+          ...studio,
+          latitude:
+            studio.latitude ||
+            userLocation.latitude + (Math.random() - 0.5) * 0.05,
+          longitude:
+            studio.longitude ||
+            userLocation.longitude + (Math.random() - 0.5) * 0.05,
+        }),
+      );
+
+      return (
+        <CustomMapView
+          studios={studiosWithLocation}
+          theme={effectiveTheme}
+          onStudioPress={setSelectedStudio}
+          selectedStudio={selectedStudio}
+          userLocation={userLocation}
+        />
       );
     }
 
     if (filteredData.length === 0) {
       return (
-        <View style={styles.emptyContainer}>
+        <View style={styles.centerContainer}>
           <MaterialCommunityIcons
-            name={activeTab === 'studios' ? 'microphone' : activeTab === 'producers' ? 'music-box' : 'account-music'}
-            size={48}
+            name="magnify-remove-outline"
+            size={64}
             color={colors.textTertiary}
           />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            No {activeTab} found
+            No matches found
           </Text>
-          {hasActiveFilters && (
-            <TouchableOpacity onPress={clearFilters} style={styles.clearFiltersButton}>
-              <Text style={[styles.clearFiltersText, { color: colors.primary }]}>Clear filters</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      );
-    }
-
-    return (
-      <ScrollView style={styles.gridContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.grid}>
-          {filteredData.map((item: any) => {
-            let name = '';
-            let price = 0;
-            let rating = 0;
-            let location = '';
-            let genres: string[] = [];
-
-            if (activeTab === 'studios') {
-              name = item.name;
-              price = item.hourlyRate;
-              rating = item.rating;
-              location = item.city || item.state || '';
-            } else if (activeTab === 'producers') {
-              name = item.user.fullName || item.user.username;
-              price = item.productionRate || 0;
-              rating = item.user?.rating || 0;
-              location = item.user.location || '';
-              genres = item.genres || [];
-            } else if (activeTab === 'artists') {
-              name = item.user.fullName || item.user.username;
-              rating = item.user?.rating || 0;
-              location = item.user.location || '';
-              genres = item.genres || [];
-            }
-
-            return (
-              <View
-                key={item.id}
-                style={[styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    if (activeTab === 'studios') {
-                      router.push(`/studio/${item.id}`);
-                    } else if (activeTab === 'producers') {
-                      router.push(`/producer/${item.userId}`);
-                    } else {
-                      router.push(`/profile/${item.user.id}`);
-                    }
-                  }}
-                  style={styles.cardTouchable}
-                >
-                  <View style={styles.cardContent}>
-                    <View style={styles.cardHeader}>
-                      <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>
-                        {name}
-                      </Text>
-                      {rating > 0 && (
-                        <View style={styles.ratingContainer}>
-                          <Ionicons name="star" size={10} color="#F59E0B" />
-                          <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                            {rating.toFixed(1)}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {location && (
-                      <View style={styles.locationRow}>
-                        <Ionicons name="location" size={10} color={colors.textTertiary} />
-                        <Text style={[styles.locationText, { color: colors.textTertiary }]} numberOfLines={1}>
-                          {location}
-                        </Text>
-                      </View>
-                    )}
-
-                    {genres.length > 0 && (
-                      <View style={styles.genresRow}>
-                        {genres.slice(0, 2).map((genre, index) => (
-                          <View key={index} style={[styles.genreChip, { backgroundColor: colors.backgroundSecondary }]}>
-                            <Text style={[styles.genreText, { color: colors.textSecondary }]}>{genre}</Text>
-                          </View>
-                        ))}
-                        {genres.length > 2 && (
-                          <Text style={[styles.moreGenres, { color: colors.textTertiary }]}>+{genres.length - 2}</Text>
-                        )}
-                      </View>
-                    )}
-
-                    {price > 0 && (
-                      <Text style={[styles.priceText, { color: colors.text }]}>
-                        ${price}/hr
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-
-                {/* Request Service Button for Producers */}
-                {activeTab === 'producers' && user && user.id !== item.userId && (
-                  <TouchableOpacity
-                    style={[styles.requestServiceButton, { backgroundColor: colors.accent }]}
-                    onPress={(e) => {
-                      setRequestServiceProducer({
-                        id: item.userId,
-                        name: name,
-                      });
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="briefcase" size={12} color="#fff" />
-                    <Text style={styles.requestServiceText}>Request</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
-        </View>
-        <View style={{ height: 80 }} />
-      </ScrollView>
-    );
-  };
-
-  const renderMapView = () => {
-    const loading = isLoading();
-
-    if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={colors.primary} />
-        </View>
-      );
-    }
-
-    if (activeTab !== 'studios') {
-      return (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="map-outline" size={48} color={colors.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            Map view is only available for studios
-          </Text>
-          <TouchableOpacity
-            style={[styles.switchButton, { backgroundColor: colors.accent }]}
-            onPress={() => setViewMode('grid')}
-          >
-            <Text style={styles.switchButtonText}>Switch to Grid</Text>
+          <TouchableOpacity onPress={clearFilters} style={styles.resetButton}>
+            <Text style={styles.resetButtonText}>Clear Filters</Text>
           </TouchableOpacity>
         </View>
       );
     }
 
-    if (filteredData.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="map-outline" size={48} color={colors.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            No studios found
-          </Text>
-        </View>
-      );
-    }
-
-    const studiosWithLocation = filteredData.map((studio: any, index: number) => {
-      if (studio.latitude && studio.longitude) {
-        return studio;
-      }
-      const offsetLat = (index % 5) * 0.01 - 0.02;
-      const offsetLon = Math.floor(index / 5) * 0.01 - 0.02;
-      return {
-        ...studio,
-        latitude: userLocation.latitude + offsetLat,
-        longitude: userLocation.longitude + offsetLon,
-      };
-    });
-
+    // --- USING FLATLIST FOR PERFORMANCE ---
     return (
-      <CustomMapView
-        studios={studiosWithLocation}
-        theme={effectiveTheme}
-        onStudioPress={(studio) => setSelectedStudio(studio)}
-        selectedStudio={selectedStudio}
-        userLocation={userLocation}
+      <FlatList
+        data={filteredData}
+        renderItem={renderCompactItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        ListFooterComponent={<View style={{ height: 100 }} />} // Space for floating button
       />
     );
   };
 
-  const tabs = [
-    { key: 'studios' as TabType, label: 'Studios', icon: 'business' },
-    { key: 'producers' as TabType, label: 'Producers', icon: 'headset' },
-    { key: 'artists' as TabType, label: 'Artists', icon: 'mic' },
-  ];
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Compact Header */}
-      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <Text style={[styles.greeting, { color: colors.text }]}>Discover</Text>
-        <View style={styles.headerActions}>
-          <NotificationBell size={20} />
-          {hasActiveFilters && (
-            <View style={[styles.filterBadge, { backgroundColor: colors.accent }]}>
-              <Text style={styles.filterBadgeText}>{filteredData.length}</Text>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+      <SafeAreaView style={{ flex: 1 }}>
+        {/* --- Minimal Header --- */}
+        <View
+          style={[
+            styles.headerContainer,
+            {
+              backgroundColor: colors.background,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
+          <View style={styles.searchRow}>
+            {/* Search Bar */}
+            <View style={[styles.searchBar, { backgroundColor: colors.card }]}>
+              <Ionicons name="search" size={18} color={colors.textTertiary} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder={`Search ${activeTab}...`}
+                placeholderTextColor={colors.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
             </View>
-          )}
-          <TouchableOpacity
-            style={[styles.filterButton, showFilters && { backgroundColor: colors.backgroundSecondary }]}
-            onPress={() => setShowFilters(!showFilters)}
-          >
-            <Ionicons name="options" size={18} color={colors.text} />
-          </TouchableOpacity>
-          <View style={[styles.viewToggleContainer, { backgroundColor: colors.backgroundSecondary }]}>
+            {/* Filter Btn */}
             <TouchableOpacity
-              style={[styles.viewToggleButton, viewMode === 'grid' && { backgroundColor: colors.card }]}
-              onPress={() => setViewMode('grid')}
+              onPress={() => setShowFilters(!showFilters)}
+              style={[styles.iconBtn, { backgroundColor: colors.card }]}
             >
-              <Ionicons name="grid" size={14} color={viewMode === 'grid' ? colors.accent : colors.textTertiary} />
+              <Ionicons name="options-outline" size={20} color={colors.text} />
+              {hasActiveFilters && <View style={styles.activeFilterDot} />}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.viewToggleButton, viewMode === 'map' && { backgroundColor: colors.card }]}
-              onPress={() => setViewMode('map')}
-            >
-              <Ionicons name="map" size={14} color={viewMode === 'map' ? colors.accent : colors.textTertiary} />
-            </TouchableOpacity>
+            {/* Notif Btn */}
+            <View style={[styles.iconBtn, { backgroundColor: colors.card }]}>
+              <NotificationBell size={20} color={colors.text} />
+            </View>
+          </View>
+
+          {/* Compact Tabs */}
+          <View style={styles.tabsRow}>
+            {["studios", "producers", "artists"].map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                onPress={() => {
+                  setActiveTab(tab as TabType);
+                  if (tab !== "studios") setViewMode("list");
+                }}
+                style={[
+                  styles.tabItem,
+                  activeTab === tab && {
+                    borderBottomColor: colors.text,
+                    borderBottomWidth: 2,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    {
+                      color:
+                        activeTab === tab ? colors.text : colors.textTertiary,
+                    },
+                  ]}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
-      </View>
 
-      {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.background }]}>
-        <View style={[styles.searchBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-          <Ionicons name="search" size={16} color={colors.textTertiary} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder={`Search ${activeTab}...`}
-            placeholderTextColor={colors.textTertiary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Filters Panel */}
-      {showFilters && (
-        <View style={[styles.filtersPanel, { backgroundColor: colors.backgroundSecondary, borderBottomColor: colors.border }]}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll}>
-            {/* Genre Filter */}
-            {activeTab !== 'studios' && (
-              <View style={styles.filterGroup}>
-                <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>Genre</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {GENRES.map((genre) => (
-                    <TouchableOpacity
-                      key={genre}
-                      style={[
-                        styles.genreFilterChip,
-                        { borderColor: colors.border },
-                        selectedGenres.includes(genre) && { backgroundColor: colors.accent, borderColor: colors.accent },
-                      ]}
-                      onPress={() => toggleGenre(genre)}
-                    >
-                      <Text
-                        style={[
-                          styles.genreFilterText,
-                          { color: selectedGenres.includes(genre) ? '#fff' : colors.textSecondary },
-                        ]}
-                      >
-                        {genre}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Rating Filter */}
-            <View style={styles.filterGroup}>
-              <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>Min Rating</Text>
-              <View style={styles.ratingFilters}>
-                {[0, 3, 4, 4.5].map((rating) => (
-                  <TouchableOpacity
-                    key={rating}
-                    style={[
-                      styles.ratingChip,
-                      { borderColor: colors.border },
-                      minRating === rating && { backgroundColor: colors.accent, borderColor: colors.accent },
-                    ]}
-                    onPress={() => setMinRating(rating)}
-                  >
-                    <Ionicons name="star" size={10} color={minRating === rating ? '#fff' : '#F59E0B'} />
-                    <Text
-                      style={[
-                        styles.ratingChipText,
-                        { color: minRating === rating ? '#fff' : colors.textSecondary },
-                      ]}
-                    >
-                      {rating === 0 ? 'Any' : `${rating}+`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {hasActiveFilters && (
-              <TouchableOpacity style={styles.clearAllButton} onPress={clearFilters}>
-                <Text style={[styles.clearAllText, { color: colors.error }]}>Clear All</Text>
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[styles.tabsContainer, { backgroundColor: colors.background }]}
-      >
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
+        {/* --- Filters --- */}
+        {showFilters && (
+          <View
             style={[
-              styles.tab,
-              { borderColor: colors.border },
-              activeTab === tab.key && {
-                backgroundColor: colors.accent,
-                borderColor: colors.accent
-              },
+              styles.filtersContainer,
+              { backgroundColor: colors.background },
             ]}
-            onPress={() => setActiveTab(tab.key)}
-            activeOpacity={0.7}
           >
-            <Ionicons
-              name={tab.icon as any}
-              size={16}
-              color={activeTab === tab.key ? '#fff' : colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.tabText,
-                { color: activeTab === tab.key ? '#fff' : colors.textSecondary },
-              ]}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 8 }}
             >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+              {GENRES.map((g) => (
+                <TouchableOpacity
+                  key={g}
+                  onPress={() => toggleGenre(g)}
+                  style={[
+                    styles.filterChip,
+                    selectedGenres.includes(g)
+                      ? {
+                          backgroundColor: colors.text,
+                          borderColor: colors.text,
+                        }
+                      : { borderColor: colors.border },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "600",
+                      color: selectedGenres.includes(g)
+                        ? colors.background
+                        : colors.text,
+                    }}
+                  >
+                    {g}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
-      {/* Content */}
-      {viewMode === 'map' ? renderMapView() : renderGridView()}
+        {/* --- Content --- */}
+        <View style={{ flex: 1 }}>{renderContent()}</View>
 
-      {/* Request Service Modal */}
-      {requestServiceProducer && user && (
-        <RequestServiceModal
-          visible={!!requestServiceProducer}
-          onClose={() => setRequestServiceProducer(null)}
-          producerId={requestServiceProducer.id}
-          producerName={requestServiceProducer.name}
-          clientId={user.id}
-        />
-      )}
+        {/* --- Map Toggle --- */}
+        {activeTab === "studios" && (
+          <View style={styles.floatingButtonContainer}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.floatingButton, { backgroundColor: colors.text }]}
+              onPress={() => setViewMode(viewMode === "list" ? "map" : "list")}
+            >
+              <Ionicons
+                name={viewMode === "list" ? "map" : "list"}
+                size={18}
+                color={colors.background}
+                style={{ marginRight: 8 }}
+              />
+              <Text
+                style={[
+                  styles.floatingButtonText,
+                  { color: colors.background },
+                ]}
+              >
+                {viewMode === "list" ? "Map" : "List"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* --- Modals --- */}
+        {requestServiceProducer && (
+          <RequestServiceModal
+            visible={!!requestServiceProducer}
+            onClose={() => setRequestServiceProducer(null)}
+            producerId={requestServiceProducer.id}
+            producerName={requestServiceProducer.name}
+            clientId={user.id}
+          />
+        )}
+      </SafeAreaView>
     </View>
   );
 }
@@ -556,297 +518,184 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === 'ios' ? 48 : 32,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1,
-  },
-  greeting: {
-    fontSize: FontSizes['2xl'],
-    fontWeight: FontWeights.bold,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  filterButton: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.sm,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xs,
-  },
-  filterBadgeText: {
-    color: '#fff',
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.semiBold,
-  },
-  viewToggleContainer: {
-    flexDirection: 'row',
-    borderRadius: BorderRadius.sm,
-    padding: 2,
-  },
-  viewToggleButton: {
-    width: 28,
-    height: 28,
-    borderRadius: BorderRadius.sm - 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Header
+  headerContainer: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderBottomWidth: 1,
+    zIndex: 10,
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    height: 40,
+    borderRadius: 8,
+    paddingHorizontal: 12,
   },
   searchInput: {
     flex: 1,
-    fontSize: FontSizes.sm,
-    padding: 0,
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "500",
   },
-  filtersPanel: {
-    borderBottomWidth: 1,
-    paddingVertical: Spacing.sm,
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  filtersScroll: {
-    paddingHorizontal: Spacing.lg,
+  activeFilterDot: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#EF4444",
   },
-  filterGroup: {
-    marginRight: Spacing.lg,
+  // Tabs
+  tabsRow: {
+    flexDirection: "row",
+    gap: 24,
   },
-  filterLabel: {
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.medium,
-    marginBottom: Spacing.xs,
-  },
-  genreFilterChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginRight: Spacing.xs,
-  },
-  genreFilterText: {
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.medium,
-  },
-  ratingFilters: {
-    flexDirection: 'row',
-    gap: Spacing.xs,
-  },
-  ratingChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    gap: 4,
-  },
-  ratingChipText: {
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.medium,
-  },
-  clearAllButton: {
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
-  clearAllText: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-  },
-  tabsContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.xs,
-    borderWidth: 1,
+  tabItem: {
+    paddingVertical: 10,
   },
   tabText: {
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.semiBold,
+    fontSize: 14,
+    fontWeight: "600",
   },
-  gridContainer: {
-    flex: 1,
+  // Filters
+  filtersContainer: {
+    paddingHorizontal: Spacing.md,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  gridCard: {
-    width: (width - Spacing.lg * 2 - Spacing.sm) / 2,
-    borderRadius: BorderRadius.md,
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
     borderWidth: 1,
-    overflow: 'hidden',
+    marginRight: 8,
   },
-  cardTouchable: {
+
+  // LIST STYLES (Compact)
+  listContent: {
+    padding: Spacing.md,
+  },
+  compactCard: {
+    flexDirection: "row",
+    height: 90, // Fixed small height
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1, // Subtle border helps list definition
+    overflow: "hidden",
+  },
+  compactImage: {
+    width: 90, // Square image on left
+    height: "100%",
+  },
+  compactContent: {
     flex: 1,
+    padding: 10,
+    justifyContent: "space-between",
   },
-  cardContent: {
-    padding: Spacing.sm,
+  compactHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
-  requestServiceButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    gap: 4,
-    marginTop: Spacing.xs,
-    marginHorizontal: Spacing.xs,
-    marginBottom: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-  },
-  requestServiceText: {
-    color: '#fff',
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.semiBold,
-  },
-  cardHeader: {
-    marginBottom: Spacing.xs,
-  },
-  cardName: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-    marginBottom: 2,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    marginTop: 2,
-  },
-  ratingText: {
-    fontSize: FontSizes.xs,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    marginBottom: Spacing.xs,
-  },
-  locationText: {
-    fontSize: FontSizes.xs,
+  compactTitle: {
+    fontSize: 15,
+    fontWeight: "700",
     flex: 1,
+    marginRight: 8,
   },
-  genresRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginBottom: Spacing.xs,
-    flexWrap: 'wrap',
-  },
-  genreChip: {
-    paddingHorizontal: Spacing.xs,
+  compactRating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    paddingHorizontal: 4,
     paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
+    borderRadius: 4,
   },
-  genreText: {
-    fontSize: FontSizes.xs,
+  compactRatingText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
-  moreGenres: {
-    fontSize: FontSizes.xs,
+  compactLocation: {
+    fontSize: 12,
+    marginTop: -4,
   },
-  priceText: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
+  compactFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  loadingContainer: {
+  compactPrice: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  compactAddBtn: {
+    padding: 4,
+    borderRadius: 12,
+  },
+
+  // States
+  centerContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 60,
   },
   emptyTitle: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
+    fontSize: 16,
+    fontWeight: "600",
+    marginVertical: 12,
   },
-  clearFiltersButton: {
-    marginTop: Spacing.sm,
+  emptyText: {
+    fontSize: 14,
+    marginBottom: 20,
   },
-  clearFiltersText: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.medium,
+  resetButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#000",
+    borderRadius: 20,
   },
-  switchButton: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    marginTop: Spacing.md,
+  resetButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 12,
   },
-  switchButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
+
+  // Floating Btn
+  floatingButtonContainer: {
+    position: "absolute",
+    bottom: 30,
+    alignSelf: "center",
   },
-  authPrompt: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
+  floatingButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  authSubtitle: {
-    fontSize: FontSizes['2xl'],
-    fontWeight: FontWeights.semiBold,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
-  },
-  authDescription: {
-    fontSize: FontSizes.sm,
-    marginBottom: Spacing.xl,
-    textAlign: 'center',
-  },
-  authButton: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-    width: width - Spacing.xl * 2,
-    alignItems: 'center',
-  },
-  authButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
-  },
-  authButtonTextSecondary: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
+  floatingButtonText: {
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

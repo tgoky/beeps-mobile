@@ -1,20 +1,83 @@
-import React, { useState } from 'react';
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  MapPin,
+  Maximize2,
+  Mic2,
+  Minimize2,
+  Navigation,
+  Star,
+  X,
+  Zap,
+} from "lucide-react-native";
+import React from "react";
+import {
   Dimensions,
+  Image,
   Platform,
-} from 'react-native';
-import Svg, { Line, Path, Circle, Rect, G, Defs, RadialGradient, Stop } from 'react-native-svg';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Colors } from '@/constants/theme';
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import Animated, {
+  SlideInDown,
+  SlideOutDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  Line,
+  Path,
+  Pattern,
+  Rect,
+} from "react-native-svg";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAP_WIDTH = SCREEN_WIDTH;
-const MAP_HEIGHT = 700;
+// --- Configuration ---
+// Added Height to calculate vertical center
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const MAP_SIZE = 1000;
+// CHANGED: Reduced scale to 0.45 to show the whole map "Zoomed Out"
+const INITIAL_SCALE = 0.45;
+
+// --- GTA Theme Colors ---
+const THEME_COLORS = {
+  light: {
+    water: "#a5c5d9",
+    land: "#e5e7eb",
+    greenery: "#c4d7a8",
+    beach: "#fde047",
+    road: "#ffffff",
+    highway: "#fcd34d",
+    highwayOutline: "#a3a3a3",
+    text: "#000000",
+    cardBg: "rgba(255,255,255,0.85)",
+    border: "#000000",
+    accent: "#000000",
+  },
+  dark: {
+    water: "#0f172a",
+    land: "#18181b",
+    greenery: "#14532d",
+    beach: "#451a03",
+    road: "#3f3f46",
+    highway: "#ca8a04",
+    highwayOutline: "#000000",
+    text: "#ffffff",
+    cardBg: "rgba(24, 24, 27, 0.85)",
+    border: "#52525b",
+    accent: "#ffffff",
+  },
+};
 
 interface Studio {
   id: string;
@@ -23,13 +86,14 @@ interface Studio {
   longitude: number;
   hourlyRate: number;
   rating: number;
-  city?: string;
-  state?: string;
+  location?: string;
+  imageUrl?: string | null;
+  equipment?: string[];
 }
 
 interface CustomMapViewProps {
   studios: Studio[];
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   onStudioPress: (studio: Studio) => void;
   selectedStudio?: Studio | null;
   userLocation?: { latitude: number; longitude: number } | null;
@@ -42,509 +106,699 @@ export default function CustomMapView({
   selectedStudio,
   userLocation,
 }: CustomMapViewProps) {
-  const colors = Colors[theme];
-  const [hoveredStudio, setHoveredStudio] = useState<string | null>(null);
+  const colors = THEME_COLORS[theme];
 
-  // Calculate map bounds
-  const allLats = studios.map(s => s.latitude).filter(Boolean);
-  const allLons = studios.map(s => s.longitude).filter(Boolean);
+  // --- Animation State ---
+  const scale = useSharedValue(INITIAL_SCALE);
+  const savedScale = useSharedValue(INITIAL_SCALE);
 
-  if (userLocation) {
-    allLats.push(userLocation.latitude);
-    allLons.push(userLocation.longitude);
-  }
+  // CHANGED: Center the 1000px map on the screen
+  const initialX = (SCREEN_WIDTH - MAP_SIZE) / 2;
+  const initialY = (SCREEN_HEIGHT - MAP_SIZE) / 2;
 
-  const bounds = {
-    minLat: Math.min(...allLats, 37.7),
-    maxLat: Math.max(...allLats, 37.8),
-    minLon: Math.min(...allLons, -122.5),
-    maxLon: Math.max(...allLons, -122.4),
-  };
+  const translateX = useSharedValue(initialX);
+  const translateY = useSharedValue(initialY);
+  const savedTranslateX = useSharedValue(initialX);
+  const savedTranslateY = useSharedValue(initialY);
 
-  const latRange = bounds.maxLat - bounds.minLat || 0.1;
-  const lonRange = bounds.maxLon - bounds.minLon || 0.1;
-
-  // Add padding
-  const padding = 0.15;
-  const paddedBounds = {
-    minLat: bounds.minLat - latRange * padding,
-    maxLat: bounds.maxLat + latRange * padding,
-    minLon: bounds.minLon - lonRange * padding,
-    maxLon: bounds.maxLon + lonRange * padding,
-  };
-
-  const paddedLatRange = paddedBounds.maxLat - paddedBounds.minLat;
-  const paddedLonRange = paddedBounds.maxLon - paddedBounds.minLon;
-
-  // Convert lat/lon to pixel coordinates
+  // --- Map Logic ---
   const getPosition = (lat: number, lon: number) => {
-    const x = ((lon - paddedBounds.minLon) / paddedLonRange) * MAP_WIDTH;
-    const y = ((paddedBounds.maxLat - lat) / paddedLatRange) * MAP_HEIGHT;
+    const mapMinX = 250,
+      mapMaxX = 850;
+    const mapMinY = 150,
+      mapMaxY = 800;
+    const x = mapMinX + (Math.abs(lon * 1000) % (mapMaxX - mapMinX));
+    const y = mapMinY + (Math.abs(lat * 1000) % (mapMaxY - mapMinY));
     return { x, y };
   };
 
-  // Road colors
-  const majorRoadColor = theme === 'dark' ? '#fbbf24' : '#f59e0b';
-  const secondaryRoadColor = theme === 'dark' ? '#f97316' : '#ea580c';
-  const minorRoadColor = theme === 'dark' ? '#3f3f46' : '#a8a29e';
+  // --- Gestures ---
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      translateX.value = savedTranslateX.value + e.translationX;
+      translateY.value = savedTranslateY.value + e.translationY;
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = savedScale.value * e.scale;
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+    });
+
+  const composedGesture = Gesture.Simultaneous(panGesture, pinchGesture);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  const handlePress = (studio: Studio) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onStudioPress(studio);
+  };
+
+  const handleClose = () => {
+    Haptics.selectionAsync();
+    onStudioPress(null as any);
+  };
+
+  const resetMap = () => {
+    scale.value = withSpring(INITIAL_SCALE);
+    translateX.value = withSpring(initialX);
+    translateY.value = withSpring(initialY);
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme === 'dark' ? '#0a0a0a' : '#f5f5f0' }]}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={false}
-        style={styles.scrollView}
-        contentContainerStyle={{ width: MAP_WIDTH, height: MAP_HEIGHT }}
-      >
-        <View style={styles.mapContainer}>
-          {/* Map Background with Roads */}
-          <Svg width={MAP_WIDTH} height={MAP_HEIGHT} style={styles.svg}>
-            <Defs>
-              <RadialGradient id="mapGradient" cx="50%" cy="50%">
-                <Stop offset="0%" stopColor={theme === 'dark' ? '#111827' : '#f9fafb'} stopOpacity="0.3" />
-                <Stop offset="100%" stopColor={theme === 'dark' ? '#000000' : '#e5e7eb'} stopOpacity="0.1" />
-              </RadialGradient>
-            </Defs>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={[styles.container, { backgroundColor: colors.water }]}>
+        <GestureDetector gesture={composedGesture}>
+          <Animated.View style={[styles.mapContent, animatedStyle]}>
+            <Svg width={MAP_SIZE} height={MAP_SIZE} viewBox="0 0 100 100">
+              <Defs>
+                <Pattern
+                  id="waterPattern"
+                  width="4"
+                  height="4"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <Circle
+                    cx="1"
+                    cy="1"
+                    r="0.5"
+                    fill={theme === "dark" ? "#1e293b" : "#93c5fd"}
+                    opacity="0.3"
+                  />
+                </Pattern>
+              </Defs>
 
-            {/* Background gradient */}
-            <Rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#mapGradient)" />
+              {/* Water Texture */}
+              <Rect
+                x="0"
+                y="0"
+                width="100"
+                height="100"
+                fill="url(#waterPattern)"
+              />
 
-            {/* Major Highways - Horizontal */}
-            <G opacity={theme === 'dark' ? 0.25 : 0.35}>
-              <Line x1={0} y1={MAP_HEIGHT * 0.15} x2={MAP_WIDTH} y2={MAP_HEIGHT * 0.15}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-              <Line x1={0} y1={MAP_HEIGHT * 0.35} x2={MAP_WIDTH} y2={MAP_HEIGHT * 0.37}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-              <Line x1={0} y1={MAP_HEIGHT * 0.55} x2={MAP_WIDTH} y2={MAP_HEIGHT * 0.53}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-              <Line x1={0} y1={MAP_HEIGHT * 0.75} x2={MAP_WIDTH} y2={MAP_HEIGHT * 0.75}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-              <Line x1={0} y1={MAP_HEIGHT * 0.85} x2={MAP_WIDTH} y2={MAP_HEIGHT * 0.87}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-            </G>
+              {/* Land Mass */}
+              <Path
+                d="M 15 0 L 100 0 L 100 100 L 30 100 C 30 100 25 80 40 70 C 55 60 50 40 30 35 C 10 30 5 15 15 0 Z"
+                fill={colors.land}
+                stroke="rgba(0,0,0,0.1)"
+                strokeWidth="0.5"
+              />
 
-            {/* Major Highways - Vertical */}
-            <G opacity={theme === 'dark' ? 0.25 : 0.35}>
-              <Line x1={MAP_WIDTH * 0.12} y1={0} x2={MAP_WIDTH * 0.12} y2={MAP_HEIGHT}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-              <Line x1={MAP_WIDTH * 0.28} y1={0} x2={MAP_WIDTH * 0.30} y2={MAP_HEIGHT}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-              <Line x1={MAP_WIDTH * 0.50} y1={0} x2={MAP_WIDTH * 0.50} y2={MAP_HEIGHT}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-              <Line x1={MAP_WIDTH * 0.72} y1={0} x2={MAP_WIDTH * 0.70} y2={MAP_HEIGHT}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-              <Line x1={MAP_WIDTH * 0.88} y1={0} x2={MAP_WIDTH * 0.88} y2={MAP_HEIGHT}
-                stroke={majorRoadColor} strokeWidth={theme === 'dark' ? 2.5 : 5} strokeLinecap="round" />
-            </G>
+              {/* Greenery / Hills */}
+              <Path
+                d="M 60 0 L 100 0 L 100 40 Q 80 50 60 30 Q 50 15 60 0 Z"
+                fill={colors.greenery}
+                opacity="0.8"
+              />
 
-            {/* Secondary Roads - Horizontal */}
-            <G opacity={theme === 'dark' ? 0.18 : 0.25}>
-              {[0.08, 0.22, 0.28, 0.42, 0.48, 0.62, 0.68, 0.82, 0.92].map((y, i) => (
-                <Line key={`h-${i}`} x1={0} y1={MAP_HEIGHT * y} x2={MAP_WIDTH} y2={MAP_HEIGHT * (y + (i % 2) * 0.01)}
-                  stroke={secondaryRoadColor} strokeWidth={theme === 'dark' ? 1.5 : 3} strokeLinecap="round" />
-              ))}
-            </G>
+              {/* City Park */}
+              <Path
+                d="M 60 55 L 75 55 L 75 65 L 60 65 Z"
+                fill={colors.greenery}
+                opacity="0.8"
+              />
 
-            {/* Secondary Roads - Vertical */}
-            <G opacity={theme === 'dark' ? 0.18 : 0.25}>
-              {[0.06, 0.18, 0.24, 0.36, 0.42, 0.56, 0.64, 0.76, 0.82, 0.94].map((x, i) => (
-                <Line key={`v-${i}`} x1={MAP_WIDTH * x} y1={0} x2={MAP_WIDTH * (x + (i % 2) * 0.01)} y2={MAP_HEIGHT}
-                  stroke={secondaryRoadColor} strokeWidth={theme === 'dark' ? 1.5 : 3} strokeLinecap="round" />
-              ))}
-            </G>
+              {/* Beach */}
+              <Path
+                d="M 30 100 C 30 100 25 80 40 70 C 55 60 50 40 30 35 C 10 30 5 15 15 0 L 12 0 C 2 15 8 32 28 38 C 48 44 52 62 38 72 C 22 82 28 100 28 100 Z"
+                fill={colors.beach}
+                opacity="0.6"
+              />
 
-            {/* Minor Streets */}
-            <G opacity={theme === 'dark' ? 0.08 : 0.15}>
-              {[0.04, 0.10, 0.16, 0.20, 0.26, 0.32, 0.38, 0.44, 0.50, 0.56, 0.60, 0.66, 0.70, 0.78, 0.84, 0.90, 0.96].map((y, i) => (
-                <Line key={`minor-h-${i}`} x1={0} y1={MAP_HEIGHT * y} x2={MAP_WIDTH} y2={MAP_HEIGHT * y}
-                  stroke={minorRoadColor} strokeWidth={theme === 'dark' ? 0.5 : 1.5} strokeLinecap="round" />
-              ))}
-              {[0.03, 0.09, 0.15, 0.21, 0.27, 0.33, 0.39, 0.45, 0.51, 0.57, 0.63, 0.69, 0.75, 0.81, 0.87, 0.93, 0.99].map((x, i) => (
-                <Line key={`minor-v-${i}`} x1={MAP_WIDTH * x} y1={0} x2={MAP_WIDTH * x} y2={MAP_HEIGHT}
-                  stroke={minorRoadColor} strokeWidth={theme === 'dark' ? 0.5 : 1.5} strokeLinecap="round" />
-              ))}
-            </G>
-
-            {/* Curved Roads */}
-            <G opacity={theme === 'dark' ? 0.15 : 0.2}>
-              <Path d={`M 0 ${MAP_HEIGHT * 0.25} Q ${MAP_WIDTH * 0.25} ${MAP_HEIGHT * 0.15}, ${MAP_WIDTH * 0.50} ${MAP_HEIGHT * 0.25} T ${MAP_WIDTH} ${MAP_HEIGHT * 0.25}`}
-                stroke={secondaryRoadColor} strokeWidth={theme === 'dark' ? 1.5 : 3} fill="none" strokeLinecap="round" />
-              <Path d={`M 0 ${MAP_HEIGHT * 0.65} Q ${MAP_WIDTH * 0.25} ${MAP_HEIGHT * 0.75}, ${MAP_WIDTH * 0.50} ${MAP_HEIGHT * 0.65} T ${MAP_WIDTH} ${MAP_HEIGHT * 0.65}`}
-                stroke={secondaryRoadColor} strokeWidth={theme === 'dark' ? 1.5 : 3} fill="none" strokeLinecap="round" />
-            </G>
-
-            {/* Landmarks - Parks */}
-            <Rect x={MAP_WIDTH * 0.68} y={MAP_HEIGHT * 0.08} width={MAP_WIDTH * 0.12} height={MAP_HEIGHT * 0.12}
-              rx={8} fill={theme === 'dark' ? '#065f46' : '#6ee7b7'} opacity={0.3} />
-
-            {/* Trees */}
-            {[
-              { x: 0.70, y: 0.10 }, { x: 0.73, y: 0.12 }, { x: 0.76, y: 0.11 },
-              { x: 0.72, y: 0.15 }, { x: 0.77, y: 0.16 },
-            ].map((tree, i) => (
-              <G key={`tree-${i}`}>
-                <Circle cx={MAP_WIDTH * tree.x} cy={MAP_HEIGHT * tree.y} r={4} fill="#10b981" opacity={0.6} />
-                <Rect x={MAP_WIDTH * tree.x - 1} y={MAP_HEIGHT * tree.y + 3} width={2} height={6} fill="#065f46" opacity={0.5} />
+              {/* Roads Infrastructure */}
+              <G stroke={colors.road} strokeWidth="0.8" opacity="0.6">
+                {[45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95].map((x) => (
+                  <Line key={`v-${x}`} x1={x} y1="0" x2={x} y2="100" />
+                ))}
+                {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((y) => (
+                  <Line key={`h-${y}`} x1="20" y1={y} x2="100" y2={y} />
+                ))}
               </G>
-            ))}
 
-            {/* Water body */}
-            <Rect x={MAP_WIDTH * 0.28} y={MAP_HEIGHT * 0.48} width={MAP_WIDTH * 0.10} height={MAP_HEIGHT * 0.08}
-              rx={8} fill={theme === 'dark' ? '#1e40af' : '#93c5fd'} opacity={0.3} />
-          </Svg>
+              {/* Main Highways */}
+              <G fill="none">
+                <Path
+                  d="M 20 0 Q 30 50 80 60 L 100 65"
+                  stroke={colors.highwayOutline}
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                />
+                <Path
+                  d="M 60 100 L 60 40 Q 60 20 100 10"
+                  stroke={colors.highwayOutline}
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                />
+                <Path
+                  d="M 20 0 Q 30 50 80 60 L 100 65"
+                  stroke={colors.highway}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <Path
+                  d="M 60 100 L 60 40 Q 60 20 100 10"
+                  stroke={colors.highway}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </G>
+            </Svg>
 
-          {/* District Labels */}
-          <View style={[styles.districtLabel, { top: 20, left: 20, backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)', borderColor: theme === 'dark' ? 'rgba(236,72,153,0.3)' : 'rgba(236,72,153,0.5)' }]}>
-            <Text style={[styles.districtText, { color: theme === 'dark' ? '#f9a8d4' : '#db2777' }]}>
-              ENTERTAINMENT
-            </Text>
-          </View>
+            {/* Markers */}
+            {studios.map((studio) => {
+              const pos = getPosition(studio.latitude, studio.longitude);
+              const isSelected = selectedStudio?.id === studio.id;
+              const left = (pos.x / 100) * MAP_SIZE;
+              const top = (pos.y / 100) * MAP_SIZE;
 
-          <View style={[styles.districtLabel, { top: 20, right: 20, backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)', borderColor: theme === 'dark' ? 'rgba(6,182,212,0.3)' : 'rgba(6,182,212,0.5)' }]}>
-            <Text style={[styles.districtText, { color: theme === 'dark' ? '#67e8f9' : '#0891b2' }]}>
-              TECH HUB
-            </Text>
-          </View>
-
-          <View style={[styles.districtLabel, { bottom: 20, left: 20, backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)', borderColor: theme === 'dark' ? 'rgba(139,92,246,0.3)' : 'rgba(139,92,246,0.5)' }]}>
-            <Text style={[styles.districtText, { color: theme === 'dark' ? '#c4b5fd' : '#7c3aed' }]}>
-              ARTS QUARTER
-            </Text>
-          </View>
-
-          <View style={[styles.districtLabel, { bottom: 20, right: 20, backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)', borderColor: theme === 'dark' ? 'rgba(251,191,36,0.3)' : 'rgba(251,191,36,0.5)' }]}>
-            <Text style={[styles.districtText, { color: theme === 'dark' ? '#fcd34d' : '#d97706' }]}>
-              BUSINESS
-            </Text>
-          </View>
-
-          {/* User Location Marker */}
-          {userLocation && (
-            <View style={[styles.markerContainer, getPosition(userLocation.latitude, userLocation.longitude)]}>
-              <View style={styles.userMarkerPulse1} />
-              <View style={styles.userMarkerPulse2} />
-              <View style={styles.userMarkerPulse3} />
-              <View style={styles.userMarker}>
-                <View style={styles.userMarkerInner} />
-              </View>
-              <View style={[styles.userLabel, { backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.95)' : 'rgba(255,255,255,0.95)', borderColor: theme === 'dark' ? '#3b82f6' : '#60a5fa' }]}>
-                <Text style={[styles.userLabelText, { color: theme === 'dark' ? '#93c5fd' : '#1e40af' }]}>
-                  Your Location
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* Studio Markers */}
-          {studios.map((studio) => {
-            if (!studio.latitude || !studio.longitude) return null;
-            const position = getPosition(studio.latitude, studio.longitude);
-            const isSelected = selectedStudio?.id === studio.id;
-
-            return (
-              <TouchableOpacity
-                key={studio.id}
-                style={[styles.markerContainer, position]}
-                onPress={() => onStudioPress(studio)}
-                activeOpacity={0.7}
-              >
-                {/* Pulse rings */}
-                <View style={[styles.studioPulse1, isSelected && styles.studioPulseActive]} />
-                <View style={[styles.studioPulse2, isSelected && styles.studioPulseActive]} />
-
-                {/* Studio Pin */}
-                <View style={[styles.studioPin, isSelected && styles.studioPinSelected]}>
-                  <View style={[styles.studioPinInner, isSelected && styles.studioPinInnerSelected]} />
-                </View>
-
-                {/* Studio Label on Selection */}
-                {isSelected && (
-                  <View style={[styles.studioCard, { backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.95)' : 'rgba(255,255,255,0.95)', borderColor: colors.border }]}>
-                    <View style={styles.studioCardHeader}>
-                      <MaterialCommunityIcons name="microphone" size={16} color={colors.primary} />
-                      <Text style={[styles.studioName, { color: colors.text }]} numberOfLines={1}>
-                        {studio.name}
+              return (
+                <View
+                  key={studio.id}
+                  style={{
+                    position: "absolute",
+                    left,
+                    top,
+                    zIndex: isSelected ? 100 : 10,
+                  }}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => handlePress(studio)}
+                    style={[
+                      styles.markerContainer,
+                      isSelected && styles.markerSelected,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.markerHead,
+                        {
+                          backgroundColor: isSelected
+                            ? colors.accent
+                            : theme === "dark"
+                              ? "#27272a"
+                              : "#ffffff",
+                          borderColor: isSelected ? colors.text : colors.border,
+                        },
+                      ]}
+                    >
+                      {isSelected ? (
+                        <Mic2
+                          size={14}
+                          color={theme === "dark" ? "#000" : "#fff"}
+                          strokeWidth={3}
+                        />
+                      ) : (
+                        <Text
+                          style={[styles.markerPrice, { color: colors.text }]}
+                        >
+                          ${studio.hourlyRate}
+                        </Text>
+                      )}
+                    </View>
+                    <View
+                      style={[
+                        styles.markerStick,
+                        { backgroundColor: "rgba(0,0,0,0.5)" },
+                      ]}
+                    />
+                    <View
+                      style={[
+                        styles.markerLabel,
+                        {
+                          backgroundColor:
+                            theme === "dark"
+                              ? "rgba(0,0,0,0.9)"
+                              : "rgba(255,255,255,0.9)",
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.markerLabelText, { color: colors.text }]}
+                      >
+                        {studio.location || "STUDIO"}
                       </Text>
                     </View>
-                    <View style={styles.studioCardRow}>
-                      <View style={styles.studioRating}>
-                        <Ionicons name="star" size={12} color="#fbbf24" />
-                        <Text style={[styles.studioRatingText, { color: colors.text }]}>
-                          {studio.rating.toFixed(1)}
-                        </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+
+            {/* User Location */}
+            {userLocation && (
+              <View
+                style={{
+                  position: "absolute",
+                  left: MAP_SIZE * 0.35,
+                  top: MAP_SIZE * 0.4,
+                  zIndex: 5,
+                }}
+              >
+                <View style={styles.userLocationPulse} />
+                <Navigation
+                  size={24}
+                  color="#3b82f6"
+                  fill="#3b82f6"
+                  style={{ transform: [{ rotate: "45deg" }] }}
+                />
+              </View>
+            )}
+          </Animated.View>
+        </GestureDetector>
+
+        {/* HUD: District Label */}
+        <View style={styles.hudDistrict}>
+          <BlurView intensity={40} tint={theme} style={styles.districtBlur}>
+            <View
+              style={[styles.districtBar, { backgroundColor: colors.text }]}
+            />
+            <View>
+              <Text style={[styles.districtLabelSmall, { color: colors.text }]}>
+                DISTRICT
+              </Text>
+              <Text style={[styles.districtLabelLarge, { color: colors.text }]}>
+                VINEWOOD HILLS
+              </Text>
+            </View>
+          </BlurView>
+        </View>
+
+        {/* HUD: Zoom Controls */}
+        <View
+          style={[
+            styles.hudZoom,
+            { borderColor: colors.border, backgroundColor: colors.cardBg },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={() => (scale.value = withSpring(scale.value * 1.2))}
+            style={[
+              styles.zoomBtn,
+              { borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.1)" },
+            ]}
+          >
+            <Maximize2 size={20} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => (scale.value = withSpring(scale.value * 0.8))}
+            style={styles.zoomBtn}
+          >
+            <Minimize2 size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        {/* HUD: Reset Button */}
+        <TouchableOpacity
+          onPress={resetMap}
+          style={[
+            styles.hudLocate,
+            { backgroundColor: colors.cardBg, borderColor: colors.border },
+          ]}
+        >
+          <Navigation size={20} color={colors.text} />
+        </TouchableOpacity>
+
+        {/* Selected Studio Card */}
+        {selectedStudio && (
+          <Animated.View
+            entering={SlideInDown.springify().damping(15)}
+            exiting={SlideOutDown.duration(200)}
+            style={styles.cardWrapper}
+          >
+            <BlurView
+              intensity={90}
+              tint={theme === "dark" ? "dark" : "light"}
+              style={[styles.cardContainer, { borderColor: colors.border }]}
+            >
+              <View style={styles.cardDecoration} />
+              <View style={styles.cardHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[styles.cardTitle, { color: colors.text }]}
+                    numberOfLines={1}
+                  >
+                    {selectedStudio.name}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginTop: 4,
+                    }}
+                  >
+                    <MapPin size={10} color={colors.text} opacity={0.7} />
+                    <Text style={[styles.cardSubtitle, { color: colors.text }]}>
+                      {selectedStudio.location || "Los Santos"}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+                  <X size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.cardBody}>
+                <View
+                  style={[
+                    styles.cardImageContainer,
+                    { borderColor: colors.border },
+                  ]}
+                >
+                  {selectedStudio.imageUrl ? (
+                    <Image
+                      source={{ uri: selectedStudio.imageUrl }}
+                      style={styles.cardImage}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        flex: 1,
+                        backgroundColor: "#ccc",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Zap size={24} color="#666" />
+                    </View>
+                  )}
+                  <View style={styles.cardImageTag}>
+                    <Text style={styles.cardImageTagText}>
+                      {selectedStudio.location || "STUDIO"}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.cardStats}>
+                  <View style={styles.statRow}>
+                    <View>
+                      <Text style={styles.statLabel}>REPUTATION</Text>
+                      <View style={{ flexDirection: "row", gap: 2 }}>
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            size={10}
+                            fill={
+                              i < Math.floor(selectedStudio.rating)
+                                ? colors.text
+                                : "transparent"
+                            }
+                            color={colors.text}
+                          />
+                        ))}
                       </View>
-                      <Text style={[styles.studioPrice, { color: colors.textSecondary }]}>
-                        ${studio.hourlyRate}/hr
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={styles.statLabel}>RATE</Text>
+                      <Text style={[styles.rateText, { color: colors.text }]}>
+                        ${selectedStudio.hourlyRate}
+                        <Text style={{ fontSize: 10, fontWeight: "400" }}>
+                          /hr
+                        </Text>
                       </Text>
                     </View>
                   </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </ScrollView>
 
-      {/* Legend */}
-      <View style={[styles.legend, { backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.9)' : 'rgba(255,255,255,0.9)', borderColor: colors.border }]}>
-        <View style={styles.legendItem}>
-          <View style={styles.legendStudioMarker} />
-          <Text style={[styles.legendText, { color: colors.text }]}>Studios</Text>
-        </View>
-        {userLocation && (
-          <View style={styles.legendItem}>
-            <View style={styles.legendUserMarker} />
-            <Text style={[styles.legendText, { color: colors.text }]}>You</Text>
-          </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.bookButton,
+                      {
+                        backgroundColor: colors.text,
+                        borderColor: colors.text,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.bookButtonText,
+                        { color: theme === "dark" ? "#000" : "#fff" },
+                      ]}
+                    >
+                      BOOK SESSION
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </BlurView>
+          </Animated.View>
         )}
       </View>
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    overflow: "hidden",
   },
-  scrollView: {
-    flex: 1,
-  },
-  mapContainer: {
-    width: MAP_WIDTH,
-    height: MAP_HEIGHT,
-    position: 'relative',
-  },
-  svg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+  mapContent: {
+    width: MAP_SIZE,
+    height: MAP_SIZE,
   },
   markerContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
+    transform: [{ translateX: -20 }, { translateY: -40 }],
   },
-  // User Location Styles
-  userMarkerPulse1: {
-    position: 'absolute',
+  markerSelected: {
+    transform: [{ translateX: -20 }, { translateY: -50 }, { scale: 1.1 }],
+    zIndex: 100,
+  },
+  markerHead: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    zIndex: 2,
+  },
+  markerPrice: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+  markerStick: {
+    width: 2,
+    height: 12,
+    marginTop: -2,
+    zIndex: 1,
+  },
+  markerLabel: {
+    marginTop: -2,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  markerLabelText: {
+    fontSize: 8,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  userLocationPulse: {
+    position: "absolute",
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    ...Platform.select({
-      ios: {
-        // On iOS we'd use Animated API for pulses
-      },
-      android: {
-        // On Android too
-      },
-    }),
+    backgroundColor: "rgba(59, 130, 246, 0.3)",
+    top: -8,
+    left: -8,
   },
-  userMarkerPulse2: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+  hudDistrict: {
+    position: "absolute",
+    bottom: 40,
+    left: 20,
+    borderRadius: 8,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 0,
+    elevation: 5,
   },
-  userMarkerPulse3: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  districtBlur: {
+    flexDirection: "row",
+    padding: 12,
+    gap: 12,
+    alignItems: "center",
+    borderLeftWidth: 6,
+    borderLeftColor: "#fff",
   },
-  userMarker: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#3b82f6',
-    borderWidth: 4,
-    borderColor: 'rgba(59, 130, 246, 0.4)',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 10,
+  districtBar: {
+    width: 4,
+    height: "100%",
+    display: "none",
+  },
+  districtLabelSmall: {
+    fontSize: 8,
+    fontWeight: "900",
+    opacity: 0.6,
+    letterSpacing: 1,
+  },
+  districtLabelLarge: {
+    fontSize: 16,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: -0.5,
+  },
+  hudZoom: {
+    position: "absolute",
+    bottom: 40,
+    right: 20,
+    borderRadius: 8,
+    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 0,
+    elevation: 5,
+  },
+  zoomBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hudLocate: {
+    position: "absolute",
+    bottom: 140,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 0,
+    elevation: 5,
+  },
+  cardWrapper: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 60 : 40,
+    left: 20,
+    right: 20,
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 8, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 0,
     elevation: 10,
   },
-  userMarkerInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#fff',
-    position: 'absolute',
-    top: 4,
-    left: 4,
+  cardContainer: {
+    borderRadius: 2,
+    borderWidth: 2,
+    overflow: "hidden",
   },
-  userLabel: {
-    position: 'absolute',
-    top: 40,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
+  cardDecoration: {
+    height: 6,
+    width: "100%",
+    backgroundColor: "#ef4444",
   },
-  userLabelText: {
+  cardHeader: {
+    flexDirection: "row",
+    padding: 16,
+    alignItems: "flex-start",
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: -1,
+  },
+  cardSubtitle: {
     fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    opacity: 0.7,
   },
-  // Studio Marker Styles
-  studioPulse1: {
-    position: 'absolute',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  closeBtn: {
+    padding: 4,
+  },
+  cardBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  cardImageContainer: {
+    height: 120,
+    width: "100%",
     borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.4)',
+    borderStyle: "dashed",
+    marginBottom: 16,
+    position: "relative",
+    padding: 4,
   },
-  studioPulse2: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.2)',
+  cardImage: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#eee",
   },
-  studioPulseActive: {
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+  cardImageTag: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    backgroundColor: "#000",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
-  studioPin: {
-    width: 32,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  cardImageTagText: {
+    color: "#fff",
+    fontSize: 8,
+    fontWeight: "bold",
+    textTransform: "uppercase",
   },
-  studioPinSelected: {
-    transform: [{ scale: 1.2 }],
+  cardStats: {
+    gap: 12,
   },
-  studioPinInner: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#ef4444',
+  statRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: "rgba(128,128,128,0.2)",
+    borderStyle: "dotted",
+  },
+  statLabel: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#888",
+    marginBottom: 4,
+  },
+  rateText: {
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  bookButton: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 2,
-    borderColor: '#fff',
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 8,
   },
-  studioPinInnerSelected: {
-    backgroundColor: '#fff',
-    borderColor: '#ef4444',
-  },
-  studioCard: {
-    position: 'absolute',
-    top: 50,
-    minWidth: 180,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  studioCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  studioName: {
-    fontSize: 13,
-    fontWeight: '600',
-    flex: 1,
-  },
-  studioCardRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  studioRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  studioRatingText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  studioPrice: {
+  bookButtonText: {
     fontSize: 12,
-    fontWeight: '600',
-  },
-  // District Labels
-  districtLabel: {
-    position: 'absolute',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  districtText: {
-    fontSize: 9,
-    fontWeight: '600',
+    fontWeight: "900",
+    textTransform: "uppercase",
     letterSpacing: 2,
-  },
-  // Legend
-  legend: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-    gap: 8,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  legendText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  legendStudioMarker: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#ef4444',
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  legendUserMarker: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#3b82f6',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-    elevation: 4,
   },
 });
