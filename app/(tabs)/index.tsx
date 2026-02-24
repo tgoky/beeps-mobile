@@ -1,45 +1,47 @@
-import CustomMapView from "@/components/CustomMapView";
 import { NotificationBell } from "@/components/NotificationBell";
-import { RequestServiceModal } from "@/components/RequestServiceModal";
-import { Colors, Spacing } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useArtists } from "@/hooks/useArtists";
+import { useBeats } from "@/hooks/useBeats";
 import { useProducers } from "@/hooks/useProducers";
 import { useStudios } from "@/hooks/useStudios";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
-  ActivityIndicator,
   Dimensions,
-  FlatList,
+  Platform,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
+const HERO_HEIGHT = 200;
+const STUDIO_CARD_WIDTH = width * 0.7;
+const PRODUCER_AVATAR_SIZE = 80;
+const BEAT_CARD_WIDTH = (width - Spacing.lg * 2 - 12) / 2;
 
-type TabType = "studios" | "producers" | "artists";
-type ViewMode = "map" | "list"; // Renamed 'grid' to 'list' for clarity
-
-const GENRES = [
-  "Hip Hop",
-  "R&B",
-  "Pop",
-  "Rock",
-  "Electronic",
-  "Jazz",
-  "Classical",
-  "Country",
+const CATEGORIES = [
+  { key: "studios", label: "Studios", icon: "home-sound-in-out" as const, gradient: ["#6366F1", "#8B5CF6"] },
+  { key: "producers", label: "Producers", icon: "fader" as const, gradient: ["#3B82F6", "#06B6D4"] },
+  { key: "artists", label: "Artists", icon: "microphone-variant" as const, gradient: ["#EC4899", "#F43F5E"] },
+  { key: "beats", label: "Beats", icon: "music" as const, gradient: ["#F59E0B", "#EF4444"] },
 ];
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -47,468 +49,528 @@ export default function HomeScreen() {
   const colors = Colors[effectiveTheme];
   const isDark = effectiveTheme === "dark";
 
-  const [activeTab, setActiveTab] = useState<TabType>("studios");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [selectedStudio, setSelectedStudio] = useState<any | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [minRating, setMinRating] = useState<number>(0);
-  const [showFilters, setShowFilters] = useState(false);
-  const [requestServiceProducer, setRequestServiceProducer] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
+  const { data: studios, isLoading: studiosLoading, refetch: refetchStudios } = useStudios();
+  const { data: producers, isLoading: producersLoading, refetch: refetchProducers } = useProducers();
+  const { data: beats, isLoading: beatsLoading, refetch: refetchBeats } = useBeats();
 
-  const { data: studios, isLoading: studiosLoading } = useStudios();
-  const { data: producers, isLoading: producersLoading } = useProducers();
-  const { data: artists, isLoading: artistsLoading } = useArtists();
+  const [refreshing, setRefreshing] = React.useState(false);
 
-  const userLocation = { latitude: 37.7849, longitude: -122.4094 };
-
-  const toggleGenre = (genre: string) => {
-    setSelectedGenres((prev) =>
-      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre],
-    );
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchStudios(), refetchProducers(), refetchBeats()]);
+    setRefreshing(false);
   };
 
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSelectedGenres([]);
-    setMinRating(0);
-  };
+  // Derived data
+  const featuredStudio = useMemo(() => {
+    if (!studios || studios.length === 0) return null;
+    // Pick the highest rated studio as featured
+    return [...studios].sort((a, b) => b.rating - a.rating)[0];
+  }, [studios]);
 
-  const hasActiveFilters =
-    searchQuery || selectedGenres.length > 0 || minRating > 0;
+  const topStudios = useMemo(() => {
+    if (!studios) return [];
+    return [...studios].sort((a, b) => b.rating - a.rating).slice(0, 8);
+  }, [studios]);
 
-  // --- Logic for Filtering ---
-  const getFilteredData = () => {
-    let data: any[] = [];
-    switch (activeTab) {
-      case "studios":
-        data = studios || [];
-        break;
-      case "producers":
-        data = producers || [];
-        break;
-      case "artists":
-        data = artists || [];
-        break;
-    }
-    return data.filter((item: any) => {
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        let name = "";
-        if (activeTab === "studios") {
-          name = item.name?.toLowerCase() || "";
-        } else {
-          name =
-            item.user?.fullName?.toLowerCase() ||
-            item.user?.username?.toLowerCase() ||
-            "";
-        }
-        if (!name.includes(query)) return false;
-      }
-      if (selectedGenres.length > 0) {
-        const itemGenres = item.genres || [];
-        if (!itemGenres.some((g: string) => selectedGenres.includes(g)))
-          return false;
-      }
-      if (minRating > 0) {
-        const rating =
-          activeTab === "studios" ? item.rating : item.user?.rating || 0;
-        if (rating < minRating) return false;
-      }
-      return true;
-    });
-  };
+  const topProducers = useMemo(() => {
+    if (!producers) return [];
+    return [...producers]
+      .sort((a, b) => (b.user?.followersCount || 0) - (a.user?.followersCount || 0))
+      .slice(0, 10);
+  }, [producers]);
 
-  const filteredData = useMemo(
-    () => getFilteredData(),
-    [
-      activeTab,
-      studios,
-      producers,
-      artists,
-      searchQuery,
-      selectedGenres,
-      minRating,
-    ],
-  );
+  const recentBeats = useMemo(() => {
+    if (!beats) return [];
+    return beats.slice(0, 6);
+  }, [beats]);
 
-  const isLoading = () => {
-    switch (activeTab) {
-      case "studios":
-        return studiosLoading;
-      case "producers":
-        return producersLoading;
-      case "artists":
-        return artistsLoading;
-      default:
-        return false;
-    }
-  };
+  if (!user) return null;
 
-  if (!user) return null; // Auth wall handled in layout usually
+  const firstName = (user.fullName || user.username || "").split(" ")[0];
 
-  // --- NEW COMPACT LIST ITEM ---
-  const renderCompactItem = ({ item }: { item: any }) => {
-    let name = "",
-      price = 0,
-      rating = 0,
-      location = "",
-      imageUrl = "";
-
-    if (activeTab === "studios") {
-      name = item.name;
-      price = item.hourlyRate;
-      rating = item.rating;
-      location = item.city || "Downtown";
-      imageUrl =
-        item.imageUrl ||
-        `https://images.unsplash.com/photo-1598653222000-6b7b7a552625?auto=format&fit=crop&w=400&q=80`;
+  const handleCategoryPress = (key: string) => {
+    if (key === "beats") {
+      router.push("/(tabs)/hub");
     } else {
-      name = item.user?.fullName || item.user?.username || "Unknown";
-      price = item.productionRate || 0;
-      rating = item.user?.rating || 0;
-      location = item.user?.location || "Remote";
-      imageUrl =
-        item.user?.avatarUrl ||
-        `https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=400&q=80`;
+      router.push("/explore");
     }
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.7}
-        style={[
-          styles.compactCard,
-          { backgroundColor: colors.card, borderColor: colors.border },
-        ]}
-        onPress={() => {
-          if (activeTab === "studios") router.push(`/studio/${item.id}`);
-          else if (activeTab === "producers")
-            router.push(`/producer/${item.userId}`);
-          else router.push(`/profile/${item.user.id}`);
-        }}
-      >
-        {/* Left: Image (Square) */}
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.compactImage}
-          contentFit="cover"
-          transition={200}
-        />
-
-        {/* Right: Details */}
-        <View style={styles.compactContent}>
-          <View style={styles.compactHeader}>
-            <Text
-              style={[styles.compactTitle, { color: colors.text }]}
-              numberOfLines={1}
-            >
-              {name}
-            </Text>
-            {rating > 0 && (
-              <View style={styles.compactRating}>
-                <Ionicons name="star" size={12} color="#F59E0B" />
-                <Text
-                  style={[styles.compactRatingText, { color: colors.text }]}
-                >
-                  {rating.toFixed(1)}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <Text
-            style={[styles.compactLocation, { color: colors.textSecondary }]}
-            numberOfLines={1}
-          >
-            <Ionicons
-              name="location-sharp"
-              size={10}
-              color={colors.textTertiary}
-            />{" "}
-            {location}
-          </Text>
-
-          <View style={styles.compactFooter}>
-            <Text style={[styles.compactPrice, { color: colors.primary }]}>
-              {price > 0 ? `$${price}` : "Contact"}
-              {price > 0 && (
-                <Text
-                  style={{
-                    fontSize: 10,
-                    fontWeight: "400",
-                    color: colors.textTertiary,
-                  }}
-                >
-                  /hr
-                </Text>
-              )}
-            </Text>
-
-            {activeTab === "producers" && user.id !== item.userId && (
-              <TouchableOpacity
-                style={[
-                  styles.compactAddBtn,
-                  { backgroundColor: colors.backgroundSecondary },
-                ]}
-                onPress={() =>
-                  setRequestServiceProducer({ id: item.userId, name })
-                }
-              >
-                <Ionicons name="add" size={16} color={colors.text} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderContent = () => {
-    if (isLoading()) {
-      return (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      );
-    }
-
-    if (viewMode === "map") {
-      if (activeTab !== "studios") {
-        return (
-          <View style={styles.centerContainer}>
-            <MaterialCommunityIcons
-              name="map-marker-off"
-              size={48}
-              color={colors.textTertiary}
-            />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              Map view only available for Studios
-            </Text>
-            <TouchableOpacity
-              onPress={() => setViewMode("list")}
-              style={{ marginTop: 20 }}
-            >
-              <Text style={{ color: colors.primary, fontWeight: "bold" }}>
-                Return to List
-              </Text>
-            </TouchableOpacity>
-          </View>
-        );
-      }
-
-      const studiosWithLocation = filteredData.map(
-        (studio: any, index: number) => ({
-          ...studio,
-          latitude:
-            studio.latitude ||
-            userLocation.latitude + (Math.random() - 0.5) * 0.05,
-          longitude:
-            studio.longitude ||
-            userLocation.longitude + (Math.random() - 0.5) * 0.05,
-        }),
-      );
-
-      return (
-        <CustomMapView
-          studios={studiosWithLocation}
-          theme={effectiveTheme}
-          onStudioPress={setSelectedStudio}
-          selectedStudio={selectedStudio}
-          userLocation={userLocation}
-        />
-      );
-    }
-
-    if (filteredData.length === 0) {
-      return (
-        <View style={styles.centerContainer}>
-          <MaterialCommunityIcons
-            name="magnify-remove-outline"
-            size={64}
-            color={colors.textTertiary}
-          />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            No matches found
-          </Text>
-          <TouchableOpacity onPress={clearFilters} style={styles.resetButton}>
-            <Text style={styles.resetButtonText}>Clear Filters</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    // --- USING FLATLIST FOR PERFORMANCE ---
-    return (
-      <FlatList
-        data={filteredData}
-        renderItem={renderCompactItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListFooterComponent={<View style={{ height: 100 }} />} // Space for floating button
-      />
-    );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <SafeAreaView style={{ flex: 1 }}>
-        {/* --- Minimal Header --- */}
-        <View
-          style={[
-            styles.headerContainer,
-            {
-              backgroundColor: colors.background,
-              borderBottomColor: colors.border,
-            },
-          ]}
-        >
-          <View style={styles.searchRow}>
-            {/* Search Bar */}
-            <View style={[styles.searchBar, { backgroundColor: colors.card }]}>
-              <Ionicons name="search" size={18} color={colors.textTertiary} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.text }]}
-                placeholder={`Search ${activeTab}...`}
-                placeholderTextColor={colors.textTertiary}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-            {/* Filter Btn */}
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: colors.background }]}>
+          <View>
+            <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+              {getGreeting()},
+            </Text>
+            <Text style={[styles.userName, { color: colors.text }]}>
+              {firstName || "Creator"}
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
             <TouchableOpacity
-              onPress={() => setShowFilters(!showFilters)}
-              style={[styles.iconBtn, { backgroundColor: colors.card }]}
+              style={[styles.searchButton, { backgroundColor: colors.backgroundSecondary }]}
+              onPress={() => router.push("/explore")}
+              activeOpacity={0.7}
             >
-              <Ionicons name="options-outline" size={20} color={colors.text} />
-              {hasActiveFilters && <View style={styles.activeFilterDot} />}
+              <Ionicons name="search" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            {/* Notif Btn */}
-            <View style={[styles.iconBtn, { backgroundColor: colors.card }]}>
+            <View style={[styles.notifBtn, { backgroundColor: colors.backgroundSecondary }]}>
               <NotificationBell size={20} color={colors.text} />
             </View>
           </View>
-
-          {/* Compact Tabs */}
-          <View style={styles.tabsRow}>
-            {["studios", "producers", "artists"].map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => {
-                  setActiveTab(tab as TabType);
-                  if (tab !== "studios") setViewMode("list");
-                }}
-                style={[
-                  styles.tabItem,
-                  activeTab === tab && {
-                    borderBottomColor: colors.text,
-                    borderBottomWidth: 2,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    {
-                      color:
-                        activeTab === tab ? colors.text : colors.textTertiary,
-                    },
-                  ]}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
 
-        {/* --- Filters --- */}
-        {showFilters && (
-          <View
-            style={[
-              styles.filtersContainer,
-              { backgroundColor: colors.background },
-            ]}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
+          }
+        >
+          {/* Search Bar (navigates to explore) */}
+          <TouchableOpacity
+            style={[styles.searchBarButton, { backgroundColor: colors.backgroundSecondary }]}
+            onPress={() => router.push("/explore")}
+            activeOpacity={0.7}
           >
+            <Ionicons name="search" size={18} color={colors.textTertiary} />
+            <Text style={[styles.searchPlaceholder, { color: colors.textTertiary }]}>
+              Search studios, producers, artists...
+            </Text>
+          </TouchableOpacity>
+
+          {/* Hero Banner - Featured Studio */}
+          {featuredStudio && (
+            <TouchableOpacity
+              style={styles.heroContainer}
+              activeOpacity={0.9}
+              onPress={() => router.push(`/studio/${featuredStudio.id}`)}
+            >
+              <Image
+                source={{
+                  uri:
+                    featuredStudio.imageUrl ||
+                    "https://images.unsplash.com/photo-1598653222000-6b7b7a552625?auto=format&fit=crop&w=800&q=80",
+                }}
+                style={styles.heroImage}
+                contentFit="cover"
+                transition={300}
+              />
+              <LinearGradient
+                colors={["transparent", "rgba(0,0,0,0.85)"]}
+                style={styles.heroGradient}
+              >
+                <View style={styles.heroBadge}>
+                  <Ionicons name="star" size={10} color="#F59E0B" />
+                  <Text style={styles.heroBadgeText}>Featured</Text>
+                </View>
+                <Text style={styles.heroTitle} numberOfLines={1}>
+                  {featuredStudio.name}
+                </Text>
+                <View style={styles.heroMeta}>
+                  <View style={styles.heroMetaItem}>
+                    <Ionicons name="location-sharp" size={12} color="rgba(255,255,255,0.7)" />
+                    <Text style={styles.heroMetaText}>
+                      {featuredStudio.city || featuredStudio.location || "Local"}
+                    </Text>
+                  </View>
+                  <View style={styles.heroMetaItem}>
+                    <Ionicons name="star" size={12} color="#F59E0B" />
+                    <Text style={styles.heroMetaText}>
+                      {featuredStudio.rating.toFixed(1)}
+                    </Text>
+                  </View>
+                  {featuredStudio.hourlyRate > 0 && (
+                    <View style={styles.heroMetaItem}>
+                      <Text style={styles.heroPrice}>
+                        ${featuredStudio.hourlyRate}/hr
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {/* Category Pills */}
+          <View style={styles.categoriesSection}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 8 }}
+              contentContainerStyle={styles.categoriesScroll}
             >
-              {GENRES.map((g) => (
+              {CATEGORIES.map((cat) => (
                 <TouchableOpacity
-                  key={g}
-                  onPress={() => toggleGenre(g)}
-                  style={[
-                    styles.filterChip,
-                    selectedGenres.includes(g)
-                      ? {
-                          backgroundColor: colors.text,
-                          borderColor: colors.text,
-                        }
-                      : { borderColor: colors.border },
-                  ]}
+                  key={cat.key}
+                  style={styles.categoryPill}
+                  activeOpacity={0.8}
+                  onPress={() => handleCategoryPress(cat.key)}
                 >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      color: selectedGenres.includes(g)
-                        ? colors.background
-                        : colors.text,
-                    }}
+                  <LinearGradient
+                    colors={cat.gradient}
+                    style={styles.categoryIcon}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                   >
-                    {g}
+                    <MaterialCommunityIcons
+                      name={cat.icon}
+                      size={22}
+                      color="#fff"
+                    />
+                  </LinearGradient>
+                  <Text
+                    style={[styles.categoryLabel, { color: colors.text }]}
+                  >
+                    {cat.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
-        )}
 
-        {/* --- Content --- */}
-        <View style={{ flex: 1 }}>{renderContent()}</View>
-
-        {/* --- Map Toggle --- */}
-        {activeTab === "studios" && (
-          <View style={styles.floatingButtonContainer}>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={[styles.floatingButton, { backgroundColor: colors.text }]}
-              onPress={() => setViewMode(viewMode === "list" ? "map" : "list")}
-            >
-              <Ionicons
-                name={viewMode === "list" ? "map" : "list"}
-                size={18}
-                color={colors.background}
-                style={{ marginRight: 8 }}
-              />
-              <Text
-                style={[
-                  styles.floatingButtonText,
-                  { color: colors.background },
-                ]}
+          {/* Top Rated Studios - Horizontal Scroll */}
+          {topStudios.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Top Rated Studios
+                </Text>
+                <TouchableOpacity onPress={() => router.push("/explore")}>
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>
+                    See All
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalScroll}
               >
-                {viewMode === "list" ? "Map" : "List"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+                {topStudios.map((studio) => (
+                  <TouchableOpacity
+                    key={studio.id}
+                    style={[
+                      styles.studioCard,
+                      { backgroundColor: colors.card },
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={() => router.push(`/studio/${studio.id}`)}
+                  >
+                    <Image
+                      source={{
+                        uri:
+                          studio.imageUrl ||
+                          "https://images.unsplash.com/photo-1598653222000-6b7b7a552625?auto=format&fit=crop&w=400&q=80",
+                      }}
+                      style={styles.studioCardImage}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                    <View style={styles.studioCardContent}>
+                      <Text
+                        style={[styles.studioCardName, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {studio.name}
+                      </Text>
+                      <View style={styles.studioCardMeta}>
+                        <Ionicons
+                          name="location-sharp"
+                          size={11}
+                          color={colors.textTertiary}
+                        />
+                        <Text
+                          style={[
+                            styles.studioCardLocation,
+                            { color: colors.textSecondary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {studio.city || "Local"}
+                        </Text>
+                      </View>
+                      <View style={styles.studioCardFooter}>
+                        <View style={styles.ratingBadge}>
+                          <Ionicons name="star" size={11} color="#F59E0B" />
+                          <Text style={styles.ratingText}>
+                            {studio.rating.toFixed(1)}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.studioCardPrice,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {studio.hourlyRate > 0
+                            ? `$${studio.hourlyRate}`
+                            : "Contact"}
+                          {studio.hourlyRate > 0 && (
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                color: colors.textTertiary,
+                                fontWeight: "400",
+                              }}
+                            >
+                              /hr
+                            </Text>
+                          )}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
-        {/* --- Modals --- */}
-        {requestServiceProducer && (
-          <RequestServiceModal
-            visible={!!requestServiceProducer}
-            onClose={() => setRequestServiceProducer(null)}
-            producerId={requestServiceProducer.id}
-            producerName={requestServiceProducer.name}
-            clientId={user.id}
-          />
-        )}
+          {/* Popular Producers - Circle Avatars */}
+          {topProducers.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Popular Producers
+                </Text>
+                <TouchableOpacity onPress={() => router.push("/explore")}>
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>
+                    See All
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalScroll}
+              >
+                {topProducers.map((producer) => {
+                  const name =
+                    producer.user?.fullName ||
+                    producer.user?.username ||
+                    "Unknown";
+                  const avatarUrl =
+                    producer.user?.avatar ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`;
+                  const genres = producer.genres?.slice(0, 2) || [];
+
+                  return (
+                    <TouchableOpacity
+                      key={producer.id}
+                      style={styles.producerItem}
+                      activeOpacity={0.8}
+                      onPress={() =>
+                        router.push(`/producer/${producer.userId}`)
+                      }
+                    >
+                      <View
+                        style={[
+                          styles.producerAvatarRing,
+                          { borderColor: colors.border },
+                        ]}
+                      >
+                        <Image
+                          source={{ uri: avatarUrl }}
+                          style={styles.producerAvatar}
+                          contentFit="cover"
+                          transition={200}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.producerName,
+                          { color: colors.text },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {name.split(" ")[0]}
+                      </Text>
+                      {genres.length > 0 && (
+                        <Text
+                          style={[
+                            styles.producerGenre,
+                            { color: colors.textTertiary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {genres[0]}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Fresh Beats */}
+          {recentBeats.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Fresh Beats
+                </Text>
+                <TouchableOpacity onPress={() => router.push("/(tabs)/hub")}>
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>
+                    See All
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.beatsGrid}>
+                {recentBeats.map((beat) => {
+                  const producerName =
+                    beat.producer?.fullName ||
+                    beat.producer?.username ||
+                    "Unknown";
+                  return (
+                    <TouchableOpacity
+                      key={beat.id}
+                      style={[
+                        styles.beatCard,
+                        { backgroundColor: colors.card },
+                      ]}
+                      activeOpacity={0.85}
+                    >
+                      <LinearGradient
+                        colors={
+                          beat.genres?.includes("Hip Hop")
+                            ? ["#8B5CF6", "#6366F1"]
+                            : beat.genres?.includes("R&B")
+                              ? ["#EC4899", "#8B5CF6"]
+                              : beat.genres?.includes("Pop")
+                                ? ["#06B6D4", "#3B82F6"]
+                                : ["#F59E0B", "#EF4444"]
+                        }
+                        style={styles.beatCardCover}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <MaterialCommunityIcons
+                          name="music"
+                          size={28}
+                          color="rgba(255,255,255,0.6)"
+                        />
+                        <View style={styles.beatPlaysBadge}>
+                          <Ionicons
+                            name="play"
+                            size={9}
+                            color="rgba(255,255,255,0.9)"
+                          />
+                          <Text style={styles.beatPlaysText}>
+                            {beat.plays || 0}
+                          </Text>
+                        </View>
+                      </LinearGradient>
+                      <View style={styles.beatCardContent}>
+                        <Text
+                          style={[
+                            styles.beatCardTitle,
+                            { color: colors.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {beat.title}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.beatCardProducer,
+                            { color: colors.textSecondary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {producerName}
+                        </Text>
+                        <View style={styles.beatCardFooter}>
+                          <Text
+                            style={[
+                              styles.beatCardPrice,
+                              { color: colors.text },
+                            ]}
+                          >
+                            ${beat.price}
+                          </Text>
+                          {beat.bpm && (
+                            <Text
+                              style={[
+                                styles.beatCardBpm,
+                                { color: colors.textTertiary },
+                              ]}
+                            >
+                              {beat.bpm} BPM
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Quick Actions */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 12 }]}>
+              Quick Actions
+            </Text>
+            <View style={styles.quickActionsGrid}>
+              <TouchableOpacity
+                style={[styles.quickAction, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => router.push("/(tabs)/hub")}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: "#8B5CF620" }]}>
+                  <MaterialCommunityIcons name="music-note-plus" size={22} color="#8B5CF6" />
+                </View>
+                <Text style={[styles.quickActionText, { color: colors.text }]}>
+                  Browse Beats
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickAction, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => router.push("/(tabs)/bookings")}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: "#10B98120" }]}>
+                  <Ionicons name="calendar-outline" size={22} color="#10B981" />
+                </View>
+                <Text style={[styles.quickActionText, { color: colors.text }]}>
+                  My Bookings
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickAction, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => router.push("/(tabs)/community")}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: "#3B82F620" }]}>
+                  <Ionicons name="people-outline" size={22} color="#3B82F6" />
+                </View>
+                <Text style={[styles.quickActionText, { color: colors.text }]}>
+                  Community
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickAction, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => router.push("/(tabs)/profile")}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: "#F59E0B20" }]}>
+                  <Ionicons name="person-outline" size={22} color="#F59E0B" />
+                </View>
+                <Text style={[styles.quickActionText, { color: colors.text }]}>
+                  My Profile
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -518,184 +580,359 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+
   // Header
-  headerContainer: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    borderBottomWidth: 1,
-    zIndex: 10,
-  },
-  searchRow: {
+  header: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Platform.OS === "android" ? 40 : 10,
+    paddingBottom: 8,
   },
-  searchBar: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    height: 40,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
+  greeting: {
     fontSize: 14,
     fontWeight: "500",
   },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+  userName: {
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  searchButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
   },
-  activeFilterDot: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#EF4444",
-  },
-  // Tabs
-  tabsRow: {
-    flexDirection: "row",
-    gap: 24,
-  },
-  tabItem: {
-    paddingVertical: 10,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  // Filters
-  filtersContainer: {
-    paddingHorizontal: Spacing.md,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginRight: 8,
+  notifBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  // LIST STYLES (Compact)
-  listContent: {
-    padding: Spacing.md,
-  },
-  compactCard: {
+  // Search Bar Button
+  searchBarButton: {
     flexDirection: "row",
-    height: 90, // Fixed small height
-    marginBottom: 12,
-    borderRadius: 12,
-    borderWidth: 1, // Subtle border helps list definition
-    overflow: "hidden",
+    alignItems: "center",
+    height: 46,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    marginHorizontal: Spacing.lg,
+    marginTop: 8,
+    marginBottom: 16,
+    gap: 10,
   },
-  compactImage: {
-    width: 90, // Square image on left
-    height: "100%",
-  },
-  compactContent: {
-    flex: 1,
-    padding: 10,
-    justifyContent: "space-between",
-  },
-  compactHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  compactTitle: {
+  searchPlaceholder: {
     fontSize: 15,
-    fontWeight: "700",
-    flex: 1,
-    marginRight: 8,
-  },
-  compactRating: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  compactRatingText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  compactLocation: {
-    fontSize: 12,
-    marginTop: -4,
-  },
-  compactFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  compactPrice: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  compactAddBtn: {
-    padding: 4,
-    borderRadius: 12,
+    fontWeight: "400",
   },
 
-  // States
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: 60,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginVertical: 12,
-  },
-  emptyText: {
-    fontSize: 14,
+  // Hero Banner
+  heroContainer: {
+    marginHorizontal: Spacing.lg,
+    height: HERO_HEIGHT,
+    borderRadius: 20,
+    overflow: "hidden",
     marginBottom: 20,
   },
-  resetButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#000",
-    borderRadius: 20,
+  heroImage: {
+    width: "100%",
+    height: "100%",
   },
-  resetButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 12,
-  },
-
-  // Floating Btn
-  floatingButtonContainer: {
+  heroGradient: {
     position: "absolute",
-    bottom: 30,
-    alignSelf: "center",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "70%",
+    justifyContent: "flex-end",
+    padding: 16,
   },
-  floatingButton: {
+  heroBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 30,
+    alignSelf: "flex-start",
+    gap: 4,
+    backgroundColor: "rgba(245, 158, 11, 0.25)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  heroBadgeText: {
+    color: "#FCD34D",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  heroTitle: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+    marginBottom: 6,
+  },
+  heroMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  heroMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  heroMetaText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  heroPrice: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  // Categories
+  categoriesSection: {
+    marginBottom: 24,
+  },
+  categoriesScroll: {
+    paddingHorizontal: Spacing.lg,
+    gap: 20,
+  },
+  categoryPill: {
+    alignItems: "center",
+    gap: 8,
+  },
+  categoryIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Sections
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  horizontalScroll: {
+    paddingHorizontal: Spacing.lg,
+    gap: 14,
+  },
+
+  // Studio Cards
+  studioCard: {
+    width: STUDIO_CARD_WIDTH,
+    borderRadius: 16,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  floatingButtonText: {
+  studioCardImage: {
+    width: "100%",
+    height: STUDIO_CARD_WIDTH * 0.55,
+  },
+  studioCardContent: {
+    padding: 12,
+  },
+  studioCardName: {
+    fontSize: 16,
     fontWeight: "700",
+    marginBottom: 4,
+  },
+  studioCardMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginBottom: 8,
+  },
+  studioCardLocation: {
+    fontSize: 12,
+    flex: 1,
+  },
+  studioCardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#D97706",
+  },
+  studioCardPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  // Producer Avatars
+  producerItem: {
+    alignItems: "center",
+    width: PRODUCER_AVATAR_SIZE + 20,
+  },
+  producerAvatarRing: {
+    width: PRODUCER_AVATAR_SIZE,
+    height: PRODUCER_AVATAR_SIZE,
+    borderRadius: PRODUCER_AVATAR_SIZE / 2,
+    borderWidth: 2,
+    padding: 2,
+    marginBottom: 6,
+    overflow: "hidden",
+  },
+  producerAvatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: PRODUCER_AVATAR_SIZE / 2,
+  },
+  producerName: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  producerGenre: {
+    fontSize: 10,
+    textAlign: "center",
+    marginTop: 1,
+  },
+
+  // Beat Cards
+  beatsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingHorizontal: Spacing.lg,
+  },
+  beatCard: {
+    width: BEAT_CARD_WIDTH,
+    borderRadius: 14,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  beatCardCover: {
+    height: BEAT_CARD_WIDTH * 0.75,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  beatPlaysBadge: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  beatPlaysText: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  beatCardContent: {
+    padding: 10,
+  },
+  beatCardTitle: {
     fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  beatCardProducer: {
+    fontSize: 11,
+    marginBottom: 6,
+  },
+  beatCardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  beatCardPrice: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  beatCardBpm: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+
+  // Quick Actions
+  quickActionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingHorizontal: Spacing.lg,
+  },
+  quickAction: {
+    width: (width - Spacing.lg * 2 - 12) / 2,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
+    gap: 12,
+  },
+  quickActionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  quickActionText: {
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
   },
 });

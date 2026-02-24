@@ -1,5 +1,5 @@
 import {
-  Colors
+  Colors,
 } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -17,6 +17,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -46,31 +47,15 @@ type FilterType = "all" | "pending" | "upcoming" | "past";
 
 const STATUS_CONFIG: Record<
   string,
-  { color: string; label: string; icon: any }
+  { color: string; bg: string; label: string; icon: any }
 > = {
-  PENDING: { color: "#F59E0B", label: "Pending", icon: "time-outline" },
-  CONFIRMED: {
-    color: "#10B981",
-    label: "Confirmed",
-    icon: "checkmark-circle-outline",
-  },
-  CANCELLED: {
-    color: "#EF4444",
-    label: "Cancelled",
-    icon: "close-circle-outline",
-  },
-  COMPLETED: { color: "#6B7280", label: "Completed", icon: "flag-outline" },
-  ACCEPTED: {
-    color: "#10B981",
-    label: "Accepted",
-    icon: "checkmark-done-outline",
-  },
-  REJECTED: { color: "#EF4444", label: "Rejected", icon: "ban-outline" },
-  IN_PROGRESS: {
-    color: "#3B82F6",
-    label: "In Progress",
-    icon: "construct-outline",
-  },
+  PENDING: { color: "#D97706", bg: "#FEF3C7", label: "Pending", icon: "time-outline" },
+  CONFIRMED: { color: "#059669", bg: "#D1FAE5", label: "Confirmed", icon: "checkmark-circle-outline" },
+  CANCELLED: { color: "#DC2626", bg: "#FEE2E2", label: "Cancelled", icon: "close-circle-outline" },
+  COMPLETED: { color: "#6B7280", bg: "#F3F4F6", label: "Completed", icon: "flag-outline" },
+  ACCEPTED: { color: "#059669", bg: "#D1FAE5", label: "Accepted", icon: "checkmark-done-outline" },
+  REJECTED: { color: "#DC2626", bg: "#FEE2E2", label: "Rejected", icon: "ban-outline" },
+  IN_PROGRESS: { color: "#2563EB", bg: "#DBEAFE", label: "In Progress", icon: "construct-outline" },
 };
 
 export default function BookingsScreen() {
@@ -126,7 +111,6 @@ export default function BookingsScreen() {
     setRefreshing(false);
   };
 
-  // ... (Keep existing handlers: handleAcceptRequest, handleRejectRequest, handleSubmitResponse, etc.)
   const handleAcceptRequest = (request: any) => {
     setSelectedRequest(request);
     setShowResponseModal(true);
@@ -190,7 +174,7 @@ export default function BookingsScreen() {
   const handleConfirmBooking = (id: string) => confirmBooking.mutate(id);
   const handleRejectBooking = (id: string) => rejectBooking.mutate(id);
 
-  // --- Filtering Logic ---
+  // Filtering
   const filteredServiceRequests = serviceRequests.filter((request) => {
     const isReceived = request.producerId === user?.id;
     if (serviceRequestView === "sent" && isReceived) return false;
@@ -222,7 +206,10 @@ export default function BookingsScreen() {
         ? myBookingsLoading
         : studioBookingsLoading;
 
-  // --- Helper Components ---
+  const pendingCount = mainView === "service_requests"
+    ? filteredServiceRequests.filter(r => r.status === "PENDING").length
+    : filteredBookings.filter(b => b.status === "PENDING").length;
+
   const StatusBadge = ({ status }: { status: string }) => {
     const config = STATUS_CONFIG[status] || STATUS_CONFIG["PENDING"];
     return (
@@ -230,8 +217,7 @@ export default function BookingsScreen() {
         style={[
           styles.statusBadge,
           {
-            backgroundColor: config.color + "15",
-            borderColor: config.color + "30",
+            backgroundColor: isDark ? config.color + "20" : config.bg,
           },
         ]}
       >
@@ -250,13 +236,20 @@ export default function BookingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* --- Top Segmented Control (Main View) --- */}
       <SafeAreaView style={{ backgroundColor: colors.background }}>
         <View style={styles.headerContainer}>
-          <Text style={[styles.screenTitle, { color: colors.text }]}>
-            Activity
-          </Text>
+          <View>
+            <Text style={[styles.screenTitle, { color: colors.text }]}>
+              Activity
+            </Text>
+            {pendingCount > 0 && (
+              <Text style={[styles.screenSubtitle, { color: colors.textSecondary }]}>
+                {pendingCount} pending
+              </Text>
+            )}
+          </View>
         </View>
+
         <View style={styles.segmentedControlContainer}>
           <View
             style={[
@@ -274,6 +267,12 @@ export default function BookingsScreen() {
               ]}
               onPress={() => setMainView("service_requests")}
             >
+              <Ionicons
+                name="briefcase-outline"
+                size={16}
+                color={mainView === "service_requests" ? colors.text : colors.textSecondary}
+                style={{ marginRight: 6 }}
+              />
               <Text
                 style={[
                   styles.segmentText,
@@ -298,6 +297,12 @@ export default function BookingsScreen() {
               ]}
               onPress={() => setMainView("bookings")}
             >
+              <Ionicons
+                name="calendar-outline"
+                size={16}
+                color={mainView === "bookings" ? colors.text : colors.textSecondary}
+                style={{ marginRight: 6 }}
+              />
               <Text
                 style={[
                   styles.segmentText,
@@ -316,136 +321,84 @@ export default function BookingsScreen() {
         </View>
       </SafeAreaView>
 
-      {/* --- Secondary Tabs & Filters --- */}
       <View style={[styles.subHeader, { borderBottomColor: colors.border }]}>
-        {/* Sub Tabs */}
         <View style={styles.subTabsRow}>
           {mainView === "service_requests" ? (
             <>
-              <TouchableOpacity
-                onPress={() => setServiceRequestView("sent")}
-                style={[
-                  styles.subTab,
-                  serviceRequestView === "sent" && styles.subTabActive,
-                ]}
-              >
-                <Text
+              {(["sent", "received"] as ServiceRequestViewMode[]).map((view) => (
+                <TouchableOpacity
+                  key={view}
+                  onPress={() => setServiceRequestView(view)}
                   style={[
-                    styles.subTabText,
-                    {
-                      color:
-                        serviceRequestView === "sent"
-                          ? colors.text
-                          : colors.textTertiary,
-                    },
+                    styles.subTab,
+                    serviceRequestView === view && styles.subTabActive,
                   ]}
                 >
-                  Sent
-                </Text>
-                {serviceRequestView === "sent" && (
-                  <View
+                  <Text
                     style={[
-                      styles.activeIndicator,
-                      { backgroundColor: colors.primary },
+                      styles.subTabText,
+                      {
+                        color:
+                          serviceRequestView === view
+                            ? colors.text
+                            : colors.textTertiary,
+                      },
                     ]}
-                  />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setServiceRequestView("received")}
-                style={[
-                  styles.subTab,
-                  serviceRequestView === "received" && styles.subTabActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.subTabText,
-                    {
-                      color:
-                        serviceRequestView === "received"
-                          ? colors.text
-                          : colors.textTertiary,
-                    },
-                  ]}
-                >
-                  Received
-                </Text>
-                {serviceRequestView === "received" && (
-                  <View
-                    style={[
-                      styles.activeIndicator,
-                      { backgroundColor: colors.primary },
-                    ]}
-                  />
-                )}
-              </TouchableOpacity>
+                  >
+                    {view.charAt(0).toUpperCase() + view.slice(1)}
+                  </Text>
+                  {serviceRequestView === view && (
+                    <View
+                      style={[
+                        styles.activeIndicator,
+                        { backgroundColor: colors.text },
+                      ]}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
             </>
           ) : (
             <>
-              <TouchableOpacity
-                onPress={() => setBookingView("my_bookings")}
-                style={[
-                  styles.subTab,
-                  bookingView === "my_bookings" && styles.subTabActive,
-                ]}
-              >
-                <Text
+              {([
+                { key: "my_bookings" as BookingViewMode, label: "My Bookings" },
+                { key: "studio_bookings" as BookingViewMode, label: "Studio Bookings" },
+              ]).map((item) => (
+                <TouchableOpacity
+                  key={item.key}
+                  onPress={() => setBookingView(item.key)}
                   style={[
-                    styles.subTabText,
-                    {
-                      color:
-                        bookingView === "my_bookings"
-                          ? colors.text
-                          : colors.textTertiary,
-                    },
+                    styles.subTab,
+                    bookingView === item.key && styles.subTabActive,
                   ]}
                 >
-                  My Bookings
-                </Text>
-                {bookingView === "my_bookings" && (
-                  <View
+                  <Text
                     style={[
-                      styles.activeIndicator,
-                      { backgroundColor: colors.primary },
+                      styles.subTabText,
+                      {
+                        color:
+                          bookingView === item.key
+                            ? colors.text
+                            : colors.textTertiary,
+                      },
                     ]}
-                  />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setBookingView("studio_bookings")}
-                style={[
-                  styles.subTab,
-                  bookingView === "studio_bookings" && styles.subTabActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.subTabText,
-                    {
-                      color:
-                        bookingView === "studio_bookings"
-                          ? colors.text
-                          : colors.textTertiary,
-                    },
-                  ]}
-                >
-                  Studio Bookings
-                </Text>
-                {bookingView === "studio_bookings" && (
-                  <View
-                    style={[
-                      styles.activeIndicator,
-                      { backgroundColor: colors.primary },
-                    ]}
-                  />
-                )}
-              </TouchableOpacity>
+                  >
+                    {item.label}
+                  </Text>
+                  {bookingView === item.key && (
+                    <View
+                      style={[
+                        styles.activeIndicator,
+                        { backgroundColor: colors.text },
+                      ]}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
             </>
           )}
         </View>
 
-        {/* Horizontal Filters */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -486,7 +439,6 @@ export default function BookingsScreen() {
         </ScrollView>
       </View>
 
-      {/* --- CONTENT LIST --- */}
       <View style={{ flex: 1, backgroundColor: colors.backgroundSecondary }}>
         {isLoading && !refreshing ? (
           <View style={styles.centerContainer}>
@@ -503,19 +455,21 @@ export default function BookingsScreen() {
               />
             }
           >
-            {/* 1. SERVICE REQUESTS LIST */}
             {mainView === "service_requests" &&
               (filteredServiceRequests.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <MaterialCommunityIcons
-                    name="briefcase-off-outline"
-                    size={48}
-                    color={colors.textTertiary}
-                  />
-                  <Text
-                    style={[styles.emptyText, { color: colors.textSecondary }]}
-                  >
-                    No requests found
+                  <View style={[styles.emptyCircle, { backgroundColor: colors.card }]}>
+                    <MaterialCommunityIcons
+                      name="briefcase-off-outline"
+                      size={40}
+                      color={colors.textTertiary}
+                    />
+                  </View>
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    No requests yet
+                  </Text>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                    Service requests will appear here.
                   </Text>
                 </View>
               ) : (
@@ -524,58 +478,28 @@ export default function BookingsScreen() {
                   const otherUser = isReceived ? req.client : req.producer;
                   const canManage = isReceived && req.status === "PENDING";
                   const canStart = isReceived && req.status === "ACCEPTED";
-                  const canComplete =
-                    isReceived && req.status === "IN_PROGRESS";
+                  const canComplete = isReceived && req.status === "IN_PROGRESS";
 
                   return (
                     <View
                       key={req.id}
                       style={[styles.card, { backgroundColor: colors.card }]}
                     >
-                      {/* Header */}
-                      <View
-                        style={[
-                          styles.cardHeader,
-                          { borderBottomColor: colors.border },
-                        ]}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
-                          <View
-                            style={[
-                              styles.avatarPlaceholder,
-                              { backgroundColor: colors.backgroundSecondary },
-                            ]}
+                      <View style={[styles.cardHeader, { borderBottomColor: colors.border }]}>
+                        <View style={styles.cardHeaderLeft}>
+                          <LinearGradient
+                            colors={isReceived ? ["#3B82F6", "#6366F1"] : ["#8B5CF6", "#EC4899"]}
+                            style={styles.avatarGradient}
                           >
-                            <Text
-                              style={{
-                                fontSize: 16,
-                                fontWeight: "bold",
-                                color: colors.text,
-                              }}
-                            >
-                              {otherUser?.fullName?.[0] ||
-                                otherUser?.username?.[0] ||
-                                "U"}
+                            <Text style={styles.avatarInitial}>
+                              {otherUser?.fullName?.[0] || otherUser?.username?.[0] || "U"}
                             </Text>
-                          </View>
+                          </LinearGradient>
                           <View>
-                            <Text
-                              style={[styles.cardTitle, { color: colors.text }]}
-                            >
+                            <Text style={[styles.cardTitle, { color: colors.text }]}>
                               {otherUser?.fullName || otherUser?.username}
                             </Text>
-                            <Text
-                              style={[
-                                styles.cardSubtitle,
-                                { color: colors.textSecondary },
-                              ]}
-                            >
+                            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
                               @{otherUser?.username}
                             </Text>
                           </View>
@@ -583,144 +507,69 @@ export default function BookingsScreen() {
                         <StatusBadge status={req.status} />
                       </View>
 
-                      {/* Body */}
                       <View style={styles.cardBody}>
-                        <Text
-                          style={[styles.projectTitle, { color: colors.text }]}
-                        >
+                        <Text style={[styles.projectTitle, { color: colors.text }]}>
                           {req.projectTitle}
                         </Text>
-                        <Text
-                          style={[
-                            styles.projectDesc,
-                            { color: colors.textSecondary },
-                          ]}
-                          numberOfLines={3}
-                        >
-                          {req.projectDescription}
-                        </Text>
-
+                        {req.projectDescription && (
+                          <Text
+                            style={[styles.projectDesc, { color: colors.textSecondary }]}
+                            numberOfLines={2}
+                          >
+                            {req.projectDescription}
+                          </Text>
+                        )}
                         <View style={styles.metaRow}>
                           {req.budget && (
-                            <View
-                              style={[
-                                styles.metaPill,
-                                { backgroundColor: colors.backgroundSecondary },
-                              ]}
-                            >
-                              <Ionicons
-                                name="cash-outline"
-                                size={14}
-                                color={colors.text}
-                              />
-                              <Text
-                                style={[
-                                  styles.metaText,
-                                  { color: colors.text },
-                                ]}
-                              >
-                                ${req.budget}
-                              </Text>
+                            <View style={[styles.metaPill, { backgroundColor: colors.backgroundSecondary }]}>
+                              <Ionicons name="cash-outline" size={13} color={colors.text} />
+                              <Text style={[styles.metaText, { color: colors.text }]}>${req.budget}</Text>
                             </View>
                           )}
-                          <View
-                            style={[
-                              styles.metaPill,
-                              { backgroundColor: colors.backgroundSecondary },
-                            ]}
-                          >
-                            <Ionicons
-                              name="time-outline"
-                              size={14}
-                              color={colors.text}
-                            />
-                            <Text
-                              style={[styles.metaText, { color: colors.text }]}
-                            >
+                          <View style={[styles.metaPill, { backgroundColor: colors.backgroundSecondary }]}>
+                            <Ionicons name="time-outline" size={13} color={colors.textSecondary} />
+                            <Text style={[styles.metaText, { color: colors.textSecondary }]}>
                               {dayjs(req.createdAt).fromNow()}
                             </Text>
                           </View>
                         </View>
                       </View>
 
-                      {/* Actions */}
                       {(canManage || canStart || canComplete) && (
-                        <View
-                          style={[
-                            styles.cardFooter,
-                            { borderTopColor: colors.border },
-                          ]}
-                        >
+                        <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
                           {canManage && (
                             <>
                               <TouchableOpacity
-                                style={[
-                                  styles.actionBtn,
-                                  { backgroundColor: colors.text },
-                                ]}
+                                style={[styles.actionBtn, { backgroundColor: colors.text, flex: 1 }]}
                                 onPress={() => handleAcceptRequest(req)}
                               >
-                                <Text
-                                  style={[
-                                    styles.actionBtnText,
-                                    { color: colors.background },
-                                  ]}
-                                >
-                                  Accept
-                                </Text>
+                                <Ionicons name="checkmark" size={16} color={colors.background} style={{ marginRight: 4 }} />
+                                <Text style={[styles.actionBtnText, { color: colors.background }]}>Accept</Text>
                               </TouchableOpacity>
                               <TouchableOpacity
-                                style={[
-                                  styles.actionBtnOutlined,
-                                  { borderColor: colors.error },
-                                ]}
+                                style={[styles.actionBtnOutlined, { borderColor: colors.error, flex: 1 }]}
                                 onPress={() => handleRejectRequest(req)}
                               >
-                                <Text
-                                  style={[
-                                    styles.actionBtnText,
-                                    { color: colors.error },
-                                  ]}
-                                >
-                                  Reject
-                                </Text>
+                                <Text style={[styles.actionBtnText, { color: colors.error }]}>Reject</Text>
                               </TouchableOpacity>
                             </>
                           )}
                           {canStart && (
                             <TouchableOpacity
-                              style={[
-                                styles.actionBtn,
-                                { backgroundColor: colors.primary },
-                              ]}
+                              style={[styles.actionBtn, { backgroundColor: "#3B82F6", flex: 1 }]}
                               onPress={() => handleStartWork(req.id)}
                             >
-                              <Text
-                                style={[
-                                  styles.actionBtnText,
-                                  { color: "#fff" },
-                                ]}
-                              >
-                                Start Work
-                              </Text>
+                              <Ionicons name="play" size={14} color="#fff" style={{ marginRight: 4 }} />
+                              <Text style={[styles.actionBtnText, { color: "#fff" }]}>Start Work</Text>
                             </TouchableOpacity>
                           )}
                           {canComplete && (
                             <TouchableOpacity
-                              style={[
-                                styles.actionBtn,
-                                { backgroundColor: colors.success },
-                              ]}
+                              style={[styles.actionBtn, { backgroundColor: "#10B981", flex: 1 }]}
                               onPress={() => handleCompleteWork(req.id)}
                             >
-                              <Text
-                                style={[
-                                  styles.actionBtnText,
-                                  { color: "#fff" },
-                                ]}
-                              >
-                                Mark Complete
-                              </Text>
+                              <Ionicons name="checkmark-done" size={14} color="#fff" style={{ marginRight: 4 }} />
+                              <Text style={[styles.actionBtnText, { color: "#fff" }]}>Complete</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -730,19 +579,21 @@ export default function BookingsScreen() {
                 })
               ))}
 
-            {/* 2. BOOKINGS LIST */}
             {mainView === "bookings" &&
               (filteredBookings.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <MaterialCommunityIcons
-                    name="calendar-remove-outline"
-                    size={48}
-                    color={colors.textTertiary}
-                  />
-                  <Text
-                    style={[styles.emptyText, { color: colors.textSecondary }]}
-                  >
-                    No bookings found
+                  <View style={[styles.emptyCircle, { backgroundColor: colors.card }]}>
+                    <MaterialCommunityIcons
+                      name="calendar-remove-outline"
+                      size={40}
+                      color={colors.textTertiary}
+                    />
+                  </View>
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    No bookings yet
+                  </Text>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                    Studio bookings will appear here.
                   </Text>
                 </View>
               ) : (
@@ -752,8 +603,7 @@ export default function BookingsScreen() {
                   const duration = end.diff(start, "hour", true);
                   const isStudioBooking = bookingView === "studio_bookings";
                   const canCancel =
-                    !isStudioBooking &&
-                    ["PENDING", "CONFIRMED"].includes(booking.status);
+                    !isStudioBooking && ["PENDING", "CONFIRMED"].includes(booking.status);
                   const canManage =
                     isStudioBooking && booking.status === "PENDING";
 
@@ -762,158 +612,70 @@ export default function BookingsScreen() {
                       key={booking.id}
                       style={[styles.card, { backgroundColor: colors.card }]}
                     >
-                      {/* Date Column & Info */}
-                      <View style={{ flexDirection: "row" }}>
-                        {/* Date Box */}
-                        <View
-                          style={[
-                            styles.dateBox,
-                            { backgroundColor: colors.backgroundSecondary },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.dateMonth,
-                              { color: colors.textSecondary },
-                            ]}
-                          >
+                      <View style={styles.bookingLayout}>
+                        <View style={[styles.dateBox, { backgroundColor: colors.backgroundSecondary }]}>
+                          <Text style={[styles.dateMonth, { color: colors.textSecondary }]}>
                             {start.format("MMM")}
                           </Text>
-                          <Text
-                            style={[styles.dateDay, { color: colors.text }]}
-                          >
+                          <Text style={[styles.dateDay, { color: colors.text }]}>
                             {start.format("DD")}
+                          </Text>
+                          <Text style={[styles.dateWeekday, { color: colors.textTertiary }]}>
+                            {start.format("ddd")}
                           </Text>
                         </View>
 
-                        {/* Info */}
-                        <View style={{ flex: 1, padding: 12 }}>
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              justifyContent: "space-between",
-                              marginBottom: 4,
-                            }}
-                          >
-                            <Text
-                              style={[styles.cardTitle, { color: colors.text }]}
-                              numberOfLines={1}
-                            >
+                        <View style={styles.bookingInfo}>
+                          <View style={styles.bookingInfoHeader}>
+                            <Text style={[styles.cardTitle, { color: colors.text, flex: 1 }]} numberOfLines={1}>
                               {booking.studio.name}
                             </Text>
                             <StatusBadge status={booking.status} />
                           </View>
-
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              marginBottom: 6,
-                            }}
-                          >
-                            <Ionicons
-                              name="time-outline"
-                              size={14}
-                              color={colors.textSecondary}
-                              style={{ marginRight: 4 }}
-                            />
-                            <Text
-                              style={[
-                                styles.metaText,
-                                { color: colors.textSecondary },
-                              ]}
-                            >
-                              {start.format("h:mm A")} - {end.format("h:mm A")}{" "}
-                              ({duration}h)
+                          <View style={styles.bookingTimeMeta}>
+                            <Ionicons name="time-outline" size={13} color={colors.textSecondary} />
+                            <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                              {start.format("h:mm A")} - {end.format("h:mm A")} ({duration}h)
                             </Text>
                           </View>
-
                           {isStudioBooking && (booking as any).client && (
-                            <Text
-                              style={[
-                                styles.metaText,
-                                {
-                                  color: colors.textTertiary,
-                                  fontStyle: "italic",
-                                },
-                              ]}
-                            >
+                            <Text style={[styles.metaText, { color: colors.textTertiary, fontStyle: "italic", marginTop: 2 }]}>
                               Client: {(booking as any).client.fullName}
                             </Text>
                           )}
-
-                          <Text
-                            style={[styles.priceText, { color: colors.text }]}
-                          >
+                          <Text style={[styles.bookingPrice, { color: colors.text }]}>
                             ${booking.totalAmount.toFixed(2)}
                           </Text>
                         </View>
                       </View>
 
-                      {/* Actions */}
                       {(canCancel || canManage) && (
-                        <View
-                          style={[
-                            styles.cardFooter,
-                            { borderTopColor: colors.border },
-                          ]}
-                        >
+                        <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
                           {canCancel && (
                             <TouchableOpacity
-                              style={[
-                                styles.actionBtnOutlined,
-                                { borderColor: colors.error, flex: 1 },
-                              ]}
-                              onPress={() =>
-                                handleCancelBooking(
-                                  booking.id,
-                                  booking.studio.name,
-                                )
-                              }
+                              style={[styles.actionBtnOutlined, { borderColor: colors.error, flex: 1 }]}
+                              onPress={() => handleCancelBooking(booking.id, booking.studio.name)}
                             >
-                              <Text
-                                style={{
-                                  color: colors.error,
-                                  fontWeight: "600",
-                                }}
-                              >
-                                Cancel
+                              <Text style={{ color: colors.error, fontWeight: "600", fontSize: 13 }}>
+                                Cancel Booking
                               </Text>
                             </TouchableOpacity>
                           )}
                           {canManage && (
-                            <View
-                              style={{ flexDirection: "row", gap: 10, flex: 1 }}
-                            >
+                            <View style={{ flexDirection: "row", gap: 10, flex: 1 }}>
                               <TouchableOpacity
-                                style={[
-                                  styles.actionBtn,
-                                  { backgroundColor: colors.text, flex: 1 },
-                                ]}
+                                style={[styles.actionBtn, { backgroundColor: colors.text, flex: 1 }]}
                                 onPress={() => handleConfirmBooking(booking.id)}
                               >
-                                <Text
-                                  style={{
-                                    color: colors.background,
-                                    fontWeight: "600",
-                                  }}
-                                >
+                                <Text style={{ color: colors.background, fontWeight: "600", fontSize: 13 }}>
                                   Confirm
                                 </Text>
                               </TouchableOpacity>
                               <TouchableOpacity
-                                style={[
-                                  styles.actionBtnOutlined,
-                                  { borderColor: colors.error, flex: 1 },
-                                ]}
+                                style={[styles.actionBtnOutlined, { borderColor: colors.error, flex: 1 }]}
                                 onPress={() => handleRejectBooking(booking.id)}
                               >
-                                <Text
-                                  style={{
-                                    color: colors.error,
-                                    fontWeight: "600",
-                                  }}
-                                >
+                                <Text style={{ color: colors.error, fontWeight: "600", fontSize: 13 }}>
                                   Reject
                                 </Text>
                               </TouchableOpacity>
@@ -930,44 +692,20 @@ export default function BookingsScreen() {
         )}
       </View>
 
-      {/* Response Modal */}
-      <Modal
-        visible={showResponseModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View
-          style={[
-            styles.modalContainer,
-            { backgroundColor: colors.background },
-          ]}
-        >
-          <View
-            style={[styles.modalHeader, { borderBottomColor: colors.border }]}
-          >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Accept Request
-            </Text>
+      <Modal visible={showResponseModal} animationType="slide" presentationStyle="pageSheet">
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Accept Request</Text>
             <TouchableOpacity onPress={() => setShowResponseModal(false)}>
-              <Ionicons
-                name="close-circle"
-                size={28}
-                color={colors.textSecondary}
-              />
+              <Ionicons name="close-circle" size={28} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           <View style={{ padding: 20 }}>
-            <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>
+            <Text style={{ color: colors.textSecondary, marginBottom: 8, fontSize: 14 }}>
               Message to client (Optional)
             </Text>
             <TextInput
-              style={[
-                styles.modalInput,
-                {
-                  backgroundColor: colors.backgroundSecondary,
-                  color: colors.text,
-                },
-              ]}
+              style={[styles.modalInput, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
               multiline
               numberOfLines={4}
               value={responseMessage}
@@ -976,13 +714,11 @@ export default function BookingsScreen() {
               placeholderTextColor={colors.textTertiary}
             />
             <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                { backgroundColor: colors.primary, marginTop: 20 },
-              ]}
+              style={[styles.modalSubmitBtn, { backgroundColor: colors.text }]}
               onPress={handleSubmitResponse}
             >
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
+              <Ionicons name="checkmark" size={18} color={colors.background} style={{ marginRight: 6 }} />
+              <Text style={{ color: colors.background, fontWeight: "700", fontSize: 16 }}>
                 Confirm Acceptance
               </Text>
             </TouchableOpacity>
@@ -1000,210 +736,69 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "android" ? 40 : 10,
     paddingBottom: 10,
   },
-  screenTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
+  screenTitle: { fontSize: 30, fontWeight: "800", letterSpacing: -0.8 },
+  screenSubtitle: { fontSize: 13, marginTop: 2 },
 
-  // Segment Control
-  segmentedControlContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  segmentedControl: {
-    flexDirection: "row",
-    borderRadius: 12,
-    padding: 4,
-    height: 44,
-  },
+  segmentedControlContainer: { paddingHorizontal: 20, marginBottom: 10 },
+  segmentedControl: { flexDirection: "row", borderRadius: 14, padding: 4, height: 48 },
   segmentBtn: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 10,
+    flex: 1, flexDirection: "row", justifyContent: "center", alignItems: "center", borderRadius: 11,
   },
-  segmentBtnActive: {
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  segmentText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
+  segmentBtnActive: { shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  segmentText: { fontSize: 14, fontWeight: "600" },
 
-  // Sub Header
-  subHeader: {
-    borderBottomWidth: 1,
-    paddingBottom: 12,
-  },
-  subTabsRow: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    gap: 24,
-  },
-  subTab: {
-    paddingVertical: 10,
-    position: "relative",
-  },
+  subHeader: { borderBottomWidth: 1, paddingBottom: 12 },
+  subTabsRow: { flexDirection: "row", paddingHorizontal: 20, gap: 24 },
+  subTab: { paddingVertical: 10, position: "relative" },
   subTabActive: {},
-  subTabText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  activeIndicator: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    borderRadius: 2,
-  },
-  filterScroll: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  filterChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  subTabText: { fontSize: 15, fontWeight: "600" },
+  activeIndicator: { position: "absolute", bottom: 0, left: 0, right: 0, height: 3, borderRadius: 2 },
+  filterScroll: { paddingHorizontal: 20, gap: 8 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  filterChipText: { fontSize: 12, fontWeight: "600" },
 
-  // Lists & Cards
   centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  listContent: { padding: 16, gap: 16 },
+  listContent: { padding: 16, gap: 14 },
 
-  emptyState: { alignItems: "center", marginTop: 100, gap: 10 },
-  emptyText: { fontSize: 16 },
+  emptyState: { alignItems: "center", marginTop: 80, gap: 8 },
+  emptyCircle: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: "700" },
+  emptyText: { fontSize: 14 },
 
-  card: {
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    overflow: "hidden",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 12,
-    borderBottomWidth: 1,
-  },
-  avatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  cardSubtitle: {
-    fontSize: 12,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  cardBody: {
-    padding: 16,
-  },
-  projectTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
-  projectDesc: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  metaRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  metaPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
+  card: { borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, overflow: "hidden" },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderBottomWidth: 1 },
+  cardHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  avatarGradient: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center" },
+  avatarInitial: { fontSize: 16, fontWeight: "bold", color: "#fff" },
+  cardTitle: { fontSize: 15, fontWeight: "700" },
+  cardSubtitle: { fontSize: 12 },
+  statusBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  statusText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  cardBody: { padding: 14 },
+  projectTitle: { fontSize: 17, fontWeight: "700", marginBottom: 4 },
+  projectDesc: { fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  metaRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  metaPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   metaText: { fontSize: 12, fontWeight: "500" },
 
-  // Booking Card Specifics
-  dateBox: {
-    width: 70,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRightWidth: 1,
-    borderRightColor: "rgba(0,0,0,0.05)",
-  },
-  dateMonth: { fontSize: 12, textTransform: "uppercase", fontWeight: "700" },
-  dateDay: { fontSize: 24, fontWeight: "800" },
-  priceText: { fontSize: 16, fontWeight: "800", marginTop: 4 },
+  bookingLayout: { flexDirection: "row" },
+  dateBox: { width: 70, justifyContent: "center", alignItems: "center", paddingVertical: 14 },
+  dateMonth: { fontSize: 11, textTransform: "uppercase", fontWeight: "700" },
+  dateDay: { fontSize: 26, fontWeight: "800", lineHeight: 30 },
+  dateWeekday: { fontSize: 11, fontWeight: "500" },
+  bookingInfo: { flex: 1, padding: 14 },
+  bookingInfoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  bookingTimeMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
+  bookingPrice: { fontSize: 16, fontWeight: "800", marginTop: 4 },
 
-  cardFooter: {
-    flexDirection: "row",
-    padding: 12,
-    gap: 12,
-    borderTopWidth: 1,
-  },
-  actionBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionBtnOutlined: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    backgroundColor: "transparent",
-  },
+  cardFooter: { flexDirection: "row", padding: 12, gap: 10, borderTopWidth: 1 },
+  actionBtn: { flexDirection: "row", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  actionBtnOutlined: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1.5, backgroundColor: "transparent" },
   actionBtnText: { fontWeight: "600", fontSize: 13 },
 
-  // Modal
   modalContainer: { flex: 1 },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-  },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1 },
   modalTitle: { fontSize: 20, fontWeight: "bold" },
-  modalInput: {
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    height: 120,
-    textAlignVertical: "top",
-  },
+  modalInput: { borderRadius: 14, padding: 14, fontSize: 16, height: 120, textAlignVertical: "top" },
+  modalSubmitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, marginTop: 20 },
 });

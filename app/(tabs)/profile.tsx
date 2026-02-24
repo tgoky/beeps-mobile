@@ -1,7 +1,7 @@
 import { NotificationBell } from "@/components/NotificationBell";
 import {
   Colors,
-  Spacing
+  Spacing,
 } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -18,7 +18,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   Linking,
@@ -28,13 +27,21 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  ActivityIndicator,
 } from "react-native";
 
 const { width } = Dimensions.get("window");
-const COVER_HEIGHT = 160;
+const COVER_HEIGHT = 180;
 
 type ProfileTab = "beats" | "equipment" | "collabs" | "clubs";
+
+const TAB_ICONS: Record<ProfileTab, string> = {
+  beats: "music-circle",
+  equipment: "speaker",
+  collabs: "account-group",
+  clubs: "account-group-outline",
+};
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -43,12 +50,9 @@ export default function ProfileScreen() {
   const isDark = effectiveTheme === "dark";
   const [activeTab, setActiveTab] = useState<ProfileTab>("beats");
 
-  // Fetch full profile data
   const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
   const { data: beats, isLoading: beatsLoading } = useUserBeats(user?.id);
-  const { data: equipment, isLoading: equipmentLoading } = useUserEquipment(
-    user?.id,
-  );
+  const { data: equipment, isLoading: equipmentLoading } = useUserEquipment(user?.id);
   const { data: collaborations, isLoading: collabsLoading } =
     useUserCollaborations(user?.id);
   const { data: clubs, isLoading: clubsLoading } = useMyClubs(user?.id);
@@ -71,11 +75,13 @@ export default function ProfileScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <SafeAreaView style={styles.centerContent}>
-          <MaterialCommunityIcons
-            name="account-lock-outline"
-            size={64}
-            color={colors.textTertiary}
-          />
+          <View style={[styles.emptyCircle, { backgroundColor: colors.backgroundSecondary }]}>
+            <MaterialCommunityIcons
+              name="account-lock-outline"
+              size={48}
+              color={colors.textTertiary}
+            />
+          </View>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
             Sign in to view profile
           </Text>
@@ -83,10 +89,10 @@ export default function ProfileScreen() {
             Join the community to connect with others.
           </Text>
           <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+            style={[styles.signInBtn, { backgroundColor: colors.text }]}
             onPress={() => router.push("/(auth)/login")}
           >
-            <Text style={styles.primaryButtonText}>Sign In</Text>
+            <Text style={[styles.signInBtnText, { color: colors.background }]}>Sign In</Text>
           </TouchableOpacity>
         </SafeAreaView>
       </View>
@@ -96,31 +102,21 @@ export default function ProfileScreen() {
   const renderContent = () => {
     const getLoadingState = () => {
       switch (activeTab) {
-        case "beats":
-          return beatsLoading;
-        case "equipment":
-          return equipmentLoading;
-        case "collabs":
-          return collabsLoading;
-        case "clubs":
-          return clubsLoading;
-        default:
-          return false;
+        case "beats": return beatsLoading;
+        case "equipment": return equipmentLoading;
+        case "collabs": return collabsLoading;
+        case "clubs": return clubsLoading;
+        default: return false;
       }
     };
 
     const getData = () => {
       switch (activeTab) {
-        case "beats":
-          return beats || [];
-        case "equipment":
-          return equipment || [];
-        case "collabs":
-          return collaborations || [];
-        case "clubs":
-          return clubs || [];
-        default:
-          return [];
+        case "beats": return beats || [];
+        case "equipment": return equipment || [];
+        case "collabs": return collaborations || [];
+        case "clubs": return clubs || [];
+        default: return [];
       }
     };
 
@@ -138,32 +134,17 @@ export default function ProfileScreen() {
       return (
         <View style={styles.emptyTabState}>
           <View
-            style={[styles.emptyIconCircle, { backgroundColor: colors.card }]}
+            style={[styles.emptyTabCircle, { backgroundColor: colors.backgroundSecondary }]}
           >
             <MaterialCommunityIcons
-              name={
-                activeTab === "beats"
-                  ? "music-note-off"
-                  : activeTab === "equipment"
-                    ? "microphone-off"
-                    : activeTab === "collabs"
-                      ? "account-off"
-                      : "account-group-outline"
-              }
-              size={32}
+              name={TAB_ICONS[activeTab] as any}
+              size={28}
               color={colors.textTertiary}
             />
           </View>
           <Text style={[styles.emptyTabText, { color: colors.textSecondary }]}>
-            No {activeTab} found
+            No {activeTab} yet
           </Text>
-          {activeTab === "beats" && (
-            <TouchableOpacity style={{ marginTop: 12 }}>
-              <Text style={{ color: colors.primary, fontWeight: "600" }}>
-                Upload a beat
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
       );
     }
@@ -175,33 +156,27 @@ export default function ProfileScreen() {
             key={item.id}
             style={[
               styles.gridItem,
-              { backgroundColor: colors.card, borderColor: colors.border },
+              { backgroundColor: colors.card },
             ]}
             activeOpacity={0.8}
-            onPress={() => {
-              // Navigate to details if needed
-            }}
           >
-            {/* Placeholder Image for Item */}
-            <View
-              style={[
-                styles.gridImagePlaceholder,
-                { backgroundColor: colors.backgroundSecondary },
-              ]}
+            <LinearGradient
+              colors={
+                activeTab === "beats" ? ["#8B5CF6", "#6366F1"] :
+                activeTab === "equipment" ? ["#F59E0B", "#EF4444"] :
+                activeTab === "clubs" ? ["#3B82F6", "#06B6D4"] :
+                ["#10B981", "#059669"]
+              }
+              style={styles.gridImagePlaceholder}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
             >
               <MaterialCommunityIcons
-                name={
-                  activeTab === "beats"
-                    ? "music-circle"
-                    : activeTab === "equipment"
-                      ? "speaker"
-                      : "account-group"
-                }
-                size={24}
-                color={colors.textTertiary}
+                name={TAB_ICONS[activeTab] as any}
+                size={22}
+                color="rgba(255,255,255,0.6)"
               />
-            </View>
-
+            </LinearGradient>
             <View style={styles.gridContent}>
               <Text
                 style={[styles.gridTitle, { color: colors.text }]}
@@ -209,19 +184,14 @@ export default function ProfileScreen() {
               >
                 {item.title || item.name}
               </Text>
-
               {activeTab === "beats" && (
-                <Text
-                  style={[styles.gridSubtitle, { color: colors.textSecondary }]}
-                >
-                  {item.bpm} BPM • ${item.price}
+                <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
+                  {item.bpm} BPM · ${item.price}
                 </Text>
               )}
               {activeTab === "equipment" && (
-                <Text
-                  style={[styles.gridSubtitle, { color: colors.textSecondary }]}
-                >
-                  {item.category} • ${item.price || item.rentalRate}/day
+                <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
+                  {item.category} · ${item.price || item.rentalRate}/day
                 </Text>
               )}
               {activeTab === "collabs" && (
@@ -252,9 +222,7 @@ export default function ProfileScreen() {
                 </View>
               )}
               {activeTab === "clubs" && (
-                <Text
-                  style={[styles.gridSubtitle, { color: colors.textSecondary }]}
-                >
+                <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
                   {item.memberCount} members
                 </Text>
               )}
@@ -265,8 +233,8 @@ export default function ProfileScreen() {
     );
   };
 
-  // Mock cover image
   const coverUrl =
+    profile?.coverImage ||
     "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=800&q=80";
   const avatarUrl =
     profile?.avatarUrl ||
@@ -275,9 +243,8 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-        {/* --- Header Section --- */}
-        <View style={{ marginBottom: 60 }}>
-          {/* Cover Image */}
+        {/* Cover + Avatar Header */}
+        <View style={{ marginBottom: 56 }}>
           <View style={{ height: COVER_HEIGHT }}>
             <Image
               source={{ uri: coverUrl }}
@@ -285,7 +252,7 @@ export default function ProfileScreen() {
               contentFit="cover"
             />
             <LinearGradient
-              colors={["rgba(0,0,0,0.3)", "transparent"]}
+              colors={["rgba(0,0,0,0.4)", "transparent", "rgba(0,0,0,0.2)"]}
               style={styles.coverGradient}
             />
           </View>
@@ -295,18 +262,18 @@ export default function ProfileScreen() {
             <View style={styles.topNavContent}>
               <Text style={styles.topNavTitle}>Profile</Text>
               <View style={styles.topNavActions}>
-                <NotificationBell size={22} color="#fff" />
+                <NotificationBell size={20} color="#fff" />
                 <TouchableOpacity
                   onPress={() => router.push("/settings")}
                   style={styles.iconButtonBlur}
                 >
-                  <Ionicons name="settings-outline" size={20} color="#fff" />
+                  <Ionicons name="settings-outline" size={18} color="#fff" />
                 </TouchableOpacity>
               </View>
             </View>
           </SafeAreaView>
 
-          {/* Avatar & Edit Button */}
+          {/* Avatar + Edit */}
           <View style={styles.profileHeaderBar}>
             <View
               style={[
@@ -317,17 +284,18 @@ export default function ProfileScreen() {
               <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
             </View>
             <TouchableOpacity
-              style={[styles.editProfileBtn, { borderColor: colors.border }]}
+              style={[styles.editProfileBtn, { backgroundColor: colors.text }]}
               onPress={() => router.push("/settings")}
             >
-              <Text style={[styles.editProfileText, { color: colors.text }]}>
-                Edit Profile
+              <Ionicons name="pencil-outline" size={14} color={colors.background} style={{ marginRight: 4 }} />
+              <Text style={[styles.editProfileText, { color: colors.background }]}>
+                Edit
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* --- Profile Info --- */}
+        {/* Profile Info */}
         <View style={styles.infoContainer}>
           <View style={styles.nameSection}>
             <View style={styles.nameRow}>
@@ -338,7 +306,7 @@ export default function ProfileScreen() {
                 <MaterialCommunityIcons
                   name="check-decagram"
                   size={20}
-                  color={colors.primary}
+                  color="#3B82F6"
                 />
               )}
             </View>
@@ -364,7 +332,6 @@ export default function ProfileScreen() {
                 {profile?.primaryRole || user?.primaryRole || "Creator"}
               </Text>
             </View>
-
             {profile?.location && (
               <View style={styles.locationRow}>
                 <Ionicons
@@ -388,21 +355,21 @@ export default function ProfileScreen() {
             </Text>
           )}
 
-          {/* Links */}
+          {/* Link */}
           {profile?.website && (
             <TouchableOpacity
               onPress={() => Linking.openURL(profile.website!)}
               style={styles.linkRow}
             >
-              <Ionicons name="link-outline" size={16} color={colors.primary} />
-              <Text style={[styles.linkText, { color: colors.primary }]}>
+              <Ionicons name="link-outline" size={15} color="#3B82F6" />
+              <Text style={styles.linkText}>
                 {profile.website}
               </Text>
             </TouchableOpacity>
           )}
 
-          {/* Stats Row */}
-          <View style={[styles.statsRow, { borderColor: colors.border }]}>
+          {/* Stats */}
+          <View style={[styles.statsRow, { backgroundColor: colors.backgroundSecondary }]}>
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: colors.text }]}>
                 {profile?.followersCount || user?.followersCount || 0}
@@ -411,9 +378,7 @@ export default function ProfileScreen() {
                 Followers
               </Text>
             </View>
-            <View
-              style={[styles.statDivider, { backgroundColor: colors.border }]}
-            />
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: colors.text }]}>
                 {profile?.followingCount || user?.followingCount || 0}
@@ -422,9 +387,7 @@ export default function ProfileScreen() {
                 Following
               </Text>
             </View>
-            <View
-              style={[styles.statDivider, { backgroundColor: colors.border }]}
-            />
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: colors.text }]}>
                 {(beats?.length || 0) +
@@ -438,8 +401,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* --- Content Tabs --- */}
-        <View style={styles.tabsContainer}>
+        {/* Content Tabs */}
+        <View style={[styles.tabsContainer, { borderBottomColor: colors.border }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -475,119 +438,48 @@ export default function ProfileScreen() {
           </ScrollView>
         </View>
 
-        {/* --- Tab Content --- */}
-        <View
-          style={[
-            styles.contentArea,
-            { backgroundColor: colors.backgroundSecondary },
-          ]}
-        >
+        {/* Tab Content */}
+        <View style={[styles.contentArea, { backgroundColor: colors.background }]}>
           {renderContent()}
         </View>
 
-        {/* --- Menu / Settings Section --- */}
-        <View
-          style={[styles.menuSection, { backgroundColor: colors.background }]}
-        >
-          <Text style={[styles.sectionHeader, { color: colors.text }]}>
+        {/* Account Menu */}
+        <View style={[styles.menuSection, { backgroundColor: colors.background }]}>
+          <Text style={[styles.menuSectionTitle, { color: colors.text }]}>
             Account
           </Text>
 
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => router.push("/bookings")}
-          >
-            <View
-              style={[
-                styles.menuIconBox,
-                { backgroundColor: colors.backgroundSecondary },
-              ]}
+          {[
+            { label: "Bookings", icon: "calendar-outline", route: "/bookings", iconColor: colors.text },
+            { label: "Service Requests", icon: "briefcase-outline", route: "/service-requests", iconColor: colors.text },
+            { label: "Transactions", icon: "receipt-outline", route: "/transactions", iconColor: colors.text },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.label}
+              style={styles.menuRow}
+              onPress={() => router.push(item.route as any)}
             >
-              <Ionicons name="calendar-outline" size={20} color={colors.text} />
-            </View>
-            <Text style={[styles.menuLabel, { color: colors.text }]}>
-              Bookings
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={colors.textTertiary}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => router.push("/service-requests")}
-          >
-            <View
-              style={[
-                styles.menuIconBox,
-                { backgroundColor: colors.backgroundSecondary },
-              ]}
-            >
+              <View
+                style={[
+                  styles.menuIconBox,
+                  { backgroundColor: colors.backgroundSecondary },
+                ]}
+              >
+                <Ionicons name={item.icon as any} size={20} color={item.iconColor} />
+              </View>
+              <Text style={[styles.menuLabel, { color: colors.text }]}>
+                {item.label}
+              </Text>
               <Ionicons
-                name="briefcase-outline"
-                size={20}
-                color={colors.text}
+                name="chevron-forward"
+                size={18}
+                color={colors.textTertiary}
               />
-            </View>
-            <Text style={[styles.menuLabel, { color: colors.text }]}>
-              Service Requests
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={colors.textTertiary}
-            />
-          </TouchableOpacity>
+            </TouchableOpacity>
+          ))}
 
           <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => router.push("/transactions")}
-          >
-            <View
-              style={[
-                styles.menuIconBox,
-                { backgroundColor: colors.backgroundSecondary },
-              ]}
-            >
-              <Ionicons name="receipt-outline" size={20} color={colors.text} />
-            </View>
-            <Text style={[styles.menuLabel, { color: colors.text }]}>
-              Transactions
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={colors.textTertiary}
-            />
-          </TouchableOpacity>
-
-          {/* Studio Manager Debug Link */}
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => router.push("/(tabs)/debug-studios")}
-          >
-            <View
-              style={[
-                styles.menuIconBox,
-                { backgroundColor: colors.backgroundSecondary },
-              ]}
-            >
-              <Ionicons name="hammer-outline" size={20} color={colors.text} />
-            </View>
-            <Text style={[styles.menuLabel, { color: colors.text }]}>
-              Studio Manager
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={colors.textTertiary}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuRow, styles.lastMenuRow]}
+            style={[styles.menuRow, { marginTop: 12 }]}
             onPress={handleSignOut}
           >
             <View style={[styles.menuIconBox, { backgroundColor: "#FEE2E2" }]}>
@@ -609,13 +501,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  // Header
   coverGradient: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: 80,
+    bottom: 0,
   },
   topNavOverlay: {
     position: "absolute",
@@ -641,21 +532,21 @@ const styles = StyleSheet.create({
   topNavActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   iconButtonBlur: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(0,0,0,0.2)",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(0,0,0,0.25)",
     justifyContent: "center",
     alignItems: "center",
   },
 
-  // Profile Bar (Avatar + Edit)
+  // Profile Header Bar
   profileHeaderBar: {
     position: "absolute",
-    bottom: -50,
+    bottom: -46,
     left: 0,
     right: 0,
     paddingHorizontal: Spacing.lg,
@@ -664,9 +555,9 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     borderWidth: 4,
     overflow: "hidden",
   },
@@ -676,25 +567,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#ccc",
   },
   editProfileBtn: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
+    borderRadius: 12,
     marginBottom: 10,
   },
   editProfileText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
   },
 
   // Info Container
   infoContainer: {
     paddingHorizontal: Spacing.lg,
     paddingTop: 10,
-    paddingBottom: Spacing.lg,
+    paddingBottom: 16,
   },
   nameSection: {
-    marginBottom: 8,
+    marginBottom: 10,
   },
   nameRow: {
     flexDirection: "row",
@@ -707,7 +599,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   username: {
-    fontSize: 15,
+    fontSize: 14,
+    marginTop: 1,
   },
   detailsRow: {
     flexDirection: "row",
@@ -718,9 +611,9 @@ const styles = StyleSheet.create({
   roleBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
     gap: 4,
   },
   roleText: {
@@ -731,14 +624,14 @@ const styles = StyleSheet.create({
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
   },
   locationText: {
-    fontSize: 14,
+    fontSize: 13,
   },
   bioText: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 21,
     marginBottom: 12,
   },
   linkRow: {
@@ -748,17 +641,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   linkText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
+    color: "#3B82F6",
   },
 
   // Stats
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
   },
   statItem: {
     flex: 1,
@@ -770,16 +663,16 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
+    marginTop: 2,
   },
 
   // Tabs
   tabsContainer: {
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   tabsScrollContent: {
     paddingHorizontal: Spacing.lg,
@@ -796,7 +689,7 @@ const styles = StyleSheet.create({
   // Grid Content
   contentArea: {
     minHeight: 200,
-    padding: Spacing.md,
+    padding: Spacing.lg,
   },
   gridContainer: {
     flexDirection: "row",
@@ -804,13 +697,17 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   gridItem: {
-    width: (width - 32 - 12) / 2, // 2 columns with gap
-    borderRadius: 12,
-    borderWidth: 1,
+    width: (width - Spacing.lg * 2 - 12) / 2,
+    borderRadius: 14,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   gridImagePlaceholder: {
-    height: 100,
+    height: 90,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -818,18 +715,18 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   gridTitle: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     marginBottom: 4,
   },
   gridSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
   },
   statusBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   statusText: {
     fontSize: 10,
@@ -846,16 +743,16 @@ const styles = StyleSheet.create({
     padding: 40,
     alignItems: "center",
   },
-  emptyIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  emptyTabCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
   },
   emptyTabText: {
-    fontSize: 15,
+    fontSize: 14,
   },
 
   // Menu Section
@@ -863,9 +760,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
   },
-  sectionHeader: {
+  menuSectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: -0.3,
     marginBottom: 16,
   },
   menuRow: {
@@ -873,20 +771,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
   },
-  lastMenuRow: {
-    marginTop: 12,
-  },
   menuIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
   menuLabel: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "500",
   },
 
@@ -897,25 +792,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
+  emptyCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: "700",
-    marginTop: 20,
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 15,
     textAlign: "center",
     marginBottom: 32,
+    lineHeight: 22,
   },
-  primaryButton: {
+  signInBtn: {
     paddingHorizontal: 32,
     paddingVertical: 14,
-    borderRadius: 30,
+    borderRadius: 14,
   },
-  primaryButtonText: {
-    color: "#fff",
-    fontWeight: "600",
+  signInBtnText: {
+    fontWeight: "700",
     fontSize: 16,
   },
 });
