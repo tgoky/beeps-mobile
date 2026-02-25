@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Platform,
+  SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -51,11 +53,11 @@ export default function NotificationsScreen() {
 
     // Navigate based on notification type and reference
     if (notification.referenceType === 'booking' && notification.referenceId) {
-      router.push(`/bookings/${notification.referenceId}`);
+      router.push('/(tabs)/bookings');
     } else if (notification.referenceType === 'message' && notification.referenceId) {
-      router.push(`/messages/${notification.referenceId}`);
+      router.push('/(tabs)/community');
     } else if (notification.referenceType === 'collaboration' && notification.referenceId) {
-      router.push(`/collaborations`);
+      router.push('/(tabs)/community');
     }
   };
 
@@ -92,20 +94,22 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
-        {unreadCount > 0 && (
-          <TouchableOpacity onPress={markAllAsRead} style={styles.markAllButton}>
-            <Text style={[styles.markAllText, { color: colors.primary }]}>
-              Mark all read
-            </Text>
+      <SafeAreaView style={{ backgroundColor: colors.background }}>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-        )}
-      </View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
+          {unreadCount > 0 && (
+            <TouchableOpacity onPress={markAllAsRead} style={styles.markAllButton}>
+              <Text style={[styles.markAllText, { color: colors.primary }]}>
+                Mark all read
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
 
       {/* Filter Tabs */}
       <View style={[styles.filterContainer, { backgroundColor: colors.backgroundSecondary }]}>
@@ -252,7 +256,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'android' ? 40 : Spacing.md,
     paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
   },
