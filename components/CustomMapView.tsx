@@ -1,24 +1,18 @@
-import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import {
-  MapPin,
   Maximize2,
   Mic2,
   Minimize2,
-  Navigation,
-  Star,
-  X,
-  Zap,
+  Navigation
 } from "lucide-react-native";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Dimensions,
-  Image,
   Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import {
   Gesture,
@@ -26,11 +20,10 @@ import {
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import Animated, {
-  SlideInDown,
-  SlideOutDown,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming
 } from "react-native-reanimated";
 import Svg, {
   Circle,
@@ -43,11 +36,13 @@ import Svg, {
 } from "react-native-svg";
 
 // --- Configuration ---
-// Added Height to calculate vertical center
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const MAP_SIZE = 1000;
-// CHANGED: Reduced scale to 0.45 to show the whole map "Zoomed Out"
-const INITIAL_SCALE = 0.45;
+const INITIAL_SCALE = 0.6; // Balanced zoom
+
+// 🔥 CRITICAL FIX: Shift map center UP by 25% of screen height.
+// This ensures markers appear in the top half, visible above the bottom sheet.
+const VERTICAL_OFFSET = SCREEN_HEIGHT * 0.25;
 
 // --- GTA Theme Colors ---
 const THEME_COLORS = {
@@ -97,6 +92,8 @@ interface CustomMapViewProps {
   onStudioPress: (studio: Studio) => void;
   selectedStudio?: Studio | null;
   userLocation?: { latitude: number; longitude: number } | null;
+  region?: any;
+  onRegionChangeComplete?: (region: any) => void;
 }
 
 export default function CustomMapView({
@@ -112,25 +109,66 @@ export default function CustomMapView({
   const scale = useSharedValue(INITIAL_SCALE);
   const savedScale = useSharedValue(INITIAL_SCALE);
 
-  // CHANGED: Center the 1000px map on the screen
-  const initialX = (SCREEN_WIDTH - MAP_SIZE) / 2;
-  const initialY = (SCREEN_HEIGHT - MAP_SIZE) / 2;
+  const initialX = (SCREEN_WIDTH - MAP_SIZE * INITIAL_SCALE) / 2;
+  const initialY = (SCREEN_HEIGHT - MAP_SIZE * INITIAL_SCALE) / 2;
 
   const translateX = useSharedValue(initialX);
   const translateY = useSharedValue(initialY);
   const savedTranslateX = useSharedValue(initialX);
   const savedTranslateY = useSharedValue(initialY);
 
-  // --- Map Logic ---
+  // --- Map Coordinate System ---
+  // Transforms Real Lat/Lon to Fake Map X/Y (0-1000)
   const getPosition = (lat: number, lon: number) => {
+    // We use a deterministic mapping so the same lat/lon always hits the same spot
     const mapMinX = 250,
       mapMaxX = 850;
     const mapMinY = 150,
       mapMaxY = 800;
+
+    if (!lat || !lon) return { x: 500, y: 500 };
+
     const x = mapMinX + (Math.abs(lon * 1000) % (mapMaxX - mapMinX));
     const y = mapMinY + (Math.abs(lat * 1000) % (mapMaxY - mapMinY));
     return { x, y };
   };
+
+  // --- Focus Logic (The "Camera") ---
+  const focusMap = (targetX: number, targetY: number) => {
+    "worklet";
+    // 1. Determine the center point of the VISIBLE screen area
+    const screenCenterX = SCREEN_WIDTH / 2;
+    const screenCenterY = SCREEN_HEIGHT / 2 - VERTICAL_OFFSET; // Shifted UP
+
+    // 2. Calculate the translate values needed to put targetX/Y at screenCenterX/Y
+    const newTx = screenCenterX - targetX * scale.value;
+    const newTy = screenCenterY - targetY * scale.value;
+
+    translateX.value = withTiming(newTx, { duration: 800 });
+    translateY.value = withTiming(newTy, { duration: 800 });
+    savedTranslateX.value = newTx;
+    savedTranslateY.value = newTy;
+  };
+
+  // --- Effects ---
+  // 1. Center on User Location on Mount/Update
+  useEffect(() => {
+    if (userLocation) {
+      const pos = getPosition(userLocation.latitude, userLocation.longitude);
+      focusMap(pos.x, pos.y);
+    }
+  }, [userLocation?.latitude, userLocation?.longitude]);
+
+  // 2. Center on Selected Studio
+  useEffect(() => {
+    if (selectedStudio) {
+      const pos = getPosition(
+        selectedStudio.latitude,
+        selectedStudio.longitude,
+      );
+      focusMap(pos.x, pos.y);
+    }
+  }, [selectedStudio]);
 
   // --- Gestures ---
   const panGesture = Gesture.Pan()
@@ -171,11 +209,25 @@ export default function CustomMapView({
     onStudioPress(null as any);
   };
 
-  const resetMap = () => {
-    scale.value = withSpring(INITIAL_SCALE);
-    translateX.value = withSpring(initialX);
-    translateY.value = withSpring(initialY);
+  const handleLocateMe = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (userLocation) {
+      // Zoom out slightly to show context, then focus
+      scale.value = withTiming(INITIAL_SCALE, { duration: 500 });
+      const pos = getPosition(userLocation.latitude, userLocation.longitude);
+      focusMap(pos.x, pos.y);
+    } else {
+      // Fallback
+      scale.value = withSpring(INITIAL_SCALE);
+      translateX.value = withSpring(initialX);
+      translateY.value = withSpring(initialY);
+    }
   };
+
+  // Calculate user position for rendering
+  const userPos = userLocation
+    ? getPosition(userLocation.latitude, userLocation.longitude)
+    : null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -217,28 +269,14 @@ export default function CustomMapView({
                 strokeWidth="0.5"
               />
 
-              {/* Greenery / Hills */}
+              {/* Greenery */}
               <Path
                 d="M 60 0 L 100 0 L 100 40 Q 80 50 60 30 Q 50 15 60 0 Z"
                 fill={colors.greenery}
                 opacity="0.8"
               />
 
-              {/* City Park */}
-              <Path
-                d="M 60 55 L 75 55 L 75 65 L 60 65 Z"
-                fill={colors.greenery}
-                opacity="0.8"
-              />
-
-              {/* Beach */}
-              <Path
-                d="M 30 100 C 30 100 25 80 40 70 C 55 60 50 40 30 35 C 10 30 5 15 15 0 L 12 0 C 2 15 8 32 28 38 C 48 44 52 62 38 72 C 22 82 28 100 28 100 Z"
-                fill={colors.beach}
-                opacity="0.6"
-              />
-
-              {/* Roads Infrastructure */}
+              {/* Roads */}
               <G stroke={colors.road} strokeWidth="0.8" opacity="0.6">
                 {[45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95].map((x) => (
                   <Line key={`v-${x}`} x1={x} y1="0" x2={x} y2="100" />
@@ -248,7 +286,7 @@ export default function CustomMapView({
                 ))}
               </G>
 
-              {/* Main Highways */}
+              {/* Highways */}
               <G fill="none">
                 <Path
                   d="M 20 0 Q 30 50 80 60 L 100 65"
@@ -277,10 +315,12 @@ export default function CustomMapView({
               </G>
             </Svg>
 
-            {/* Markers */}
+            {/* Studio Markers */}
             {studios.map((studio) => {
               const pos = getPosition(studio.latitude, studio.longitude);
               const isSelected = selectedStudio?.id === studio.id;
+
+              // Scale coordinates to map size
               const left = (pos.x / 100) * MAP_SIZE;
               const top = (pos.y / 100) * MAP_SIZE;
 
@@ -358,14 +398,16 @@ export default function CustomMapView({
               );
             })}
 
-            {/* User Location */}
-            {userLocation && (
+            {/* Dynamic User Location Marker */}
+            {userPos && (
               <View
                 style={{
                   position: "absolute",
-                  left: MAP_SIZE * 0.35,
-                  top: MAP_SIZE * 0.4,
+                  left: (userPos.x / 100) * MAP_SIZE,
+                  top: (userPos.y / 100) * MAP_SIZE,
                   zIndex: 5,
+                  // Center the icon (40px)
+                  transform: [{ translateX: -20 }, { translateY: -20 }],
                 }}
               >
                 <View style={styles.userLocationPulse} />
@@ -380,30 +422,8 @@ export default function CustomMapView({
           </Animated.View>
         </GestureDetector>
 
-        {/* HUD: District Label */}
-        <View style={styles.hudDistrict}>
-          <BlurView intensity={40} tint={theme} style={styles.districtBlur}>
-            <View
-              style={[styles.districtBar, { backgroundColor: colors.text }]}
-            />
-            <View>
-              <Text style={[styles.districtLabelSmall, { color: colors.text }]}>
-                DISTRICT
-              </Text>
-              <Text style={[styles.districtLabelLarge, { color: colors.text }]}>
-                VINEWOOD HILLS
-              </Text>
-            </View>
-          </BlurView>
-        </View>
-
-        {/* HUD: Zoom Controls */}
-        <View
-          style={[
-            styles.hudZoom,
-            { borderColor: colors.border, backgroundColor: colors.cardBg },
-          ]}
-        >
+        {/* HUD Controls */}
+        <View style={styles.hudZoom}>
           <TouchableOpacity
             onPress={() => (scale.value = withSpring(scale.value * 1.2))}
             style={[
@@ -421,140 +441,22 @@ export default function CustomMapView({
           </TouchableOpacity>
         </View>
 
-        {/* HUD: Reset Button */}
+        {/* Updated Locate Me Button */}
         <TouchableOpacity
-          onPress={resetMap}
+          onPress={handleLocateMe}
           style={[
             styles.hudLocate,
             { backgroundColor: colors.cardBg, borderColor: colors.border },
           ]}
         >
-          <Navigation size={20} color={colors.text} />
+          <Navigation
+            size={20}
+            color={userLocation ? "#3b82f6" : colors.text}
+            fill={userLocation ? "#3b82f6" : "none"}
+          />
         </TouchableOpacity>
 
-        {/* Selected Studio Card */}
-        {selectedStudio && (
-          <Animated.View
-            entering={SlideInDown.springify().damping(15)}
-            exiting={SlideOutDown.duration(200)}
-            style={styles.cardWrapper}
-          >
-            <BlurView
-              intensity={90}
-              tint={theme === "dark" ? "dark" : "light"}
-              style={[styles.cardContainer, { borderColor: colors.border }]}
-            >
-              <View style={styles.cardDecoration} />
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[styles.cardTitle, { color: colors.text }]}
-                    numberOfLines={1}
-                  >
-                    {selectedStudio.name}
-                  </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginTop: 4,
-                    }}
-                  >
-                    <MapPin size={10} color={colors.text} opacity={0.7} />
-                    <Text style={[styles.cardSubtitle, { color: colors.text }]}>
-                      {selectedStudio.location || "Los Santos"}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-                  <X size={24} color={colors.text} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.cardBody}>
-                <View
-                  style={[
-                    styles.cardImageContainer,
-                    { borderColor: colors.border },
-                  ]}
-                >
-                  {selectedStudio.imageUrl ? (
-                    <Image
-                      source={{ uri: selectedStudio.imageUrl }}
-                      style={styles.cardImage}
-                    />
-                  ) : (
-                    <View
-                      style={{
-                        flex: 1,
-                        backgroundColor: "#ccc",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Zap size={24} color="#666" />
-                    </View>
-                  )}
-                  <View style={styles.cardImageTag}>
-                    <Text style={styles.cardImageTagText}>
-                      {selectedStudio.location || "STUDIO"}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardStats}>
-                  <View style={styles.statRow}>
-                    <View>
-                      <Text style={styles.statLabel}>REPUTATION</Text>
-                      <View style={{ flexDirection: "row", gap: 2 }}>
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={10}
-                            fill={
-                              i < Math.floor(selectedStudio.rating)
-                                ? colors.text
-                                : "transparent"
-                            }
-                            color={colors.text}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                    <View style={{ alignItems: "flex-end" }}>
-                      <Text style={styles.statLabel}>RATE</Text>
-                      <Text style={[styles.rateText, { color: colors.text }]}>
-                        ${selectedStudio.hourlyRate}
-                        <Text style={{ fontSize: 10, fontWeight: "400" }}>
-                          /hr
-                        </Text>
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.bookButton,
-                      {
-                        backgroundColor: colors.text,
-                        borderColor: colors.text,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.bookButtonText,
-                        { color: theme === "dark" ? "#000" : "#fff" },
-                      ]}
-                    >
-                      BOOK SESSION
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </BlurView>
-          </Animated.View>
-        )}
+        {/* Removed Card Logic - Handled by Home Screen Bottom Sheet */}
       </View>
     </GestureHandlerRootView>
   );
@@ -572,10 +474,11 @@ const styles = StyleSheet.create({
   markerContainer: {
     alignItems: "center",
     justifyContent: "center",
-    transform: [{ translateX: -20 }, { translateY: -40 }],
+    // Adjust anchor point so stick points to location
+    transform: [{ translateX: -18 }, { translateY: -46 }],
   },
   markerSelected: {
-    transform: [{ translateX: -20 }, { translateY: -50 }, { scale: 1.1 }],
+    transform: [{ translateX: -18 }, { translateY: -56 }, { scale: 1.1 }],
     zIndex: 100,
   },
   markerHead: {
@@ -623,49 +526,14 @@ const styles = StyleSheet.create({
     top: -8,
     left: -8,
   },
-  hudDistrict: {
-    position: "absolute",
-    bottom: 40,
-    left: 20,
-    borderRadius: 8,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 0,
-    elevation: 5,
-  },
-  districtBlur: {
-    flexDirection: "row",
-    padding: 12,
-    gap: 12,
-    alignItems: "center",
-    borderLeftWidth: 6,
-    borderLeftColor: "#fff",
-  },
-  districtBar: {
-    width: 4,
-    height: "100%",
-    display: "none",
-  },
-  districtLabelSmall: {
-    fontSize: 8,
-    fontWeight: "900",
-    opacity: 0.6,
-    letterSpacing: 1,
-  },
-  districtLabelLarge: {
-    fontSize: 16,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: -0.5,
-  },
   hudZoom: {
     position: "absolute",
-    bottom: 40,
+    top: Platform.OS === "ios" ? 120 : 100, // Moved to top right
     right: 20,
     borderRadius: 8,
     borderWidth: 2,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderColor: "#000",
     shadowColor: "#000",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.5,
@@ -680,7 +548,7 @@ const styles = StyleSheet.create({
   },
   hudLocate: {
     position: "absolute",
-    bottom: 140,
+    top: Platform.OS === "ios" ? 220 : 200, // Moved to top right below zoom
     right: 20,
     width: 44,
     height: 44,
@@ -693,112 +561,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 0,
     elevation: 5,
-  },
-  cardWrapper: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 60 : 40,
-    left: 20,
-    right: 20,
-    maxWidth: 400,
-    shadowColor: "#000",
-    shadowOffset: { width: 8, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 0,
-    elevation: 10,
-  },
-  cardContainer: {
-    borderRadius: 2,
-    borderWidth: 2,
-    overflow: "hidden",
-  },
-  cardDecoration: {
-    height: 6,
-    width: "100%",
-    backgroundColor: "#ef4444",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    padding: 16,
-    alignItems: "flex-start",
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: -1,
-  },
-  cardSubtitle: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    opacity: 0.7,
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  cardBody: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  cardImageContainer: {
-    height: 120,
-    width: "100%",
-    borderWidth: 2,
-    borderStyle: "dashed",
-    marginBottom: 16,
-    position: "relative",
-    padding: 4,
-  },
-  cardImage: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#eee",
-  },
-  cardImageTag: {
-    position: "absolute",
-    bottom: 4,
-    left: 4,
-    backgroundColor: "#000",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  cardImageTagText: {
-    color: "#fff",
-    fontSize: 8,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  cardStats: {
-    gap: 12,
-  },
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: "rgba(128,128,128,0.2)",
-    borderStyle: "dotted",
-  },
-  statLabel: {
-    fontSize: 8,
-    fontWeight: "900",
-    color: "#888",
-    marginBottom: 4,
-  },
-  rateText: {
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  bookButton: {
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-  },
-  bookButtonText: {
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: 2,
   },
 });
