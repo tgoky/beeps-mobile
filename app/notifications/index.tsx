@@ -1,25 +1,33 @@
-import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
+  BorderRadius,
+  Colors,
+  FontSizes,
+  FontWeights,
+  Spacing,
+} from "@/constants/theme";
+import { useNotifications } from "@/contexts/NotificationContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { Notification } from "@/types/database";
+import { Ionicons } from "@expo/vector-icons";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
   ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useNotifications } from '@/contexts/NotificationContext';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
-import { Notification } from '@/types/database';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 dayjs.extend(relativeTime);
 
-type FilterType = 'all' | 'unread' | 'bookings' | 'messages';
+type FilterType = "all" | "unread" | "bookings" | "messages";
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -35,7 +43,7 @@ export default function NotificationsScreen() {
     refreshNotifications,
   } = useNotifications();
 
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [filter, setFilter] = useState<FilterType>("all");
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -50,91 +58,125 @@ export default function NotificationsScreen() {
     }
 
     // Navigate based on notification type and reference
-    if (notification.referenceType === 'booking' && notification.referenceId) {
-      router.push(`/bookings/${notification.referenceId}`);
-    } else if (notification.referenceType === 'message' && notification.referenceId) {
-      router.push(`/messages/${notification.referenceId}`);
-    } else if (notification.referenceType === 'collaboration' && notification.referenceId) {
-      router.push(`/collaborations`);
+    if (notification.referenceType === "booking" && notification.referenceId) {
+      router.push("/(tabs)/bookings");
+    } else if (
+      notification.referenceType === "message" &&
+      notification.referenceId
+    ) {
+      router.push("/(tabs)/community");
+    } else if (
+      notification.referenceType === "collaboration" &&
+      notification.referenceId
+    ) {
+      router.push("/(tabs)/community");
     }
   };
 
-  const filteredNotifications = notifications.filter(notification => {
-    if (filter === 'all') return true;
-    if (filter === 'unread') return !notification.isRead;
-    if (filter === 'bookings') return notification.type.includes('BOOKING');
-    if (filter === 'messages') return notification.type.includes('JOB'); // Service requests
+  const filteredNotifications = notifications.filter((notification) => {
+    if (filter === "all") return true;
+    if (filter === "unread") return !notification.isRead;
+    if (filter === "bookings") return notification.type.includes("BOOKING");
+    if (filter === "messages") return notification.type.includes("JOB"); // Service requests
     return true;
   });
 
-  const getNotificationIcon = (type: string): keyof typeof Ionicons.glyphMap => {
+  const getNotificationIcon = (
+    type: string,
+  ): keyof typeof Ionicons.glyphMap => {
     switch (type) {
-      case 'BOOKING_CONFIRMED':
-      case 'BOOKING_CANCELLED':
-        return 'calendar';
-      case 'JOB_REQUEST':
-      case 'JOB_ACCEPTED':
-      case 'JOB_REJECTED':
-      case 'JOB_UPDATED':
-        return 'briefcase';
-      case 'NEW_FOLLOWER':
-        return 'person-add';
-      case 'NEW_REVIEW':
-        return 'star';
-      case 'CLUB_INVITATION':
-        return 'people';
-      case 'TRANSACTION_COMPLETED':
-        return 'card';
+      case "BOOKING_CONFIRMED":
+      case "BOOKING_CANCELLED":
+        return "calendar";
+      case "JOB_REQUEST":
+      case "JOB_ACCEPTED":
+      case "JOB_REJECTED":
+      case "JOB_UPDATED":
+        return "briefcase";
+      case "NEW_FOLLOWER":
+        return "person-add";
+      case "NEW_REVIEW":
+        return "star";
+      case "CLUB_INVITATION":
+        return "people";
+      case "TRANSACTION_COMPLETED":
+        return "card";
       default:
-        return 'notifications';
+        return "notifications";
     }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
-        {unreadCount > 0 && (
-          <TouchableOpacity onPress={markAllAsRead} style={styles.markAllButton}>
-            <Text style={[styles.markAllText, { color: colors.primary }]}>
-              Mark all read
-            </Text>
+      <SafeAreaView style={{ backgroundColor: colors.background }}>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={[styles.filterContainer, { backgroundColor: colors.backgroundSecondary }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {(['all', 'unread', 'bookings', 'messages'] as FilterType[]).map((filterType) => (
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            Notifications
+          </Text>
+          {unreadCount > 0 && (
             <TouchableOpacity
-              key={filterType}
-              style={[
-                styles.filterTab,
-                filter === filterType && {
-                  backgroundColor: colors.text,
-                },
-              ]}
-              onPress={() => setFilter(filterType)}
-              activeOpacity={0.7}
+              onPress={markAllAsRead}
+              style={styles.markAllButton}
             >
-              <Text
-                style={[
-                  styles.filterText,
-                  {
-                    color: filter === filterType ? colors.background : colors.textSecondary,
-                  },
-                ]}
-              >
-                {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-                {filterType === 'unread' && unreadCount > 0 && ` (${unreadCount})`}
+              <Text style={[styles.markAllText, { color: colors.primary }]}>
+                Mark all read
               </Text>
             </TouchableOpacity>
-          ))}
+          )}
+        </View>
+      </SafeAreaView>
+
+      {/* Filter Tabs */}
+      <View
+        style={[
+          styles.filterContainer,
+          { backgroundColor: colors.backgroundSecondary },
+        ]}
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+        >
+          {(["all", "unread", "bookings", "messages"] as FilterType[]).map(
+            (filterType) => (
+              <TouchableOpacity
+                key={filterType}
+                style={[
+                  styles.filterTab,
+                  filter === filterType && {
+                    backgroundColor: colors.text,
+                  },
+                ]}
+                onPress={() => setFilter(filterType)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    {
+                      color:
+                        filter === filterType
+                          ? colors.background
+                          : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
+                  {filterType === "unread" &&
+                    unreadCount > 0 &&
+                    ` (${unreadCount})`}
+                </Text>
+              </TouchableOpacity>
+            ),
+          )}
         </ScrollView>
       </View>
 
@@ -145,10 +187,16 @@ export default function NotificationsScreen() {
         </View>
       ) : filteredNotifications.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-off-outline" size={64} color={colors.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No notifications</Text>
+          <Ionicons
+            name="notifications-off-outline"
+            size={64}
+            color={colors.textTertiary}
+          />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            No notifications
+          </Text>
           <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            {filter === 'unread'
+            {filter === "unread"
               ? "You're all caught up!"
               : "You'll see notifications here when you get them"}
           </Text>
@@ -157,7 +205,11 @@ export default function NotificationsScreen() {
         <ScrollView
           style={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
           }
         >
           {filteredNotifications.map((notification) => (
@@ -184,7 +236,13 @@ interface NotificationItemProps {
   getIcon: (type: string) => keyof typeof Ionicons.glyphMap;
 }
 
-function NotificationItem({ notification, colors, onPress, onDelete, getIcon }: NotificationItemProps) {
+function NotificationItem({
+  notification,
+  colors,
+  onPress,
+  onDelete,
+  getIcon,
+}: NotificationItemProps) {
   const [showActions, setShowActions] = useState(false);
 
   return (
@@ -192,7 +250,9 @@ function NotificationItem({ notification, colors, onPress, onDelete, getIcon }: 
       style={[
         styles.notificationItem,
         {
-          backgroundColor: notification.isRead ? colors.card : colors.backgroundSecondary,
+          backgroundColor: notification.isRead
+            ? colors.card
+            : colors.backgroundSecondary,
           borderBottomColor: colors.border,
         },
       ]}
@@ -205,7 +265,9 @@ function NotificationItem({ notification, colors, onPress, onDelete, getIcon }: 
         style={[
           styles.iconContainer,
           {
-            backgroundColor: notification.isRead ? colors.backgroundTertiary : colors.primary + '20',
+            backgroundColor: notification.isRead
+              ? colors.backgroundTertiary
+              : colors.primary + "20",
           },
         ]}
       >
@@ -219,14 +281,22 @@ function NotificationItem({ notification, colors, onPress, onDelete, getIcon }: 
       {/* Content */}
       <View style={styles.notificationContent}>
         <View style={styles.notificationHeader}>
-          <Text style={[styles.notificationTitle, { color: colors.text }]} numberOfLines={1}>
+          <Text
+            style={[styles.notificationTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
             {notification.title}
           </Text>
           {!notification.isRead && (
-            <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+            <View
+              style={[styles.unreadDot, { backgroundColor: colors.primary }]}
+            />
           )}
         </View>
-        <Text style={[styles.notificationMessage, { color: colors.textSecondary }]} numberOfLines={2}>
+        <Text
+          style={[styles.notificationMessage, { color: colors.textSecondary }]}
+          numberOfLines={2}
+        >
           {notification.message}
         </Text>
         <Text style={[styles.notificationTime, { color: colors.textTertiary }]}>
@@ -249,10 +319,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
+    paddingTop: Platform.OS === "android" ? 40 : Spacing.md,
     paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
   },
@@ -260,7 +330,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.md,
   },
   headerTitle: {
-    fontSize: FontSizes['2xl'],
+    fontSize: FontSizes["2xl"],
     fontWeight: FontWeights.semiBold,
     flex: 1,
   },
@@ -290,14 +360,14 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Spacing['3xl'],
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing["3xl"],
   },
   emptyTitle: {
     fontSize: FontSizes.xl,
@@ -307,14 +377,14 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: FontSizes.base,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
   },
   list: {
     flex: 1,
   },
   notificationItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: Spacing.lg,
     borderBottomWidth: 1,
   },
@@ -322,16 +392,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: Spacing.md,
   },
   notificationContent: {
     flex: 1,
   },
   notificationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: Spacing.xs,
   },
   notificationTitle: {
@@ -354,7 +424,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
   },
   deleteButton: {
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: Spacing.md,
   },
 });
