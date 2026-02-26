@@ -49,6 +49,14 @@ const DRAG_THRESHOLD = 30;
 type TabType = "studios" | "producers" | "artists";
 type FilterType = "budget" | "top_rated" | "open_now" | null;
 
+// Budget ranges configuration
+const BUDGET_RANGES = [
+  { label: "$", min: 0, max: 25, description: "Budget friendly" },
+  { label: "$$", min: 25, max: 50, description: "Moderate" },
+  { label: "$$$", min: 50, max: 100, description: "Premium" },
+  { label: "$$$$", min: 100, max: Infinity, description: "Luxury" },
+];
+
 // --- HELPER: Haversine Distance (Km) ---
 const getDistance = (
   lat1: number,
@@ -57,7 +65,7 @@ const getDistance = (
   lon2: number,
 ) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  const R = 6371; // Radius of earth in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
@@ -102,16 +110,20 @@ export default function HomeScreen() {
   const { data: artists } = useArtists();
 
   // --- MAP STATE ---
-  // This 'region' acts as the Center Point of the Radar.
-  // When this changes, the whole map shifts to center on this point.
   const [region, setRegion] = useState({
-    latitude: 6.5244, // Default Lagos
+    latitude: 6.5244,
     longitude: 3.3792,
   });
 
-  const [userLocation, setUserLocation] = useState<any>(null); // Real GPS
+  const [userLocation, setUserLocation] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<TabType>("studios");
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
+
+  // Budget filter specific state
+  const [showBudgetOptions, setShowBudgetOptions] = useState(false);
+  const [selectedBudgetRange, setSelectedBudgetRange] = useState<
+    (typeof BUDGET_RANGES)[0] | null
+  >(null);
 
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
@@ -137,7 +149,6 @@ export default function HomeScreen() {
       let location = await Location.getCurrentPositionAsync({});
       setUserLocation(location.coords);
 
-      // Automatically center the "Radar" on the user's location initially
       setRegion({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -145,7 +156,7 @@ export default function HomeScreen() {
     })();
   }, []);
 
-  // --- 2. SEARCH LOGIC (Updates Radar Center) ---
+  // --- 2. SEARCH LOGIC ---
   const fetchLocations = async (query: string) => {
     if (query.length < 3) {
       setLocationSuggestions([]);
@@ -153,7 +164,6 @@ export default function HomeScreen() {
     }
     setIsSearchingLocation(true);
     try {
-      // Using OpenStreetMap Nominatim
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           query,
@@ -170,7 +180,8 @@ export default function HomeScreen() {
 
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
-    // Only fetch map locations if we are in studio mode, otherwise search names
+    // Hide budget options when searching
+    setShowBudgetOptions(false);
     if (activeTab === "studios") fetchLocations(text);
   };
 
@@ -179,8 +190,6 @@ export default function HomeScreen() {
     Keyboard.dismiss();
     setSearchQuery(loc.display_name.split(",")[0]);
     setLocationSuggestions([]);
-
-    // Update the Radar Center
     setRegion({
       latitude: parseFloat(loc.lat),
       longitude: parseFloat(loc.lon),
@@ -191,7 +200,6 @@ export default function HomeScreen() {
   const handleRecenter = () => {
     if (userLocation) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      // Move Radar Center back to User
       setRegion({
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
@@ -199,7 +207,34 @@ export default function HomeScreen() {
     }
   };
 
-  // --- 3. FILTER & SORT LOGIC ---
+  // --- 3. BUDGET FILTER HANDLERS ---
+  const handleBudgetPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (activeFilter === "budget") {
+      // If budget filter is active, just show options without clearing
+      setShowBudgetOptions(!showBudgetOptions);
+    } else {
+      // Activate budget filter and show options
+      setActiveFilter("budget");
+      setShowBudgetOptions(true);
+    }
+  };
+
+  const handleBudgetRangeSelect = (range: (typeof BUDGET_RANGES)[0]) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedBudgetRange(range);
+    setShowBudgetOptions(false);
+    // Ensure budget filter stays active
+    setActiveFilter("budget");
+  };
+
+  const handleClearFilters = () => {
+    setActiveFilter(null);
+    setSelectedBudgetRange(null);
+    setShowBudgetOptions(false);
+  };
+
+  // --- 4. FILTER & SORT LOGIC ---
   const filteredData = useMemo(() => {
     let data: any[] = [];
     switch (activeTab) {
@@ -227,15 +262,22 @@ export default function HomeScreen() {
     }
 
     // B. Category Filters
-    if (activeFilter === "budget") {
-      data = data.filter((d) => (d.hourlyRate || d.productionRate || 0) <= 50);
+    if (activeFilter === "budget" && selectedBudgetRange) {
+      const priceField =
+        activeTab === "studios" ? "hourlyRate" : "productionRate";
+      data = data.filter((d) => {
+        const price = d[priceField] || 0;
+        return (
+          price >= selectedBudgetRange.min && price < selectedBudgetRange.max
+        );
+      });
     } else if (activeFilter === "top_rated") {
       data = data.filter((d) => (d.rating || d.user?.rating || 0) >= 4.5);
     } else if (activeFilter === "open_now" && activeTab === "studios") {
       data = data.filter((d) => getOpenStatus(d).isOpen);
     }
 
-    // C. Sort by Distance from Center (Radar Logic)
+    // C. Sort by Distance from Center
     if (activeTab === "studios") {
       data.sort((a, b) => {
         const distA = parseFloat(
@@ -266,11 +308,12 @@ export default function HomeScreen() {
     artists,
     searchQuery,
     activeFilter,
+    selectedBudgetRange,
     locationSuggestions,
     region,
   ]);
 
-  // --- 4. GESTURES (Bottom Sheet) ---
+  // --- 5. GESTURES ---
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -318,9 +361,8 @@ export default function HomeScreen() {
 
   if (!user) return null;
 
-  // --- 5. RENDER HELPERS ---
+  // --- 6. RENDER HELPERS ---
   const renderHorizontalItem = ({ item }: { item: any }) => {
-    // Calculate distance relative to current map center
     const distance = getDistance(
       region.latitude,
       region.longitude,
@@ -446,6 +488,13 @@ export default function HomeScreen() {
                 </Text>
               </View>
             )}
+            {selectedBudgetRange && activeFilter === "budget" && (
+              <View style={[styles.badge, { backgroundColor: "transparent" }]}>
+                <Text style={{ fontSize: 11, color: "#888" }}>
+                  {selectedBudgetRange.label}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
         <View
@@ -467,6 +516,48 @@ export default function HomeScreen() {
     );
   };
 
+  const renderBudgetOptions = () => (
+    <View style={styles.budgetOptionsContainer}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.budgetOptionsContent}
+      >
+        {BUDGET_RANGES.map((range, index) => (
+          <TouchableOpacity
+            key={index}
+            style={[
+              styles.budgetOption,
+              {
+                backgroundColor:
+                  selectedBudgetRange === range ? txt : "transparent",
+                borderColor: "#343131",
+              },
+            ]}
+            onPress={() => handleBudgetRangeSelect(range)}
+          >
+            <Text
+              style={[
+                styles.budgetOptionLabel,
+                { color: selectedBudgetRange === range ? bg : txt },
+              ]}
+            >
+              {range.label}
+            </Text>
+            <Text
+              style={[
+                styles.budgetOptionDescription,
+                { color: selectedBudgetRange === range ? bg : "#888" },
+              ]}
+            >
+              {range.description}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
@@ -481,10 +572,9 @@ export default function HomeScreen() {
         <CustomMapView
           studios={activeTab === "studios" ? filteredData : []}
           theme={effectiveTheme}
-          region={region} // Pass the "Center Point"
+          region={region}
           userLocation={userLocation}
           onStudioPress={(studio) => {
-            // Optionally snap to expanded to show details
             router.push(`/studio/${studio.id}`);
           }}
         />
@@ -590,6 +680,7 @@ export default function HomeScreen() {
                       ]}
                       onPress={() => {
                         setActiveTab(tab);
+                        setShowBudgetOptions(false);
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       }}
                     >
@@ -622,11 +713,7 @@ export default function HomeScreen() {
                     label="Budget"
                     icon="wallet-outline"
                     isActive={activeFilter === "budget"}
-                    onPress={() =>
-                      setActiveFilter(
-                        activeFilter === "budget" ? null : "budget",
-                      )
-                    }
+                    onPress={handleBudgetPress}
                     accent={accent}
                     bg={bg}
                     txt={txt}
@@ -661,12 +748,12 @@ export default function HomeScreen() {
                   )}
                   {activeFilter && (
                     <TouchableOpacity
-                      onPress={() => setActiveFilter(null)}
+                      onPress={handleClearFilters}
                       style={{ justifyContent: "center", paddingHorizontal: 8 }}
                     >
                       <Text
                         style={{
-                          color: "#EF4444",
+                          color: "#c45b31",
                           fontSize: 12,
                           fontWeight: "700",
                         }}
@@ -677,6 +764,12 @@ export default function HomeScreen() {
                   )}
                 </ScrollView>
               </View>
+
+              {/* Budget Options */}
+              {showBudgetOptions &&
+                activeFilter === "budget" &&
+                renderBudgetOptions()}
+
               <View style={{ height: 1, backgroundColor: border }} />
             </>
           )}
@@ -761,7 +854,11 @@ export default function HomeScreen() {
                     <Text
                       style={{ color: "#888", fontSize: 12, marginBottom: 10 }}
                     >
-                      {filteredData.length} results near map center
+                      {filteredData.length} results
+                      {selectedBudgetRange &&
+                        ` • ${selectedBudgetRange.label} budget`}
+                      {activeFilter === "top_rated" && " • Top rated"}
+                      {activeFilter === "open_now" && " • Open now"}
                     </Text>
                   }
                 />
@@ -799,7 +896,7 @@ const FilterChip = ({
       styles.filterChip,
       isActive
         ? { backgroundColor: txt, borderColor: txt }
-        : { borderColor: "#ccc" },
+        : { borderColor: "#333a52" },
     ]}
     onPress={() => {
       onPress();
@@ -894,6 +991,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   filterText: { fontSize: 12, fontWeight: "600", marginLeft: 6 },
+  budgetOptionsContainer: {
+    marginBottom: 15,
+    paddingHorizontal: 20,
+  },
+  budgetOptionsContent: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  budgetOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    minWidth: 100,
+  },
+  budgetOptionLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  budgetOptionDescription: {
+    fontSize: 10,
+    fontWeight: "500",
+  },
   sectionTitle: {
     paddingHorizontal: 20,
     color: "#888",
@@ -918,7 +1040,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#423c3c",
     borderRadius: 4,
     paddingHorizontal: 4,
     paddingVertical: 2,

@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { User } from '@/types/database';
+import { supabase } from "@/lib/supabase";
+import { User } from "@/types/database";
+import { useQuery } from "@tanstack/react-query";
 
 export interface UserProfile extends User {
   producerProfile?: {
@@ -24,29 +24,32 @@ export interface UserProfile extends User {
 
 export function useUserProfile(userId?: string) {
   return useQuery({
-    queryKey: ['userProfile', userId],
+    queryKey: ["userProfile", userId],
     queryFn: async () => {
       if (!userId) {
-        throw new Error('User ID is required');
+        throw new Error("User ID is required");
       }
 
       // Fetch user data with all profiles
       const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
+        .from("users")
+        .select("*")
+        .eq("id", userId)
         .single();
 
       if (userError) throw userError;
-      if (!userData) throw new Error('User not found');
+      if (!userData) throw new Error("User not found");
 
       // Fetch producer profile if user is a producer
       let producerProfile = null;
-      if (userData.primary_role === 'producer' || userData.roles?.includes('producer')) {
+      if (
+        userData.primary_role === "producer" ||
+        userData.roles?.includes("producer")
+      ) {
         const { data: producerData } = await supabase
-          .from('producer_profiles')
-          .select('*')
-          .eq('user_id', userId)
+          .from("producer_profiles")
+          .select("*")
+          .eq("user_id", userId)
           .single();
 
         if (producerData) {
@@ -63,11 +66,14 @@ export function useUserProfile(userId?: string) {
 
       // Fetch artist profile if user is an artist
       let artistProfile = null;
-      if (userData.primary_role === 'artist' || userData.roles?.includes('artist')) {
+      if (
+        userData.primary_role === "artist" ||
+        userData.roles?.includes("artist")
+      ) {
         const { data: artistData } = await supabase
-          .from('artist_profiles')
-          .select('*')
-          .eq('user_id', userId)
+          .from("artist_profiles")
+          .select("*")
+          .eq("user_id", userId)
           .single();
 
         if (artistData) {
@@ -80,27 +86,21 @@ export function useUserProfile(userId?: string) {
         }
       }
 
-      // Count user's resources - with error handling
-      const { count: studioCount, error: studioError } = await supabase
-        .from('studios')
-        .select('*', { count: 'exact', head: true })
-        .eq('owner_id', userId);
+      // Count user's resources
+      const { count: studioCount } = await supabase
+        .from("studios")
+        .select("*", { count: "exact", head: true })
+        .eq("owner_id", userId);
 
-      if (studioError) console.log('Studio count error:', studioError);
+      const { count: collaborationCount } = await supabase
+        .from("collaborations")
+        .select("*", { count: "exact", head: true })
+        .eq("creator_id", userId);
 
-      const { count: collaborationCount, error: collabError } = await supabase
-        .from('collaborations')
-        .select('*', { count: 'exact', head: true })
-        .eq('creator_id', userId);
-
-      if (collabError) console.log('Collaboration count error:', collabError);
-
-      const { count: clubCount, error: clubError } = await supabase
-        .from('club_memberships')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
-
-      if (clubError) console.log('Club count error:', clubError);
+      const { count: clubCount } = await supabase
+        .from("club_memberships")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId);
 
       return {
         id: userData.id,
@@ -114,6 +114,8 @@ export function useUserProfile(userId?: string) {
         primaryRole: userData.primary_role,
         roles: userData.roles || [],
         verified: userData.verified,
+        // 🔥 ADDED THIS LINE TO FIX THE ERROR
+        membershipTier: userData.membership_tier || "FREE",
         followersCount: userData.followers_count || 0,
         followingCount: userData.following_count || 0,
         createdAt: userData.created_at,
@@ -124,6 +126,41 @@ export function useUserProfile(userId?: string) {
         collaborationCount: collaborationCount || 0,
         clubCount: clubCount || 0,
       } as UserProfile;
+    },
+    enabled: !!userId,
+  });
+}
+
+// 👇 THIS IS REQUIRED FOR YOUR MAP HOOK
+export function useUserCollaborations(userId?: string) {
+  return useQuery({
+    queryKey: ["userCollaborations", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+
+      const { data, error } = await supabase
+        .from("collaborations")
+        .select("*")
+        .eq("creator_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching collaborations:", error);
+        return [];
+      }
+
+      return data.map((collab) => ({
+        id: collab.id,
+        title: collab.title,
+        description: collab.description,
+        creatorId: collab.creator_id,
+        studioId: collab.studio_id, // Important for the Map
+        status: collab.status,
+        imageUrl: collab.image_url,
+        genre: collab.genre,
+        createdAt: collab.created_at,
+        availableDate: collab.available_date,
+      }));
     },
     enabled: !!userId,
   });

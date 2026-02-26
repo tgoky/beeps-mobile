@@ -1,8 +1,24 @@
 import * as Haptics from "expo-haptics";
-import { Maximize2, Mic2, Minimize2, Navigation } from "lucide-react-native";
-import React, { useEffect } from "react";
+import { useRouter } from "expo-router";
+import {
+  ArrowRight,
+  Calendar,
+  ChevronRight,
+  Clock,
+  History,
+  Maximize2,
+  Mic2,
+  Minimize2,
+  Music,
+  Navigation,
+  User,
+  X,
+} from "lucide-react-native";
+import React, { useEffect, useState } from "react";
 import {
   Dimensions,
+  FlatList,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -15,99 +31,351 @@ import {
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import Animated, {
+  FadeIn,
+  FadeOut,
+  SlideInDown,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import Svg, {
-  Circle,
-  Defs,
-  G,
-  Line,
-  Path,
-  Pattern,
-  Rect,
-} from "react-native-svg";
+import Svg, { Circle, Defs, G, Path, Pattern, Rect } from "react-native-svg";
 
 // --- Configuration ---
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const MAP_SIZE = 1000;
-const INITIAL_SCALE = 1; // Start at 1:1 scale for the radar logic
-const VIEWBOX_SIZE = 100;
 
-// 🔥 PROXIMITY SCALE: Controls how far apart things look.
-// Higher number = markers appear further away.
-// 3000 is a sweet spot for city-level density.
-const COORD_SCALE = 3000;
+const MAP_SIZE = 1500;
+const CENTER_OFFSET = MAP_SIZE / 2;
 
-// Vertical Offset to keep markers above the Bottom Sheet
+// Constraints
+const MIN_SCALE =
+  Math.max(SCREEN_WIDTH / MAP_SIZE, SCREEN_HEIGHT / MAP_SIZE) * 1.1;
+const MAX_SCALE = 2.5;
+
+const COORD_SCALE = 2000;
 const VERTICAL_OFFSET = SCREEN_HEIGHT * 0.25;
 
 const THEME_COLORS = {
   light: {
     water: "#a5c5d9",
     land: "#e5e7eb",
-    greenery: "#c4d7a8",
     road: "#ffffff",
+    roadOutline: "rgba(255,255,255,0.4)",
     highway: "#fcd34d",
-    highwayOutline: "#a3a3a3",
     text: "#000000",
-    cardBg: "rgba(255,255,255,0.85)",
+    cardBg: "#ffffff",
     border: "#000000",
     accent: "#000000",
     marker: "#ffffff",
+    history: "#8B5CF6", // Brighter purple
+    historyBg: "#EDE9FE",
+    dropdownBg: "#ffffff",
   },
   dark: {
     water: "#0f172a",
     land: "#18181b",
-    greenery: "#14532d",
     road: "#3f3f46",
+    roadOutline: "rgba(63, 63, 70, 0.4)",
     highway: "#ca8a04",
-    highwayOutline: "#000000",
     text: "#ffffff",
-    cardBg: "rgba(24, 24, 27, 0.85)",
+    cardBg: "#18181b",
     border: "#52525b",
     accent: "#ffffff",
     marker: "#27272a",
+    history: "#A78BFA", // Brighter purple for dark mode
+    historyBg: "#2e1065",
+    dropdownBg: "#262626",
   },
 };
 
+// --- Types ---
 interface Studio {
   id: string;
   name: string;
   latitude: number;
   longitude: number;
   hourlyRate: number;
-  rating?: number;
-  location?: string;
-  imageUrl?: string | null;
+  type: "studio";
+}
+
+export interface RecentActivity {
+  id: string;
+  type: "studio_visit" | "collaboration" | "artist_meet";
+  name: string;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  avatarUrl?: string;
+  sessionId?: string;
+  details?: { label: string; value: string }[];
 }
 
 interface CustomMapViewProps {
   studios: Studio[];
+  recentActivity?: RecentActivity[];
   theme: "light" | "dark";
   onStudioPress: (studio: Studio) => void;
   selectedStudio?: Studio | null;
   userLocation?: { latitude: number; longitude: number } | null;
-  region: { latitude: number; longitude: number }; // REQUIRED: The center point
+  region: { latitude: number; longitude: number };
 }
+
+// --- Activity Dropdown Component ---
+const ActivityDropdown = ({
+  activity,
+  onClose,
+  onViewSession,
+  colors,
+  position,
+}: {
+  activity: RecentActivity;
+  onClose: () => void;
+  onViewSession: () => void;
+  colors: any;
+  position: { x: number; y: number };
+}) => {
+  // Convert map coordinates to screen coordinates
+  const screenX = position.x + (SCREEN_WIDTH - MAP_SIZE) / 2;
+  const screenY = position.y + (SCREEN_HEIGHT - MAP_SIZE) / 2 - VERTICAL_OFFSET;
+
+  // Adjust dropdown position to not go off screen
+  const dropdownX = Math.min(Math.max(screenX - 140, 10), SCREEN_WIDTH - 290);
+  const dropdownY = Math.min(Math.max(screenY - 120, 40), SCREEN_HEIGHT - 300);
+
+  return (
+    <Animated.View
+      entering={FadeIn.duration(200)}
+      exiting={FadeOut.duration(150)}
+      style={[
+        styles.dropdownContainer,
+        {
+          position: "absolute",
+          left: dropdownX,
+          top: dropdownY,
+          backgroundColor: colors.dropdownBg,
+          borderColor: colors.history,
+          shadowColor: "#000",
+          zIndex: 10000,
+        },
+      ]}
+    >
+      {/* Arrow pointing to the marker */}
+      <View
+        style={[styles.dropdownArrow, { borderBottomColor: colors.dropdownBg }]}
+      />
+
+      <View style={styles.dropdownHeader}>
+        <View
+          style={[styles.dropdownTypeIcon, { backgroundColor: colors.history }]}
+        >
+          {activity.type === "collaboration" ? (
+            <User size={16} color="#fff" />
+          ) : (
+            <History size={16} color="#fff" />
+          )}
+        </View>
+        <Text
+          style={[styles.dropdownTitle, { color: colors.text }]}
+          numberOfLines={1}
+        >
+          {activity.name}
+        </Text>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <X size={16} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.dropdownContent}>
+        <View style={styles.dropdownInfo}>
+          <Clock size={14} color="#888" />
+          <Text style={styles.dropdownInfoText}>{activity.timestamp}</Text>
+        </View>
+
+        {activity.details?.map((detail, index) => (
+          <View key={index} style={styles.dropdownInfo}>
+            {index === 0 ? (
+              <Music size={14} color="#888" />
+            ) : (
+              <Calendar size={14} color="#888" />
+            )}
+            <Text style={styles.dropdownInfoText}>{detail.value}</Text>
+          </View>
+        ))}
+
+        {activity.sessionId && (
+          <TouchableOpacity
+            style={[styles.dropdownButton, { backgroundColor: colors.history }]}
+            onPress={onViewSession}
+          >
+            <Text style={styles.dropdownButtonText}>View Session</Text>
+            <ArrowRight size={14} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
+    </Animated.View>
+  );
+};
+
+// --- Activity List Modal ---
+const ActivityListModal = ({
+  visible,
+  onClose,
+  activities,
+  onSelectActivity,
+  colors,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  activities: RecentActivity[];
+  onSelectActivity: (activity: RecentActivity) => void;
+  colors: any;
+}) => {
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Animated.View
+          entering={SlideInDown.springify().damping(15)}
+          style={[styles.listModal, { backgroundColor: colors.dropdownBg }]}
+        >
+          <View style={styles.listModalHeader}>
+            <Text style={[styles.listModalTitle, { color: colors.text }]}>
+              Recent Activity
+            </Text>
+            <TouchableOpacity onPress={onClose}>
+              <X size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={activities}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.listItem, { borderBottomColor: colors.border }]}
+                onPress={() => {
+                  onSelectActivity(item);
+                  onClose();
+                }}
+              >
+                <View
+                  style={[
+                    styles.listItemIcon,
+                    { backgroundColor: colors.history },
+                  ]}
+                >
+                  {item.type === "collaboration" ? (
+                    <User size={18} color="#fff" />
+                  ) : (
+                    <History size={18} color="#fff" />
+                  )}
+                </View>
+                <View style={styles.listItemContent}>
+                  <Text style={[styles.listItemName, { color: colors.text }]}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.listItemTime}>{item.timestamp}</Text>
+                </View>
+                <ChevronRight size={20} color="#888" />
+              </TouchableOpacity>
+            )}
+          />
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+// --- Off-Screen Indicator ---
+const OffScreenIndicator = ({
+  targetX,
+  targetY,
+  color,
+  onPress,
+}: {
+  targetX: number;
+  targetY: number;
+  color: string;
+  onPress: () => void;
+}) => {
+  const dx = targetX - CENTER_OFFSET;
+  const dy = targetY - CENTER_OFFSET;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  // Visibility Check: If close to center, don't show arrow
+  if (distance < SCREEN_WIDTH / 2 - 20) return null;
+
+  const angle = Math.atan2(dy, dx);
+  const radius = SCREEN_WIDTH / 2 - 40;
+  const indX = Math.cos(angle) * radius;
+  const indY = Math.sin(angle) * radius;
+  const rotation = angle * (180 / Math.PI);
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: "absolute",
+        left: SCREEN_WIDTH / 2,
+        top: SCREEN_HEIGHT / 2 - VERTICAL_OFFSET,
+        zIndex: 9999,
+      }}
+    >
+      <TouchableOpacity
+        onPress={onPress}
+        style={{
+          position: "absolute",
+          transform: [
+            { translateX: indX - 20 },
+            { translateY: indY - 20 },
+            { rotate: `${rotation}deg` },
+          ],
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: color,
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 3,
+          borderColor: "#fff",
+          shadowColor: "#000",
+          shadowOpacity: 0.5,
+          shadowRadius: 5,
+          elevation: 10,
+        }}
+      >
+        <ChevronRight size={24} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 export default function CustomMapView({
   studios,
+  recentActivity = [],
   theme,
   onStudioPress,
   selectedStudio,
   userLocation,
   region,
 }: CustomMapViewProps) {
+  const router = useRouter();
   const colors = THEME_COLORS[theme];
 
-  // --- Animation State ---
-  const scale = useSharedValue(INITIAL_SCALE);
-  const savedScale = useSharedValue(INITIAL_SCALE);
+  // State for dropdown and list
+  const [selectedActivity, setSelectedActivity] =
+    useState<RecentActivity | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
+  const [showActivityList, setShowActivityList] = useState(false);
 
-  // Center the map content on screen (factoring in the vertical offset)
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+
   const initialX = (SCREEN_WIDTH - MAP_SIZE) / 2;
   const initialY = (SCREEN_HEIGHT - MAP_SIZE) / 2 - VERTICAL_OFFSET;
 
@@ -116,29 +384,26 @@ export default function CustomMapView({
   const savedTranslateX = useSharedValue(initialX);
   const savedTranslateY = useSharedValue(initialY);
 
-  // --- 🔥 LOGIC: REAL RELATIVE POSITIONING ---
   const getRelativePosition = (lat: number, lon: number) => {
-    // 1. Calculate difference from the current Map Center (region)
     const deltaLat = lat - region.latitude;
     const deltaLon = lon - region.longitude;
-
-    // 2. Scale to SVG coordinates (0-100)
-    // Center of SVG is (50, 50). Y-axis is inverted.
-    const x = 50 + deltaLon * COORD_SCALE;
-    const y = 50 - deltaLat * COORD_SCALE;
-
+    const x = CENTER_OFFSET + deltaLon * COORD_SCALE;
+    const y = CENTER_OFFSET - deltaLat * COORD_SCALE;
     return { x, y };
   };
 
-  // --- Effects ---
-  // When the Region changes (Search or GPS update), reset the camera to center
   useEffect(() => {
     translateX.value = withTiming(initialX);
     translateY.value = withTiming(initialY);
-    scale.value = withTiming(INITIAL_SCALE);
+    scale.value = withTiming(1);
+    savedScale.value = 1;
   }, [region.latitude, region.longitude]);
 
-  // --- Gestures ---
+  const clamp = (val: number, min: number, max: number) => {
+    "worklet";
+    return Math.min(Math.max(val, min), max);
+  };
+
   const panGesture = Gesture.Pan()
     .onUpdate((e) => {
       translateX.value = savedTranslateX.value + e.translationX;
@@ -151,14 +416,13 @@ export default function CustomMapView({
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
-      scale.value = savedScale.value * e.scale;
+      scale.value = clamp(savedScale.value * e.scale, MIN_SCALE, MAX_SCALE);
     })
     .onEnd(() => {
       savedScale.value = scale.value;
     });
 
   const composedGesture = Gesture.Simultaneous(panGesture, pinchGesture);
-
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
@@ -167,147 +431,160 @@ export default function CustomMapView({
     ],
   }));
 
-  const handlePress = (studio: Studio) => {
+  const handleActivityPress = (
+    activity: RecentActivity,
+    x: number,
+    y: number,
+  ) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onStudioPress(studio);
+    setSelectedActivity(activity);
+    setDropdownPosition({ x, y });
   };
 
-  const handleLocateMe = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Reset view
-    scale.value = withSpring(INITIAL_SCALE);
-    translateX.value = withSpring(initialX);
-    translateY.value = withSpring(initialY);
+  const handleViewSession = () => {
+    if (selectedActivity?.sessionId) {
+      setSelectedActivity(null);
+      router.push(`/session/${selectedActivity.sessionId}`);
+    }
   };
 
-  // Calculate positions
+  const handleShowAllActivities = () => {
+    setShowActivityList(true);
+  };
+
   const userPos = userLocation
     ? getRelativePosition(userLocation.latitude, userLocation.longitude)
     : null;
 
+  // Debug: Log if there are activities
+  console.log("Recent Activities:", recentActivity.length);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={[styles.container, { backgroundColor: colors.water }]}>
+        {/* MAP LAYER */}
         <GestureDetector gesture={composedGesture}>
-          <Animated.View style={[styles.mapContent, animatedStyle]}>
-            <Svg width={MAP_SIZE} height={MAP_SIZE} viewBox="0 0 100 100">
+          <Animated.View
+            style={[styles.mapContent, animatedStyle]}
+            renderToHardwareTextureAndroid={true}
+          >
+            <Svg
+              width={MAP_SIZE}
+              height={MAP_SIZE}
+              viewBox={`0 0 ${MAP_SIZE} ${MAP_SIZE}`}
+            >
               <Defs>
                 <Pattern
+                  id="gridPattern"
+                  width="100"
+                  height="100"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <Path
+                    d="M 100 0 L 0 0 0 100"
+                    fill="none"
+                    stroke={colors.roadOutline}
+                    strokeWidth="2"
+                  />
+                </Pattern>
+                <Pattern
                   id="waterPattern"
-                  width="4"
-                  height="4"
+                  width="50"
+                  height="50"
                   patternUnits="userSpaceOnUse"
                 >
                   <Circle
-                    cx="1"
-                    cy="1"
-                    r="0.5"
-                    fill={theme === "dark" ? "#1e293b" : "#93c5fd"}
-                    opacity="0.3"
+                    cx="25"
+                    cy="25"
+                    r="2"
+                    fill={theme === "dark" ? "#fff" : "#000"}
+                    opacity="0.05"
                   />
                 </Pattern>
               </Defs>
 
-              {/* 1. Background Visuals (The GTA Skin) */}
               <Rect
                 x="0"
                 y="0"
-                width="100"
-                height="100"
+                width={MAP_SIZE}
+                height={MAP_SIZE}
+                fill={colors.water}
+              />
+              <Rect
+                x="0"
+                y="0"
+                width={MAP_SIZE}
+                height={MAP_SIZE}
                 fill="url(#waterPattern)"
               />
-
-              <Path
-                d="M 15 0 L 100 0 L 100 100 L 30 100 C 30 100 25 80 40 70 C 55 60 50 40 30 35 C 10 30 5 15 15 0 Z"
-                fill={colors.land}
-                stroke="rgba(0,0,0,0.1)"
-                strokeWidth="0.5"
+              <Rect
+                x="0"
+                y="0"
+                width={MAP_SIZE}
+                height={MAP_SIZE}
+                fill="url(#gridPattern)"
               />
 
-              <Path
-                d="M 60 0 L 100 0 L 100 40 Q 80 50 60 30 Q 50 15 60 0 Z"
-                fill={colors.greenery}
-                opacity="0.8"
-              />
-
-              {/* Grid Roads */}
-              <G stroke={colors.road} strokeWidth="0.8" opacity="0.6">
-                {[45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95].map((x) => (
-                  <Line key={`v-${x}`} x1={x} y1="0" x2={x} y2="100" />
-                ))}
-                {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((y) => (
-                  <Line key={`h-${y}`} x1="20" y1={y} x2="100" y2={y} />
-                ))}
+              <G
+                transform={`translate(${CENTER_OFFSET - 500}, ${CENTER_OFFSET - 500}) scale(10)`}
+              >
+                <Path
+                  d="M 15 0 L 100 0 L 100 100 L 30 100 C 30 100 25 80 40 70 C 55 60 50 40 30 35 C 10 30 5 15 15 0 Z"
+                  fill={colors.land}
+                  stroke={colors.roadOutline}
+                  strokeWidth="0.5"
+                />
               </G>
 
-              {/* Highways */}
-              <G fill="none">
-                <Path
-                  d="M 20 0 Q 30 50 80 60 L 100 65"
-                  stroke={colors.highwayOutline}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                />
-                <Path
-                  d="M 60 100 L 60 40 Q 60 20 100 10"
-                  stroke={colors.highwayOutline}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                />
+              <G
+                transform={`translate(${CENTER_OFFSET - 500}, ${CENTER_OFFSET - 500}) scale(10)`}
+                fill="none"
+              >
                 <Path
                   d="M 20 0 Q 30 50 80 60 L 100 65"
                   stroke={colors.highway}
                   strokeWidth="2"
                   strokeLinecap="round"
                 />
-                <Path
-                  d="M 60 100 L 60 40 Q 60 20 100 10"
-                  stroke={colors.highway}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
               </G>
 
-              {/* 2. User Location Dot (SVG Layer) */}
               {userPos && (
                 <G x={userPos.x} y={userPos.y}>
-                  <Circle r="5" fill="#3b82f6" fillOpacity={0.2} />
+                  <Circle r="40" fill="#3b82f6" fillOpacity={0.1} />
+                  <Circle r="20" fill="#3b82f6" fillOpacity={0.2} />
                 </G>
               )}
             </Svg>
 
-            {/* 3. Studio Markers (View Layer for Interaction) */}
+            {/* Studio Markers */}
             {studios.map((studio) => {
               const pos = getRelativePosition(
                 studio.latitude,
                 studio.longitude,
               );
-              const isSelected = selectedStudio?.id === studio.id;
-
-              // Don't render if way off screen (Optimization)
-              if (pos.x < -20 || pos.x > 120 || pos.y < -20 || pos.y > 120)
+              if (
+                pos.x < -50 ||
+                pos.x > MAP_SIZE + 50 ||
+                pos.y < -50 ||
+                pos.y > MAP_SIZE + 50
+              )
                 return null;
-
-              const left = (pos.x / 100) * MAP_SIZE;
-              const top = (pos.y / 100) * MAP_SIZE;
+              const isSelected = selectedStudio?.id === studio.id;
 
               return (
                 <View
                   key={studio.id}
                   style={{
                     position: "absolute",
-                    left,
-                    top,
-                    zIndex: isSelected ? 100 : 10,
+                    left: pos.x,
+                    top: pos.y,
+                    zIndex: 10,
                   }}
                 >
                   <TouchableOpacity
                     activeOpacity={0.9}
-                    onPress={() => handlePress(studio)}
-                    style={[
-                      styles.markerContainer,
-                      isSelected && styles.markerSelected,
-                    ]}
+                    onPress={() => onStudioPress(studio)}
+                    style={styles.markerContainer}
                   >
                     <View
                       style={[
@@ -316,16 +593,11 @@ export default function CustomMapView({
                           backgroundColor: isSelected
                             ? colors.accent
                             : colors.marker,
-                          borderColor: isSelected ? colors.text : colors.border,
                         },
                       ]}
                     >
                       {isSelected ? (
-                        <Mic2
-                          size={14}
-                          color={theme === "dark" ? "#000" : "#fff"}
-                          strokeWidth={3}
-                        />
+                        <Mic2 size={14} color="#fff" />
                       ) : (
                         <Text
                           style={[styles.markerPrice, { color: colors.text }]}
@@ -335,171 +607,283 @@ export default function CustomMapView({
                       )}
                     </View>
                     <View style={styles.markerStick} />
-                    {/* Only show name label if selected or zoomed in */}
-                    {isSelected && (
-                      <View
-                        style={[
-                          styles.markerLabel,
-                          {
-                            backgroundColor: colors.cardBg,
-                            borderColor: colors.border,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.markerLabelText,
-                            { color: colors.text },
-                          ]}
-                        >
-                          {studio.name}
-                        </Text>
-                      </View>
-                    )}
                   </TouchableOpacity>
                 </View>
               );
             })}
 
-            {/* 4. User Location Icon (View Layer) */}
+            {/* Recent Activity Markers - ENHANCED VISIBILITY */}
+            {recentActivity.map((activity) => {
+              const pos = getRelativePosition(
+                activity.latitude,
+                activity.longitude,
+              );
+
+              // Don't filter out off-screen markers - they'll be handled by indicators
+              // But we still render them on the map
+
+              return (
+                <View
+                  key={activity.id}
+                  style={{
+                    position: "absolute",
+                    left: pos.x,
+                    top: pos.y,
+                    zIndex: 100, // Higher zIndex than studios
+                  }}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => handleActivityPress(activity, pos.x, pos.y)}
+                    style={styles.savePointContainer}
+                  >
+                    {/* Enhanced Activity Marker - More Visible */}
+                    <View
+                      style={[
+                        styles.activityCard,
+                        {
+                          backgroundColor: colors.history,
+                          borderColor: "#fff",
+                          borderWidth: 3,
+                          shadowColor: "#000",
+                          shadowOpacity: 0.5,
+                          shadowRadius: 8,
+                          elevation: 10,
+                        },
+                      ]}
+                    >
+                      <View style={{ marginRight: 6 }}>
+                        {activity.type === "collaboration" ? (
+                          <User size={14} color="#fff" />
+                        ) : (
+                          <History size={14} color="#fff" />
+                        )}
+                      </View>
+                      <Text style={styles.activityCardText} numberOfLines={1}>
+                        {activity.name.length > 8
+                          ? activity.name.substring(0, 8) + "..."
+                          : activity.name}
+                      </Text>
+                    </View>
+                    {/* Stem with glow effect */}
+                    <View
+                      style={{
+                        width: 3,
+                        height: 16,
+                        backgroundColor: colors.history,
+                        shadowColor: colors.history,
+                        shadowOpacity: 0.8,
+                        shadowRadius: 4,
+                        elevation: 5,
+                      }}
+                    />
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: colors.history,
+                        shadowColor: colors.history,
+                        shadowOpacity: 0.8,
+                        shadowRadius: 4,
+                        elevation: 5,
+                      }}
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+
             {userPos && (
               <View
                 style={{
                   position: "absolute",
-                  left: (userPos.x / 100) * MAP_SIZE,
-                  top: (userPos.y / 100) * MAP_SIZE,
+                  left: userPos.x,
+                  top: userPos.y,
                   zIndex: 5,
-                  transform: [{ translateX: -20 }, { translateY: -20 }],
+                  transform: [{ translateX: -16 }, { translateY: -16 }],
                 }}
               >
-                <View style={styles.userLocationPulse} />
-                <Navigation
-                  size={24}
-                  color="#3b82f6"
-                  fill="#3b82f6"
-                  style={{ transform: [{ rotate: "45deg" }] }}
-                />
+                <View style={styles.userIcon}>
+                  <Navigation
+                    size={18}
+                    color="#fff"
+                    style={{ transform: [{ rotate: "45deg" }] }}
+                  />
+                </View>
               </View>
             )}
           </Animated.View>
         </GestureDetector>
 
-        {/* 5. HUD Controls (Retained from Old Code) */}
+        {/* Off-Screen Indicators - Always on top */}
+        {recentActivity.map((activity) => {
+          const pos = getRelativePosition(
+            activity.latitude,
+            activity.longitude,
+          );
+          return (
+            <OffScreenIndicator
+              key={`ind-${activity.id}`}
+              targetX={pos.x}
+              targetY={pos.y}
+              color={colors.history}
+              onPress={() => handleActivityPress(activity, pos.x, pos.y)}
+            />
+          );
+        })}
+
+        {/* HUD Controls */}
         <View style={styles.hudZoom}>
           <TouchableOpacity
-            onPress={() => (scale.value = withSpring(scale.value * 1.2))}
+            onPress={() =>
+              (scale.value = withSpring(Math.min(scale.value * 1.5, MAX_SCALE)))
+            }
             style={[
               styles.zoomBtn,
-              { borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.1)" },
+              { borderBottomWidth: 1, borderColor: "#eee" },
             ]}
           >
             <Maximize2 size={20} color={colors.text} />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => (scale.value = withSpring(scale.value * 0.8))}
+            onPress={() =>
+              (scale.value = withSpring(Math.max(scale.value * 0.6, MIN_SCALE)))
+            }
             style={styles.zoomBtn}
           >
             <Minimize2 size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          onPress={handleLocateMe}
-          style={[
-            styles.hudLocate,
-            { backgroundColor: colors.cardBg, borderColor: colors.border },
-          ]}
-        >
-          <Navigation
-            size={20}
-            color={userLocation ? "#3b82f6" : colors.text}
-            fill={userLocation ? "#3b82f6" : "none"}
+        {/* Activity List Button - Shows count */}
+        {recentActivity.length > 0 && (
+          <TouchableOpacity
+            style={[
+              styles.activityListButton,
+              { backgroundColor: colors.history },
+            ]}
+            onPress={handleShowAllActivities}
+          >
+            <History size={20} color="#fff" />
+            <Text style={styles.activityListButtonText}>
+              {recentActivity.length}{" "}
+              {recentActivity.length === 1 ? "Activity" : "Activities"}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Activity Dropdown */}
+        {selectedActivity && (
+          <ActivityDropdown
+            activity={selectedActivity}
+            onClose={() => setSelectedActivity(null)}
+            onViewSession={handleViewSession}
+            colors={colors}
+            position={dropdownPosition}
           />
-        </TouchableOpacity>
+        )}
+
+        {/* Activity List Modal */}
+        <ActivityListModal
+          visible={showActivityList}
+          onClose={() => setShowActivityList(false)}
+          activities={recentActivity}
+          onSelectActivity={(activity) => {
+            setSelectedActivity(activity);
+            // You might want to center the map on this activity here
+          }}
+          colors={colors}
+        />
       </View>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    overflow: "hidden",
-  },
-  mapContent: {
-    width: MAP_SIZE,
-    height: MAP_SIZE,
-  },
+  container: { flex: 1, overflow: "hidden" },
+  mapContent: { width: MAP_SIZE, height: MAP_SIZE },
+
+  // Marker Styles
   markerContainer: {
     alignItems: "center",
     justifyContent: "center",
-    // Adjust anchor point so stick points to location
     transform: [{ translateX: -18 }, { translateY: -46 }],
-  },
-  markerSelected: {
-    transform: [{ translateX: -18 }, { translateY: -56 }, { scale: 1.1 }],
-    zIndex: 100,
   },
   markerHead: {
     width: 36,
     height: 36,
     borderRadius: 18,
     borderWidth: 2,
+    borderColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 2, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 2,
-    zIndex: 2,
+    shadowRadius: 3,
+    elevation: 5,
   },
-  markerPrice: {
-    fontSize: 10,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-  },
+  markerPrice: { fontSize: 10, fontWeight: "900" },
   markerStick: {
     width: 2,
     height: 12,
-    marginTop: -2,
-    zIndex: 1,
+    marginTop: -1,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
-  markerLabel: {
-    marginTop: -2,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-    minWidth: 60,
+
+  // Activity Marker Styles - Enhanced
+  savePointContainer: {
     alignItems: "center",
+    justifyContent: "center",
+    transform: [{ translateX: -35 }, { translateY: -50 }],
   },
-  markerLabelText: {
-    fontSize: 10,
-    fontWeight: "800",
+  activityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    borderWidth: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+    elevation: 8,
   },
-  userLocationPulse: {
-    position: "absolute",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(59, 130, 246, 0.3)",
-    top: -8,
-    left: -8,
+  activityCardText: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
+
+  // User Location Marker
+  userIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#3b82f6",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+
+  // HUD Controls
   hudZoom: {
     position: "absolute",
     top: Platform.OS === "ios" ? 120 : 100,
     right: 20,
-    borderRadius: 8,
-    borderWidth: 2,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderColor: "#000",
-    shadowColor: "#000",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 0,
+    borderRadius: 12,
+    backgroundColor: "#184f71",
     elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
   zoomBtn: {
     width: 44,
@@ -507,20 +891,148 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  hudLocate: {
+
+  // Activity List Button
+  activityListButton: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 220 : 200,
+    bottom: 20,
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 30,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  activityListButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+
+  // Dropdown Styles
+  dropdownContainer: {
+    position: "absolute",
+    width: 280,
+    borderRadius: 16,
     borderWidth: 2,
+    padding: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  dropdownArrow: {
+    position: "absolute",
+    top: -8,
+    left: 140,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 8,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+  },
+  dropdownHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  dropdownTypeIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 0,
-    elevation: 5,
+    marginRight: 8,
+  },
+  dropdownTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  closeButton: {
+    padding: 4,
+  },
+  dropdownContent: {
+    gap: 10,
+  },
+  dropdownInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dropdownInfoText: {
+    fontSize: 12,
+    color: "#888",
+    fontWeight: "500",
+  },
+  dropdownButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 6,
+  },
+  dropdownButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+
+  // List Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  listModal: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: SCREEN_HEIGHT * 0.7,
+  },
+  listModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  listModalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  listItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  listItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  listItemContent: {
+    flex: 1,
+  },
+  listItemName: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  listItemTime: {
+    fontSize: 12,
+    color: "#888",
   },
 });
