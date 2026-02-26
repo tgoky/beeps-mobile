@@ -42,10 +42,9 @@ if (
 const { width, height } = Dimensions.get("window");
 
 // --- CONFIGURATION ---
-// Increased to show Horizontal list immediately
 const COLLAPSED_HEIGHT = height * 0.55;
 const EXPANDED_HEIGHT = height * 0.92;
-const DRAG_THRESHOLD = 30; // Reduced threshold for easier snapping
+const DRAG_THRESHOLD = 30;
 
 type TabType = "studios" | "producers" | "artists";
 type FilterType = "budget" | "top_rated" | "open_now" | null;
@@ -88,7 +87,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { effectiveTheme } = useTheme();
 
-  // Theme Colors (Strict Black/White)
+  // Theme Colors
   const isDark = effectiveTheme === "dark";
   const bg = isDark ? "#000000" : "#FFFFFF";
   const txt = isDark ? "#FFFFFF" : "#000000";
@@ -97,24 +96,29 @@ export default function HomeScreen() {
   const inputBg = isDark ? "#222" : "#F5F5F5";
   const accent = isDark ? "#FFF" : "#000";
 
-  // Data
+  // Data Hooks
   const { data: studios } = useStudios();
   const { data: producers } = useProducers();
   const { data: artists } = useArtists();
 
-  // State
+  // --- MAP STATE ---
+  // This 'region' acts as the Center Point of the Radar.
+  // When this changes, the whole map shifts to center on this point.
   const [region, setRegion] = useState({
     latitude: 6.5244, // Default Lagos
     longitude: 3.3792,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
   });
+
   const [userLocation, setUserLocation] = useState<any>(null); // Real GPS
   const [activeTab, setActiveTab] = useState<TabType>("studios");
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
+
+  // Search State
   const [searchQuery, setSearchQuery] = useState("");
   const [locationSuggestions, setLocationSuggestions] = useState<any[]>([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+
+  // UI State
   const [isExpanded, setIsExpanded] = useState(false);
   const [requestServiceProducer, setRequestServiceProducer] =
     useState<any>(null);
@@ -132,10 +136,16 @@ export default function HomeScreen() {
 
       let location = await Location.getCurrentPositionAsync({});
       setUserLocation(location.coords);
+
+      // Automatically center the "Radar" on the user's location initially
+      setRegion({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
     })();
   }, []);
 
-  // --- 2. SEARCH & FILTER LOGIC ---
+  // --- 2. SEARCH LOGIC (Updates Radar Center) ---
   const fetchLocations = async (query: string) => {
     if (query.length < 3) {
       setLocationSuggestions([]);
@@ -143,6 +153,7 @@ export default function HomeScreen() {
     }
     setIsSearchingLocation(true);
     try {
+      // Using OpenStreetMap Nominatim
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           query,
@@ -159,6 +170,7 @@ export default function HomeScreen() {
 
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
+    // Only fetch map locations if we are in studio mode, otherwise search names
     if (activeTab === "studios") fetchLocations(text);
   };
 
@@ -168,11 +180,10 @@ export default function HomeScreen() {
     setSearchQuery(loc.display_name.split(",")[0]);
     setLocationSuggestions([]);
 
+    // Update the Radar Center
     setRegion({
       latitude: parseFloat(loc.lat),
       longitude: parseFloat(loc.lon),
-      latitudeDelta: 0.02,
-      longitudeDelta: 0.02,
     });
     snapToCollapsed();
   };
@@ -180,15 +191,15 @@ export default function HomeScreen() {
   const handleRecenter = () => {
     if (userLocation) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Move Radar Center back to User
       setRegion({
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
       });
     }
   };
 
+  // --- 3. FILTER & SORT LOGIC ---
   const filteredData = useMemo(() => {
     let data: any[] = [];
     switch (activeTab) {
@@ -203,6 +214,7 @@ export default function HomeScreen() {
         break;
     }
 
+    // A. Text Search Filter
     if (searchQuery && locationSuggestions.length === 0) {
       const q = searchQuery.toLowerCase();
       data = data.filter((item: any) => {
@@ -214,6 +226,7 @@ export default function HomeScreen() {
       });
     }
 
+    // B. Category Filters
     if (activeFilter === "budget") {
       data = data.filter((d) => (d.hourlyRate || d.productionRate || 0) <= 50);
     } else if (activeFilter === "top_rated") {
@@ -222,6 +235,7 @@ export default function HomeScreen() {
       data = data.filter((d) => getOpenStatus(d).isOpen);
     }
 
+    // C. Sort by Distance from Center (Radar Logic)
     if (activeTab === "studios") {
       data.sort((a, b) => {
         const distA = parseFloat(
@@ -256,11 +270,10 @@ export default function HomeScreen() {
     region,
   ]);
 
-  // --- 3. GESTURES ---
+  // --- 4. GESTURES (Bottom Sheet) ---
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      // Allow drag if moving vertically
       onMoveShouldSetPanResponder: (_, gestureState) =>
         Math.abs(gestureState.dy) > 5,
       onPanResponderMove: (_, gestureState) => {
@@ -268,33 +281,22 @@ export default function HomeScreen() {
           ? height - EXPANDED_HEIGHT
           : height - COLLAPSED_HEIGHT;
         let newTop = currentTop + gestureState.dy;
-
-        // Limits
         if (newTop < height - EXPANDED_HEIGHT)
-          newTop = height - EXPANDED_HEIGHT; // Top limit
-        // Add some resistance at the bottom, but don't let it disappear
+          newTop = height - EXPANDED_HEIGHT;
         if (newTop > height - COLLAPSED_HEIGHT + 50)
           newTop = height - COLLAPSED_HEIGHT + 50;
-
         animatedTop.setValue(newTop);
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy < -DRAG_THRESHOLD) {
-          snapToExpanded();
-        } else if (gestureState.dy > DRAG_THRESHOLD) {
-          snapToCollapsed();
-        } else {
-          // Return to nearest state
-          if (isExpanded) snapToExpanded();
-          else snapToCollapsed();
-        }
+        if (gestureState.dy < -DRAG_THRESHOLD) snapToExpanded();
+        else if (gestureState.dy > DRAG_THRESHOLD) snapToCollapsed();
+        else isExpanded ? snapToExpanded() : snapToCollapsed();
       },
     }),
   ).current;
 
   const snapToExpanded = () => {
     setIsExpanded(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.spring(animatedTop, {
       toValue: height - EXPANDED_HEIGHT,
       useNativeDriver: false,
@@ -306,7 +308,6 @@ export default function HomeScreen() {
   const snapToCollapsed = () => {
     Keyboard.dismiss();
     setIsExpanded(false);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.spring(animatedTop, {
       toValue: height - COLLAPSED_HEIGHT,
       useNativeDriver: false,
@@ -315,18 +316,18 @@ export default function HomeScreen() {
     }).start();
   };
 
-  // --- 4. GUARD CLAUSE (Moved AFTER all hooks) ---
   if (!user) return null;
 
-  // --- 5. RENDER COMPONENTS ---
-
+  // --- 5. RENDER HELPERS ---
   const renderHorizontalItem = ({ item }: { item: any }) => {
+    // Calculate distance relative to current map center
     const distance = getDistance(
       region.latitude,
       region.longitude,
       item.latitude,
       item.longitude,
     );
+
     return (
       <TouchableOpacity
         activeOpacity={0.8}
@@ -386,7 +387,6 @@ export default function HomeScreen() {
             item.longitude,
           )
         : null;
-    const status = activeTab === "studios" ? getOpenStatus(item) : null;
 
     if (!imageUrl)
       imageUrl =
@@ -446,27 +446,6 @@ export default function HomeScreen() {
                 </Text>
               </View>
             )}
-            {status && (
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <View
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 3,
-                    backgroundColor: status.isOpen ? "#10B981" : "#EF4444",
-                    marginRight: 4,
-                  }}
-                />
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: status.isOpen ? "#10B981" : "#EF4444",
-                  }}
-                >
-                  {status.isOpen ? "Open" : "Closed"}
-                </Text>
-              </View>
-            )}
           </View>
         </View>
         <View
@@ -492,7 +471,7 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: bg }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* 1. BACKGROUND MAP */}
+      {/* 1. RADAR MAP BACKGROUND */}
       <View
         style={[
           StyleSheet.absoluteFill,
@@ -502,13 +481,16 @@ export default function HomeScreen() {
         <CustomMapView
           studios={activeTab === "studios" ? filteredData : []}
           theme={effectiveTheme}
-          region={region}
-          onRegionChangeComplete={setRegion}
+          region={region} // Pass the "Center Point"
           userLocation={userLocation}
+          onStudioPress={(studio) => {
+            // Optionally snap to expanded to show details
+            router.push(`/studio/${studio.id}`);
+          }}
         />
       </View>
 
-      {/* 2. FLOATING UI */}
+      {/* 2. UI HEADER */}
       <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
         <View style={styles.headerRow}>
           <TouchableOpacity
@@ -539,10 +521,7 @@ export default function HomeScreen() {
           { backgroundColor: cardBg, top: animatedTop, height: height },
         ]}
       >
-        {/* --- DRAGGABLE HEADER AREA --- */}
-        {/* We attach panHandlers here so dragging works on the Handle, Search, and Tabs */}
         <View {...panResponder.panHandlers} style={{ backgroundColor: cardBg }}>
-          {/* Handle */}
           <View style={styles.dragHandleContainer}>
             <View
               style={[
@@ -552,7 +531,7 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* Search Bar */}
+          {/* Search */}
           <View style={styles.searchSection}>
             <View style={[styles.searchBar, { backgroundColor: inputBg }]}>
               <Ionicons
@@ -594,10 +573,9 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* A. LOCATION SUGGESTIONS (Immediate Overlay) */}
-          {locationSuggestions.length > 0 && searchQuery.length > 2 ? null : ( // Don't show tabs/filters if searching for location
+          {/* Tabs & Filters */}
+          {locationSuggestions.length === 0 && (
             <>
-              {/* Tabs */}
               <View style={styles.tabsRow}>
                 {(["studios", "producers", "artists"] as TabType[]).map(
                   (tab) => (
@@ -634,7 +612,6 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              {/* Filters */}
               <View style={styles.filtersRow}>
                 <ScrollView
                   horizontal
@@ -700,14 +677,12 @@ export default function HomeScreen() {
                   )}
                 </ScrollView>
               </View>
-
               <View style={{ height: 1, backgroundColor: border }} />
             </>
           )}
         </View>
-        {/* --- END DRAGGABLE HEADER --- */}
 
-        {/* --- SCROLLABLE CONTENT --- */}
+        {/* Content Lists */}
         <View style={{ flex: 1 }}>
           {locationSuggestions.length > 0 && searchQuery.length > 2 ? (
             <View style={{ flex: 1, width: "100%" }}>
@@ -748,7 +723,7 @@ export default function HomeScreen() {
             </View>
           ) : (
             <>
-              {/* Horizontal Discovery (Visible when collapsed) */}
+              {/* Horizontal Discovery */}
               {!isExpanded && !searchQuery && filteredData.length > 0 && (
                 <View style={{ paddingVertical: 15 }}>
                   <Text
@@ -769,7 +744,7 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Vertical List (Expanded) */}
+              {/* Vertical List */}
               {(isExpanded || searchQuery) && (
                 <FlatList
                   data={filteredData}
@@ -809,7 +784,7 @@ export default function HomeScreen() {
   );
 }
 
-// --- SUB COMPONENTS ---
+// Subcomponents (Chips etc)
 const FilterChip = ({
   label,
   icon,

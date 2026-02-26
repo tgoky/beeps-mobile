@@ -1,10 +1,5 @@
 import * as Haptics from "expo-haptics";
-import {
-  Maximize2,
-  Mic2,
-  Minimize2,
-  Navigation
-} from "lucide-react-native";
+import { Maximize2, Mic2, Minimize2, Navigation } from "lucide-react-native";
 import React, { useEffect } from "react";
 import {
   Dimensions,
@@ -12,7 +7,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import {
   Gesture,
@@ -23,7 +18,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  withTiming
+  withTiming,
 } from "react-native-reanimated";
 import Svg, {
   Circle,
@@ -38,19 +33,22 @@ import Svg, {
 // --- Configuration ---
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const MAP_SIZE = 1000;
-const INITIAL_SCALE = 0.6; // Balanced zoom
+const INITIAL_SCALE = 1; // Start at 1:1 scale for the radar logic
+const VIEWBOX_SIZE = 100;
 
-// 🔥 CRITICAL FIX: Shift map center UP by 25% of screen height.
-// This ensures markers appear in the top half, visible above the bottom sheet.
+// 🔥 PROXIMITY SCALE: Controls how far apart things look.
+// Higher number = markers appear further away.
+// 3000 is a sweet spot for city-level density.
+const COORD_SCALE = 3000;
+
+// Vertical Offset to keep markers above the Bottom Sheet
 const VERTICAL_OFFSET = SCREEN_HEIGHT * 0.25;
 
-// --- GTA Theme Colors ---
 const THEME_COLORS = {
   light: {
     water: "#a5c5d9",
     land: "#e5e7eb",
     greenery: "#c4d7a8",
-    beach: "#fde047",
     road: "#ffffff",
     highway: "#fcd34d",
     highwayOutline: "#a3a3a3",
@@ -58,12 +56,12 @@ const THEME_COLORS = {
     cardBg: "rgba(255,255,255,0.85)",
     border: "#000000",
     accent: "#000000",
+    marker: "#ffffff",
   },
   dark: {
     water: "#0f172a",
     land: "#18181b",
     greenery: "#14532d",
-    beach: "#451a03",
     road: "#3f3f46",
     highway: "#ca8a04",
     highwayOutline: "#000000",
@@ -71,6 +69,7 @@ const THEME_COLORS = {
     cardBg: "rgba(24, 24, 27, 0.85)",
     border: "#52525b",
     accent: "#ffffff",
+    marker: "#27272a",
   },
 };
 
@@ -80,10 +79,9 @@ interface Studio {
   latitude: number;
   longitude: number;
   hourlyRate: number;
-  rating: number;
+  rating?: number;
   location?: string;
   imageUrl?: string | null;
-  equipment?: string[];
 }
 
 interface CustomMapViewProps {
@@ -92,8 +90,7 @@ interface CustomMapViewProps {
   onStudioPress: (studio: Studio) => void;
   selectedStudio?: Studio | null;
   userLocation?: { latitude: number; longitude: number } | null;
-  region?: any;
-  onRegionChangeComplete?: (region: any) => void;
+  region: { latitude: number; longitude: number }; // REQUIRED: The center point
 }
 
 export default function CustomMapView({
@@ -102,6 +99,7 @@ export default function CustomMapView({
   onStudioPress,
   selectedStudio,
   userLocation,
+  region,
 }: CustomMapViewProps) {
   const colors = THEME_COLORS[theme];
 
@@ -109,66 +107,36 @@ export default function CustomMapView({
   const scale = useSharedValue(INITIAL_SCALE);
   const savedScale = useSharedValue(INITIAL_SCALE);
 
-  const initialX = (SCREEN_WIDTH - MAP_SIZE * INITIAL_SCALE) / 2;
-  const initialY = (SCREEN_HEIGHT - MAP_SIZE * INITIAL_SCALE) / 2;
+  // Center the map content on screen (factoring in the vertical offset)
+  const initialX = (SCREEN_WIDTH - MAP_SIZE) / 2;
+  const initialY = (SCREEN_HEIGHT - MAP_SIZE) / 2 - VERTICAL_OFFSET;
 
   const translateX = useSharedValue(initialX);
   const translateY = useSharedValue(initialY);
   const savedTranslateX = useSharedValue(initialX);
   const savedTranslateY = useSharedValue(initialY);
 
-  // --- Map Coordinate System ---
-  // Transforms Real Lat/Lon to Fake Map X/Y (0-1000)
-  const getPosition = (lat: number, lon: number) => {
-    // We use a deterministic mapping so the same lat/lon always hits the same spot
-    const mapMinX = 250,
-      mapMaxX = 850;
-    const mapMinY = 150,
-      mapMaxY = 800;
+  // --- 🔥 LOGIC: REAL RELATIVE POSITIONING ---
+  const getRelativePosition = (lat: number, lon: number) => {
+    // 1. Calculate difference from the current Map Center (region)
+    const deltaLat = lat - region.latitude;
+    const deltaLon = lon - region.longitude;
 
-    if (!lat || !lon) return { x: 500, y: 500 };
+    // 2. Scale to SVG coordinates (0-100)
+    // Center of SVG is (50, 50). Y-axis is inverted.
+    const x = 50 + deltaLon * COORD_SCALE;
+    const y = 50 - deltaLat * COORD_SCALE;
 
-    const x = mapMinX + (Math.abs(lon * 1000) % (mapMaxX - mapMinX));
-    const y = mapMinY + (Math.abs(lat * 1000) % (mapMaxY - mapMinY));
     return { x, y };
   };
 
-  // --- Focus Logic (The "Camera") ---
-  const focusMap = (targetX: number, targetY: number) => {
-    "worklet";
-    // 1. Determine the center point of the VISIBLE screen area
-    const screenCenterX = SCREEN_WIDTH / 2;
-    const screenCenterY = SCREEN_HEIGHT / 2 - VERTICAL_OFFSET; // Shifted UP
-
-    // 2. Calculate the translate values needed to put targetX/Y at screenCenterX/Y
-    const newTx = screenCenterX - targetX * scale.value;
-    const newTy = screenCenterY - targetY * scale.value;
-
-    translateX.value = withTiming(newTx, { duration: 800 });
-    translateY.value = withTiming(newTy, { duration: 800 });
-    savedTranslateX.value = newTx;
-    savedTranslateY.value = newTy;
-  };
-
   // --- Effects ---
-  // 1. Center on User Location on Mount/Update
+  // When the Region changes (Search or GPS update), reset the camera to center
   useEffect(() => {
-    if (userLocation) {
-      const pos = getPosition(userLocation.latitude, userLocation.longitude);
-      focusMap(pos.x, pos.y);
-    }
-  }, [userLocation?.latitude, userLocation?.longitude]);
-
-  // 2. Center on Selected Studio
-  useEffect(() => {
-    if (selectedStudio) {
-      const pos = getPosition(
-        selectedStudio.latitude,
-        selectedStudio.longitude,
-      );
-      focusMap(pos.x, pos.y);
-    }
-  }, [selectedStudio]);
+    translateX.value = withTiming(initialX);
+    translateY.value = withTiming(initialY);
+    scale.value = withTiming(INITIAL_SCALE);
+  }, [region.latitude, region.longitude]);
 
   // --- Gestures ---
   const panGesture = Gesture.Pan()
@@ -204,29 +172,17 @@ export default function CustomMapView({
     onStudioPress(studio);
   };
 
-  const handleClose = () => {
-    Haptics.selectionAsync();
-    onStudioPress(null as any);
-  };
-
   const handleLocateMe = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (userLocation) {
-      // Zoom out slightly to show context, then focus
-      scale.value = withTiming(INITIAL_SCALE, { duration: 500 });
-      const pos = getPosition(userLocation.latitude, userLocation.longitude);
-      focusMap(pos.x, pos.y);
-    } else {
-      // Fallback
-      scale.value = withSpring(INITIAL_SCALE);
-      translateX.value = withSpring(initialX);
-      translateY.value = withSpring(initialY);
-    }
+    // Reset view
+    scale.value = withSpring(INITIAL_SCALE);
+    translateX.value = withSpring(initialX);
+    translateY.value = withSpring(initialY);
   };
 
-  // Calculate user position for rendering
+  // Calculate positions
   const userPos = userLocation
-    ? getPosition(userLocation.latitude, userLocation.longitude)
+    ? getRelativePosition(userLocation.latitude, userLocation.longitude)
     : null;
 
   return (
@@ -252,7 +208,7 @@ export default function CustomMapView({
                 </Pattern>
               </Defs>
 
-              {/* Water Texture */}
+              {/* 1. Background Visuals (The GTA Skin) */}
               <Rect
                 x="0"
                 y="0"
@@ -261,7 +217,6 @@ export default function CustomMapView({
                 fill="url(#waterPattern)"
               />
 
-              {/* Land Mass */}
               <Path
                 d="M 15 0 L 100 0 L 100 100 L 30 100 C 30 100 25 80 40 70 C 55 60 50 40 30 35 C 10 30 5 15 15 0 Z"
                 fill={colors.land}
@@ -269,14 +224,13 @@ export default function CustomMapView({
                 strokeWidth="0.5"
               />
 
-              {/* Greenery */}
               <Path
                 d="M 60 0 L 100 0 L 100 40 Q 80 50 60 30 Q 50 15 60 0 Z"
                 fill={colors.greenery}
                 opacity="0.8"
               />
 
-              {/* Roads */}
+              {/* Grid Roads */}
               <G stroke={colors.road} strokeWidth="0.8" opacity="0.6">
                 {[45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95].map((x) => (
                   <Line key={`v-${x}`} x1={x} y1="0" x2={x} y2="100" />
@@ -313,14 +267,27 @@ export default function CustomMapView({
                   strokeLinecap="round"
                 />
               </G>
+
+              {/* 2. User Location Dot (SVG Layer) */}
+              {userPos && (
+                <G x={userPos.x} y={userPos.y}>
+                  <Circle r="5" fill="#3b82f6" fillOpacity={0.2} />
+                </G>
+              )}
             </Svg>
 
-            {/* Studio Markers */}
+            {/* 3. Studio Markers (View Layer for Interaction) */}
             {studios.map((studio) => {
-              const pos = getPosition(studio.latitude, studio.longitude);
+              const pos = getRelativePosition(
+                studio.latitude,
+                studio.longitude,
+              );
               const isSelected = selectedStudio?.id === studio.id;
 
-              // Scale coordinates to map size
+              // Don't render if way off screen (Optimization)
+              if (pos.x < -20 || pos.x > 120 || pos.y < -20 || pos.y > 120)
+                return null;
+
               const left = (pos.x / 100) * MAP_SIZE;
               const top = (pos.y / 100) * MAP_SIZE;
 
@@ -348,9 +315,7 @@ export default function CustomMapView({
                         {
                           backgroundColor: isSelected
                             ? colors.accent
-                            : theme === "dark"
-                              ? "#27272a"
-                              : "#ffffff",
+                            : colors.marker,
                           borderColor: isSelected ? colors.text : colors.border,
                         },
                       ]}
@@ -369,36 +334,34 @@ export default function CustomMapView({
                         </Text>
                       )}
                     </View>
-                    <View
-                      style={[
-                        styles.markerStick,
-                        { backgroundColor: "rgba(0,0,0,0.5)" },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.markerLabel,
-                        {
-                          backgroundColor:
-                            theme === "dark"
-                              ? "rgba(0,0,0,0.9)"
-                              : "rgba(255,255,255,0.9)",
-                          borderColor: colors.border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.markerLabelText, { color: colors.text }]}
+                    <View style={styles.markerStick} />
+                    {/* Only show name label if selected or zoomed in */}
+                    {isSelected && (
+                      <View
+                        style={[
+                          styles.markerLabel,
+                          {
+                            backgroundColor: colors.cardBg,
+                            borderColor: colors.border,
+                          },
+                        ]}
                       >
-                        {studio.location || "STUDIO"}
-                      </Text>
-                    </View>
+                        <Text
+                          style={[
+                            styles.markerLabelText,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {studio.name}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 </View>
               );
             })}
 
-            {/* Dynamic User Location Marker */}
+            {/* 4. User Location Icon (View Layer) */}
             {userPos && (
               <View
                 style={{
@@ -406,7 +369,6 @@ export default function CustomMapView({
                   left: (userPos.x / 100) * MAP_SIZE,
                   top: (userPos.y / 100) * MAP_SIZE,
                   zIndex: 5,
-                  // Center the icon (40px)
                   transform: [{ translateX: -20 }, { translateY: -20 }],
                 }}
               >
@@ -422,7 +384,7 @@ export default function CustomMapView({
           </Animated.View>
         </GestureDetector>
 
-        {/* HUD Controls */}
+        {/* 5. HUD Controls (Retained from Old Code) */}
         <View style={styles.hudZoom}>
           <TouchableOpacity
             onPress={() => (scale.value = withSpring(scale.value * 1.2))}
@@ -441,7 +403,6 @@ export default function CustomMapView({
           </TouchableOpacity>
         </View>
 
-        {/* Updated Locate Me Button */}
         <TouchableOpacity
           onPress={handleLocateMe}
           style={[
@@ -455,8 +416,6 @@ export default function CustomMapView({
             fill={userLocation ? "#3b82f6" : "none"}
           />
         </TouchableOpacity>
-
-        {/* Removed Card Logic - Handled by Home Screen Bottom Sheet */}
       </View>
     </GestureHandlerRootView>
   );
@@ -504,18 +463,20 @@ const styles = StyleSheet.create({
     height: 12,
     marginTop: -2,
     zIndex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   markerLabel: {
     marginTop: -2,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     borderRadius: 4,
     borderWidth: 1,
+    minWidth: 60,
+    alignItems: "center",
   },
   markerLabelText: {
-    fontSize: 8,
-    fontWeight: "900",
-    textTransform: "uppercase",
+    fontSize: 10,
+    fontWeight: "800",
   },
   userLocationPulse: {
     position: "absolute",
@@ -528,7 +489,7 @@ const styles = StyleSheet.create({
   },
   hudZoom: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 120 : 100, // Moved to top right
+    top: Platform.OS === "ios" ? 120 : 100,
     right: 20,
     borderRadius: 8,
     borderWidth: 2,
@@ -548,7 +509,7 @@ const styles = StyleSheet.create({
   },
   hudLocate: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 220 : 200, // Moved to top right below zoom
+    top: Platform.OS === "ios" ? 220 : 200,
     right: 20,
     width: 44,
     height: 44,
