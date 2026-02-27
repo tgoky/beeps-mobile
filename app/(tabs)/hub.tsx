@@ -10,33 +10,30 @@ import {
 } from "@/hooks/useCollaborations";
 import { useEquipment } from "@/hooks/useEquipment";
 import { CollaborationType } from "@/types/database";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
 dayjs.extend(relativeTime);
 
 const { width } = Dimensions.get("window");
-const CARD_GAP = 12;
-const CARD_WIDTH = (width - Spacing.lg * 2 - CARD_GAP) / 2;
-const FEATURED_WIDTH = width - Spacing.lg * 2;
+const GAP = 12;
+const ITEM_WIDTH = (width - Spacing.lg * 2 - GAP) / 2;
 
 type HubTab = "collabs" | "beats" | "equipment" | "deals" | "bids";
 
@@ -44,15 +41,12 @@ export default function HubScreen() {
   const { effectiveTheme } = useTheme();
   const colors = Colors[effectiveTheme];
   const { user } = useAuth();
-  const isDark = effectiveTheme === "dark";
 
   const [activeTab, setActiveTab] = useState<HubTab>("beats");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedGenre, setSelectedGenre] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Data Hooks
+  // --- DATA HOOKS ---
   const {
     data: beats,
     isLoading: beatsLoading,
@@ -76,18 +70,12 @@ export default function HubScreen() {
     isLoading: collabsLoading,
     refetch: refetchCollabs,
   } = useCollaborations(
-    activeTab === "deals"
-      ? collabTypeMap.deals
-      : activeTab === "collabs"
-        ? collabTypeMap.collabs
-        : activeTab === "bids"
-          ? collabTypeMap.bids
-          : undefined,
+    ["deals", "collabs", "bids"].includes(activeTab)
+      ? collabTypeMap[activeTab as "deals" | "collabs" | "bids"]
+      : undefined,
   );
 
   const createCollab = useCreateCollaboration();
-
-  const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -95,566 +83,190 @@ export default function HubScreen() {
     setRefreshing(false);
   };
 
-  // Filtering Logic
-  const filteredBeats = useMemo(() => {
-    if (!beats) return [];
-    let filtered = beats;
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (b) =>
-          b.title.toLowerCase().includes(query) ||
-          b.producer.username.toLowerCase().includes(query),
-      );
-    }
-    return filtered;
-  }, [beats, searchQuery]);
+  const filteredData = useMemo(() => {
+    if (activeTab === "beats") return beats || [];
+    if (activeTab === "equipment") return equipment || [];
+    return collaborations || [];
+  }, [beats, equipment, collaborations, activeTab]);
 
-  const filteredEquipment = useMemo(() => {
-    if (!equipment) return [];
-    let filtered = equipment;
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (e) =>
-          e.name.toLowerCase().includes(query) ||
-          e.category.toLowerCase().includes(query),
-      );
-    }
-    return filtered;
-  }, [equipment, searchQuery]);
+  // --- COMPONENT RENDERERS ---
 
-  const filteredCollabs = useMemo(() => {
-    if (!collaborations) return [];
-    let filtered = collaborations;
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (c) =>
-          c.title.toLowerCase().includes(query) ||
-          c.creator.username.toLowerCase().includes(query),
-      );
-    }
-    if (selectedGenre !== "all") {
-      filtered = filtered.filter((c) => c.genre?.includes(selectedGenre));
-    }
-    return filtered;
-  }, [collaborations, searchQuery, selectedGenre]);
-
-  // Actions
-  const toggleLike = (id: string) => {
-    setLikedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleCreateCollab = () => {
-    if (!user) {
-      Alert.alert("Sign In", "Please sign in to create.");
-      return;
-    }
-    setShowCreateModal(true);
-  };
-
-  const tabs: { key: HubTab; label: string; icon: any }[] = [
-    { key: "beats", label: "Beats", icon: "musical-notes" },
-    { key: "collabs", label: "Collabs", icon: "people" },
-    { key: "equipment", label: "Gear", icon: "headset" },
-    { key: "deals", label: "Deals", icon: "flash" },
-    { key: "bids", label: "Bids", icon: "trending-up" },
-  ];
-
-  const genres = ["all", "Hip Hop", "R&B", "Pop", "Rock", "Electronic", "Jazz"];
-
-  // Featured beat (first one)
-  const featuredBeat = filteredBeats[0];
-
-  // BEATS
-  const renderBeats = () => {
-    if (beatsLoading)
-      return (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      );
-    if (filteredBeats.length === 0)
-      return <EmptyState type="music" text="No beats found" />;
-
-    return (
-      <View>
-        {/* Featured Beat */}
-        {featuredBeat && (
-          <TouchableOpacity
-            style={[styles.featuredCard, { backgroundColor: colors.card }]}
-            onPress={() => router.push(`/beat/${featuredBeat.id}`)}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={["#8B5CF6", "#EC4899"]}
-              style={styles.featuredImage}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <MaterialCommunityIcons
-                name="music"
-                size={48}
-                color="rgba(255,255,255,0.4)"
-              />
-              <View style={styles.featuredBadge}>
-                <Ionicons name="flame" size={12} color="#FCD34D" />
-                <Text style={styles.featuredBadgeText}>Trending</Text>
-              </View>
-            </LinearGradient>
-            <View style={styles.featuredContent}>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.featuredTitle, { color: colors.text }]}
-                  numberOfLines={1}
-                >
-                  {featuredBeat.title}
-                </Text>
-                <Text
-                  style={[
-                    styles.featuredSubtitle,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  {featuredBeat.producer.fullName ||
-                    featuredBeat.producer.username}
-                </Text>
-              </View>
-              <View style={styles.featuredMeta}>
-                <Text style={[styles.featuredPrice, { color: colors.text }]}>
-                  ${featuredBeat.price}
-                </Text>
-                <View style={styles.featuredStats}>
-                  <Ionicons name="play" size={12} color={colors.textTertiary} />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: colors.textTertiary,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {featuredBeat.plays}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Grid */}
-        <View style={styles.gridContainer}>
-          {filteredBeats.slice(featuredBeat ? 1 : 0).map((beat) => (
-            <TouchableOpacity
-              key={beat.id}
-              style={[styles.card, { backgroundColor: colors.card }]}
-              onPress={() => router.push(`/beat/${beat.id}`)}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={
-                  beat.genres?.includes("Hip Hop")
-                    ? ["#8B5CF6", "#6366F1"]
-                    : beat.genres?.includes("R&B")
-                      ? ["#EC4899", "#8B5CF6"]
-                      : ["#F59E0B", "#EF4444"]
-                }
-                style={styles.cardImage}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <MaterialCommunityIcons
-                  name="music"
-                  size={28}
-                  color="rgba(255,255,255,0.6)"
-                />
-                <TouchableOpacity
-                  style={styles.likeBtn}
-                  onPress={() => toggleLike(beat.id)}
-                >
-                  <Ionicons
-                    name={likedItems.has(beat.id) ? "heart" : "heart-outline"}
-                    size={16}
-                    color={likedItems.has(beat.id) ? "#EF4444" : "#fff"}
-                  />
-                </TouchableOpacity>
-              </LinearGradient>
-              <View style={styles.cardContent}>
-                <Text
-                  style={[styles.cardTitle, { color: colors.text }]}
-                  numberOfLines={1}
-                >
-                  {beat.title}
-                </Text>
-                <Text
-                  style={[styles.cardSubtitle, { color: colors.textSecondary }]}
-                  numberOfLines={1}
-                >
-                  {beat.producer.fullName || beat.producer.username}
-                </Text>
-                <View style={styles.cardFooter}>
-                  <Text style={[styles.priceText, { color: colors.text }]}>
-                    ${beat.price}
-                  </Text>
-                  <View style={styles.statsRow}>
-                    <Ionicons
-                      name="play"
-                      size={10}
-                      color={colors.textTertiary}
-                    />
-                    <Text
-                      style={[styles.statsText, { color: colors.textTertiary }]}
-                    >
-                      {beat.plays}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+  // 1. HEADER (Centered like reference)
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
+      <View style={{ width: 40 }} />
+      <Text style={[styles.headerTitle, { color: colors.text }]}>Hub</Text>
+      <View style={styles.headerActions}>
+        <NotificationBell />
       </View>
-    );
-  };
-
-  // GEAR
-  const renderEquipment = () => {
-    if (equipmentLoading)
-      return (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      );
-    if (filteredEquipment.length === 0)
-      return <EmptyState type="hardware-chip" text="No gear found" />;
-
-    return (
-      <View style={styles.gridContainer}>
-        {filteredEquipment.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[styles.card, { backgroundColor: colors.card }]}
-            onPress={() => router.push(`/equipment/${item.id}`)}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={["#F59E0B", "#EF4444"]}
-              style={styles.cardImage}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <MaterialCommunityIcons
-                name="microphone-variant"
-                size={28}
-                color="rgba(255,255,255,0.6)"
-              />
-            </LinearGradient>
-            <View style={styles.cardContent}>
-              <Text
-                style={[styles.cardTitle, { color: colors.text }]}
-                numberOfLines={1}
-              >
-                {item.name}
-              </Text>
-              <Text
-                style={[styles.cardSubtitle, { color: colors.textSecondary }]}
-                numberOfLines={1}
-              >
-                {item.category}
-              </Text>
-              <View style={styles.cardFooter}>
-                <Text style={[styles.priceText, { color: colors.text }]}>
-                  ${item.price}
-                </Text>
-                <View
-                  style={[
-                    styles.badge,
-                    { backgroundColor: colors.backgroundSecondary },
-                  ]}
-                >
-                  <Text
-                    style={[styles.badgeText, { color: colors.textSecondary }]}
-                  >
-                    {item.condition}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
-
-  // COLLABS
-  const renderCollabs = () => {
-    if (collabsLoading)
-      return (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      );
-    if (filteredCollabs.length === 0)
-      return (
-        <EmptyState type="people" text={`No ${activeTab} found`} showCreate />
-      );
-
-    const getGradient = () => {
-      if (activeTab === "deals") return ["#10B981", "#059669"];
-      if (activeTab === "bids") return ["#3B82F6", "#2563EB"];
-      return ["#8B5CF6", "#6366F1"];
-    };
-
-    return (
-      <View style={styles.gridContainer}>
-        {filteredCollabs.map((collab) => (
-          <TouchableOpacity
-            key={collab.id}
-            style={[styles.card, { backgroundColor: colors.card }]}
-            onPress={() => router.push(`/collaboration/${collab.id}`)}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={getGradient()}
-              style={styles.cardImage}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View
-                style={[
-                  styles.avatarCircle,
-                  { backgroundColor: "rgba(255,255,255,0.2)" },
-                ]}
-              >
-                <Text style={styles.avatarText}>
-                  {collab.creator.username.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            </LinearGradient>
-            <View style={styles.cardContent}>
-              <Text
-                style={[styles.cardTitle, { color: colors.text }]}
-                numberOfLines={1}
-              >
-                {collab.title}
-              </Text>
-              <Text
-                style={[styles.cardSubtitle, { color: colors.textSecondary }]}
-                numberOfLines={1}
-              >
-                by {collab.creator.fullName || collab.creator.username}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 6, marginTop: 8 }}>
-                {collab.price && (
-                  <View
-                    style={[
-                      styles.badge,
-                      { backgroundColor: colors.primary + "15" },
-                    ]}
-                  >
-                    <Text style={[styles.badgeText, { color: colors.primary }]}>
-                      ${collab.price}
-                    </Text>
-                  </View>
-                )}
-                <View
-                  style={[
-                    styles.badge,
-                    { backgroundColor: colors.backgroundSecondary },
-                  ]}
-                >
-                  <Text
-                    style={[styles.badgeText, { color: colors.textSecondary }]}
-                  >
-                    {dayjs(collab.createdAt).fromNow(true)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
-
-  const EmptyState = ({
-    type,
-    text,
-    showCreate,
-  }: {
-    type: any;
-    text: string;
-    showCreate?: boolean;
-  }) => (
-    <View style={styles.emptyContainer}>
-      <View
-        style={[
-          styles.emptyIconCircle,
-          { backgroundColor: colors.backgroundSecondary },
-        ]}
-      >
-        <Ionicons name={type} size={36} color={colors.textTertiary} />
-      </View>
-      <Text style={[styles.emptyTitle, { color: colors.text }]}>{text}</Text>
-      <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-        Check back later or try refreshing.
-      </Text>
-      {showCreate && (
-        <TouchableOpacity
-          style={[styles.createBtnEmpty, { backgroundColor: colors.text }]}
-          onPress={handleCreateCollab}
-        >
-          <Text style={{ color: colors.background, fontWeight: "600" }}>
-            Create New
-          </Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SafeAreaView style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>
-              Hub
-            </Text>
-            <Text
-              style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-            >
-              Marketplace & Collabs
-            </Text>
-          </View>
-          <View style={styles.headerActions}>
-            <NotificationBell size={22} color={colors.text} />
-            {["collabs", "deals", "bids"].includes(activeTab) && (
-              <TouchableOpacity
-                style={[styles.createBtn, { backgroundColor: colors.text }]}
-                onPress={handleCreateCollab}
-              >
-                <Ionicons name="add" size={22} color={colors.background} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+  // 2. CIRCULAR TABS (Matches "Recently Visited" style)
+  const renderCircularTabs = () => {
+    const tabs = [
+      { key: "beats", label: "Beats", icon: "music", color: "#F43F5E" }, // Redish
+      {
+        key: "collabs",
+        label: "Collabs",
+        icon: "account-group",
+        color: "#8B5CF6",
+      }, // Purple
+      {
+        key: "equipment",
+        label: "Gear",
+        icon: "microphone-variant",
+        color: "#F59E0B",
+      }, // Orange/Yellow
+      {
+        key: "deals",
+        label: "Deals",
+        icon: "lightning-bolt",
+        color: "#10B981",
+      }, // Green
+      { key: "bids", label: "Bids", icon: "gavel", color: "#3B82F6" }, // Blue
+    ];
 
-        {/* Search */}
-        <View style={styles.searchContainer}>
-          <View
-            style={[
-              styles.searchBar,
-              { backgroundColor: colors.backgroundSecondary },
-            ]}
-          >
-            <Ionicons name="search" size={18} color={colors.textTertiary} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder={`Search ${activeTab}...`}
-              placeholderTextColor={colors.textTertiary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons
-                  name="close-circle"
-                  size={18}
-                  color={colors.textTertiary}
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Tabs */}
-        <View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsContainer}
-          >
-            {tabs.map((tab) => (
+    return (
+      <View style={styles.navSection}>
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          CATEGORIES
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.circularTabContainer}
+        >
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
               <TouchableOpacity
                 key={tab.key}
-                onPress={() => setActiveTab(tab.key)}
-                style={[
-                  styles.tabItem,
-                  activeTab === tab.key
-                    ? { backgroundColor: colors.text, borderColor: colors.text }
-                    : { borderColor: colors.border },
-                ]}
+                onPress={() => setActiveTab(tab.key as HubTab)}
+                activeOpacity={0.7}
+                style={styles.circularTabItem}
               >
-                <Ionicons
-                  name={tab.icon}
-                  size={15}
-                  color={
-                    activeTab === tab.key
-                      ? colors.background
-                      : colors.textSecondary
-                  }
-                  style={{ marginRight: 6 }}
-                />
+                <View
+                  style={[
+                    styles.circleIcon,
+                    {
+                      backgroundColor: isActive ? tab.color : colors.card,
+                      borderColor: isActive ? tab.color : colors.border,
+                      borderWidth: 1,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={tab.icon as any}
+                    size={24}
+                    color={isActive ? "#FFF" : tab.color}
+                  />
+                </View>
                 <Text
                   style={[
-                    styles.tabText,
+                    styles.circleLabel,
                     {
-                      color:
-                        activeTab === tab.key
-                          ? colors.background
-                          : colors.textSecondary,
+                      color: isActive ? colors.text : colors.textSecondary,
+                      fontWeight: isActive ? "600" : "400",
                     },
                   ]}
                 >
                   {tab.label}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // 3. BENTO CARDS (Matches "Betting/Airtime" cards)
+  const renderBentoCard = (item: any, index: number) => {
+    // Generate a soft background color based on index to give that "playful" look
+    const bgColors = [
+      colors.card, // Default card color
+      effectiveTheme === "dark" ? "#1f2937" : "#F3F4F6",
+      effectiveTheme === "dark" ? "#1f2937" : "#FDF2F8", // Pink tint
+      effectiveTheme === "dark" ? "#1f2937" : "#ECFDF5", // Green tint
+    ];
+    const bgColor = bgColors[index % bgColors.length];
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        activeOpacity={0.9}
+        onPress={() => {
+          const route =
+            activeTab === "beats"
+              ? `/beat/${item.id}`
+              : activeTab === "equipment"
+                ? `/equipment/${item.id}`
+                : `/collaboration/${item.id}`;
+          router.push(route);
+        }}
+        style={[
+          styles.bentoCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        {/* Card Header (Icon/Image) */}
+        <View style={[styles.bentoImageArea, { backgroundColor: bgColor }]}>
+          {/* If we had real images, we'd use <Image /> here. Using Icons/Gradients as fallback */}
+          <View style={styles.iconFloat}>
+            <MaterialCommunityIcons
+              name={
+                activeTab === "beats"
+                  ? "music-note"
+                  : activeTab === "equipment"
+                    ? "headphones"
+                    : "handshake"
+              }
+              size={40}
+              color={colors.text}
+              style={{ opacity: 0.8 }}
+            />
+          </View>
+
+          {/* Price Pill */}
+          {item.price && (
+            <View
+              style={[styles.pricePill, { backgroundColor: colors.background }]}
+            >
+              <Text style={[styles.priceText, { color: colors.text }]}>
+                ${item.price}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Genre Filters */}
-        {["collabs", "deals", "bids"].includes(activeTab) && (
-          <View style={{ height: 44 }}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterContainer}
-            >
-              {genres.map((g) => (
-                <TouchableOpacity
-                  key={g}
-                  onPress={() => setSelectedGenre(g)}
-                  style={[
-                    styles.filterChip,
-                    selectedGenre === g
-                      ? {
-                          backgroundColor: colors.primary + "20",
-                          borderColor: colors.primary,
-                        }
-                      : { borderColor: colors.border },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterText,
-                      {
-                        color:
-                          selectedGenre === g
-                            ? colors.primary
-                            : colors.textSecondary,
-                      },
-                    ]}
-                  >
-                    {g === "all" ? "All" : g}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+        {/* Card Footer (Text) */}
+        <View style={styles.bentoContent}>
+          <Text
+            style={[styles.bentoTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {item.title || item.name}
+          </Text>
+          <Text style={[styles.bentoSub, { color: colors.textSecondary }]}>
+            {item.producer?.username || item.creator?.username || item.category}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
-        {/* Main Content */}
+  const isLoading = beatsLoading || equipmentLoading || collabsLoading;
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle={effectiveTheme === "dark" ? "light-content" : "dark-content"}
+      />
+
+      <SafeAreaView style={{ flex: 1 }}>
+        {renderHeader()}
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -666,29 +278,61 @@ export default function HubScreen() {
             />
           }
         >
-          {activeTab === "beats" && renderBeats()}
-          {activeTab === "equipment" && renderEquipment()}
-          {["collabs", "deals", "bids"].includes(activeTab) && renderCollabs()}
+          {/* Top Categories */}
+          {renderCircularTabs()}
+
+          <View style={styles.divider} />
+
+          {/* Main Content Grid */}
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              {activeTab === "beats"
+                ? "Latest Beats"
+                : activeTab === "equipment"
+                  ? "Gear Market"
+                  : "Active Collabs"}
+            </Text>
+          </View>
+
+          {isLoading ? (
+            <ActivityIndicator
+              size="large"
+              color={colors.primary}
+              style={{ marginTop: 40 }}
+            />
+          ) : filteredData.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={{ color: colors.textSecondary }}>
+                No items found.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.gridContainer}>
+              {filteredData.map((item, index) => renderBentoCard(item, index))}
+            </View>
+          )}
+
           <View style={{ height: 100 }} />
         </ScrollView>
 
-        {/* Create Modal */}
-        {showCreateModal && (
-          <CreateCollaborationModal
-            visible={showCreateModal}
-            onClose={() => setShowCreateModal(false)}
-            onCreate={async (data) => {
-              try {
-                await createCollab.mutateAsync(data);
-                setShowCreateModal(false);
-                Alert.alert("Success", "Posted successfully!");
-              } catch (e) {
-                Alert.alert("Error", "Failed to create");
-              }
-            }}
-          />
+        {/* FAB for creation */}
+        {["collabs", "deals", "bids"].includes(activeTab) && (
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: colors.text }]}
+            onPress={() => setShowCreateModal(true)}
+          >
+            <Feather name="plus" size={28} color={colors.background} />
+          </TouchableOpacity>
         )}
       </SafeAreaView>
+
+      {showCreateModal && (
+        <CreateCollaborationModal
+          visible={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onCreate={async (data) => createCollab.mutateAsync(data)}
+        />
+      )}
     </View>
   );
 }
@@ -696,225 +340,153 @@ export default function HubScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  // Header
-  header: {
+  // HEADER
+  headerContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === "android" ? 40 : 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  headerTitle: { fontSize: 30, fontWeight: "800", letterSpacing: -0.8 },
-  headerSubtitle: { fontSize: 13, marginTop: 2 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 12 },
-  createBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  // Search
-  searchContainer: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.md },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 46,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 15,
-    height: "100%",
-  },
-
-  // Tabs
-  tabsContainer: {
-    paddingHorizontal: Spacing.lg,
+    paddingTop: Platform.OS === "android" ? 20 : 10,
     paddingBottom: Spacing.md,
-    gap: 8,
-  },
-  tabItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  tabText: { fontWeight: "600", fontSize: 13 },
-
-  // Filters
-  filterContainer: {
-    paddingHorizontal: Spacing.lg,
-    alignItems: "center",
-  },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  filterText: { fontSize: 12, fontWeight: "600" },
-
-  // Featured Card
-  featuredCard: {
-    borderRadius: 18,
-    overflow: "hidden",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  featuredImage: {
-    height: 160,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  featuredBadge: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  featuredBadgeText: {
-    color: "#FCD34D",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  featuredContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 14,
   },
-  featuredTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 2,
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "800",
   },
-  featuredSubtitle: {
-    fontSize: 13,
-  },
-  featuredMeta: {
+  headerActions: {
+    width: 40,
     alignItems: "flex-end",
   },
-  featuredPrice: {
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 2,
+
+  // CIRCULAR TABS
+  navSection: {
+    marginBottom: 20,
   },
-  featuredStats: {
-    flexDirection: "row",
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 1,
+    marginBottom: 12,
+    paddingHorizontal: Spacing.lg,
+    textTransform: "uppercase",
+  },
+  circularTabContainer: {
+    paddingHorizontal: Spacing.lg,
+    gap: 20,
+  },
+  circularTabItem: {
     alignItems: "center",
-    gap: 3,
+    gap: 8,
+  },
+  circleIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  circleLabel: {
+    fontSize: 12,
+    textAlign: "center",
   },
 
-  // Grid & Cards
-  scrollContent: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(150,150,150,0.1)",
+    marginHorizontal: Spacing.lg,
+    marginBottom: 20,
+  },
+
+  // GRID SECTION
+  sectionHeader: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  scrollContent: {
+    paddingTop: 10,
+  },
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: CARD_GAP,
+    paddingHorizontal: Spacing.lg,
+    gap: GAP,
   },
-  card: {
-    width: CARD_WIDTH,
-    borderRadius: 16,
-    marginBottom: CARD_GAP,
+  emptyState: {
+    alignItems: "center",
+    marginTop: 40,
+  },
+
+  // BENTO CARDS
+  bentoCard: {
+    width: ITEM_WIDTH,
+    borderRadius: 20, // High radius like the reference image
+    marginBottom: GAP,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
+    borderWidth: 1,
+    // No heavy shadow, just border and cleanliness
   },
-  cardImage: {
-    height: CARD_WIDTH * 0.85,
+  bentoImageArea: {
+    height: ITEM_WIDTH * 0.75, // Aspect ratio
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
   },
-  likeBtn: {
+  iconFloat: {
+    transform: [{ rotate: "-10deg" }], // Playful tilt
+  },
+  pricePill: {
     position: "absolute",
-    top: 8,
+    bottom: 8,
     right: 8,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  cardContent: {
+  priceText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  bentoContent: {
     padding: 12,
+    justifyContent: "center",
   },
-  cardTitle: {
-    fontSize: 14,
+  bentoTitle: {
+    fontSize: 15,
     fontWeight: "700",
     marginBottom: 2,
   },
-  cardSubtitle: {
-    fontSize: 11,
-    marginBottom: 8,
+  bentoSub: {
+    fontSize: 12,
   },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  priceText: { fontSize: 14, fontWeight: "700" },
-  statsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  statsText: { fontSize: 11, fontWeight: "600" },
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  badgeText: { fontSize: 10, fontWeight: "700" },
 
-  // Collab Avatar
-  avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  // FAB
+  fab: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
-  },
-  avatarText: { fontSize: 20, fontWeight: "700", color: "#fff" },
-
-  // Empty State
-  emptyContainer: {
-    alignItems: "center",
-    marginTop: 60,
-  },
-  emptyIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
-  emptySub: { fontSize: 14, marginBottom: 24 },
-  createBtnEmpty: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });

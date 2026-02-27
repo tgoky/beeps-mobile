@@ -1,6 +1,6 @@
-import { supabase } from '@/lib/supabase';
-import { ArtistProfile, ProducerProfile, User } from '@/types/database';
-import { useQuery } from '@tanstack/react-query';
+import { supabase } from "@/lib/supabase";
+import { ArtistProfile, ProducerProfile, User } from "@/types/database";
+import { useQuery } from "@tanstack/react-query";
 
 export interface UserProfile extends User {
   artistProfile?: ArtistProfile;
@@ -9,14 +9,14 @@ export interface UserProfile extends User {
 
 export function useUserProfile(userId?: string) {
   return useQuery({
-    queryKey: ['profile', userId],
+    queryKey: ["profile", userId],
     queryFn: async () => {
       if (!userId) return null;
 
       const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId) // ✅ Correct - using Prisma id
+        .from("users")
+        .select("*")
+        .eq("id", userId) // ✅ Correct - using Prisma id
         .maybeSingle();
 
       if (error) throw error;
@@ -24,22 +24,22 @@ export function useUserProfile(userId?: string) {
 
       // Fetch artist profile if applicable
       let artistProfile = null;
-      if (user.primary_role === 'ARTIST') {
+      if (user.primary_role === "ARTIST") {
         const { data } = await supabase
-          .from('artist_profiles')
-          .select('*')
-          .eq('user_id', userId) // ✅ Correct - user_id references Prisma id
+          .from("artist_profiles")
+          .select("*")
+          .eq("user_id", userId) // ✅ Correct - user_id references Prisma id
           .maybeSingle();
         artistProfile = data;
       }
 
       // Fetch producer profile if applicable
       let producerProfile = null;
-      if (user.primary_role === 'PRODUCER') {
+      if (user.primary_role === "PRODUCER") {
         const { data } = await supabase
-          .from('producer_profiles')
-          .select('*')
-          .eq('user_id', userId) // ✅ Correct - user_id references Prisma id
+          .from("producer_profiles")
+          .select("*")
+          .eq("user_id", userId) // ✅ Correct - user_id references Prisma id
           .maybeSingle();
         producerProfile = data;
       }
@@ -62,28 +62,32 @@ export function useUserProfile(userId?: string) {
         followingCount: user.following_count,
         createdAt: user.created_at,
         updatedAt: user.updated_at,
-        artistProfile: artistProfile ? {
-          id: artistProfile.id,
-          userId: artistProfile.user_id,
-          genres: artistProfile.genres || [],
-          skills: artistProfile.skills || [],
-          createdAt: artistProfile.created_at,
-          updatedAt: artistProfile.updated_at,
-        } : undefined,
-        producerProfile: producerProfile ? {
-          id: producerProfile.id,
-          userId: producerProfile.user_id,
-          genres: producerProfile.genres || [],
-          specialties: producerProfile.specialties || [],
-          equipment: producerProfile.equipment || [],
-          experience: producerProfile.experience,
-          productionRate: producerProfile.production_rate,
-          songwritingRate: producerProfile.songwriting_rate,
-          mixingRate: producerProfile.mixing_rate,
-          availability: producerProfile.availability,
-          createdAt: producerProfile.created_at,
-          updatedAt: producerProfile.updated_at,
-        } : undefined,
+        artistProfile: artistProfile
+          ? {
+              id: artistProfile.id,
+              userId: artistProfile.user_id,
+              genres: artistProfile.genres || [],
+              skills: artistProfile.skills || [],
+              createdAt: artistProfile.created_at,
+              updatedAt: artistProfile.updated_at,
+            }
+          : undefined,
+        producerProfile: producerProfile
+          ? {
+              id: producerProfile.id,
+              userId: producerProfile.user_id,
+              genres: producerProfile.genres || [],
+              specialties: producerProfile.specialties || [],
+              equipment: producerProfile.equipment || [],
+              experience: producerProfile.experience,
+              productionRate: producerProfile.production_rate,
+              songwritingRate: producerProfile.songwriting_rate,
+              mixingRate: producerProfile.mixing_rate,
+              availability: producerProfile.availability,
+              createdAt: producerProfile.created_at,
+              updatedAt: producerProfile.updated_at,
+            }
+          : undefined,
       } as UserProfile;
     },
     enabled: !!userId,
@@ -93,16 +97,16 @@ export function useUserProfile(userId?: string) {
 // Fetch user's beats
 export function useUserBeats(userId?: string) {
   return useQuery({
-    queryKey: ['profile', userId, 'beats'],
+    queryKey: ["profile", userId, "beats"],
     queryFn: async () => {
       if (!userId) return [];
 
       const { data, error } = await supabase
-        .from('beats')
-        .select('*')
-        .eq('producer_id', userId) // ✅ Correct - producer_id references Prisma id
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .from("beats")
+        .select("*")
+        .eq("producer_id", userId) // ✅ Correct - producer_id references Prisma id
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -136,26 +140,26 @@ export function useUserBeats(userId?: string) {
 // We need to first get the GearSalesProfile.id for this user
 export function useUserEquipment(userId?: string) {
   return useQuery({
-    queryKey: ['profile', userId, 'equipment'],
+    queryKey: ["profile", userId, "equipment"],
     queryFn: async () => {
       if (!userId) return [];
 
       // First, get the gear sales profile for this user
       const { data: gearProfile } = await supabase
-        .from('gear_sales_profiles')
-        .select('id')
-        .eq('user_id', userId)
+        .from("gear_sales_profiles")
+        .select("id")
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (!gearProfile) return []; // User doesn't have a gear sales profile
 
       // Then get equipment for this profile
       const { data, error } = await supabase
-        .from('equipment')
-        .select('*')
-        .eq('seller_id', gearProfile.id) // ✅ seller_id references GearSalesProfile.id
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .from("equipment")
+        .select("*")
+        .eq("seller_id", gearProfile.id) // ✅ seller_id references GearSalesProfile.id
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -186,15 +190,15 @@ export function useUserEquipment(userId?: string) {
 // Fetch user's collaborations
 export function useUserCollaborations(userId?: string) {
   return useQuery({
-    queryKey: ['profile', userId, 'collaborations'],
+    queryKey: ["profile", userId, "collaborations"],
     queryFn: async () => {
       if (!userId) return [];
 
       const { data, error } = await supabase
-        .from('collaborations')
-        .select('*')
-        .eq('creator_id', userId) // ✅ Correct - creator_id references Prisma id
-        .order('created_at', { ascending: false });
+        .from("collaborations")
+        .select("*")
+        .eq("creator_id", userId) // ✅ Correct - creator_id references Prisma id
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 

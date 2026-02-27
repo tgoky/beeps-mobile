@@ -43,7 +43,7 @@ const { width, height } = Dimensions.get("window");
 // --- CONFIGURATION ---
 const COLLAPSED_HEIGHT = height * 0.55;
 const EXPANDED_HEIGHT = height * 0.92;
-const DRAG_THRESHOLD = 50; // Increased for better intent detection
+const DRAG_THRESHOLD = 50;
 
 type TabType = "studios" | "producers" | "artists";
 type SortOrder = "price_asc" | "price_desc" | "rating_desc" | null;
@@ -111,7 +111,7 @@ export default function HomeScreen() {
   const { data: artists } = useArtists();
 
   // State
-  const [region, setRegion] = useState({ latitude: 6.5244, longitude: 3.3792 }); // Default Lagos
+  const [region, setRegion] = useState({ latitude: 6.5244, longitude: 3.3792 });
   const [userLocation, setUserLocation] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<TabType>("studios");
 
@@ -121,8 +121,9 @@ export default function HomeScreen() {
     null,
   );
   const [showFilters, setShowFilters] = useState(false);
-
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [requestServiceProducer, setRequestServiceProducer] =
     useState<any>(null);
@@ -153,7 +154,6 @@ export default function HomeScreen() {
         });
       } catch (error) {
         console.log("Error fetching location, using default:", error);
-        // Fallback is already set in initial state
       }
     })();
   }, []);
@@ -164,10 +164,52 @@ export default function HomeScreen() {
     setShowFilters(!showFilters);
   };
 
+  // Update search suggestions based on query
+  const updateSearchSuggestions = (query: string) => {
+    if (!query || query.length < 2) {
+      setSearchSuggestions([]);
+      return;
+    }
+
+    const q = query.toLowerCase();
+    const suggestions = new Set<string>();
+
+    // Get unique locations from current tab data
+    if (activeTab === "studios" && studios) {
+      studios.forEach((studio) => {
+        if (studio.city?.toLowerCase().includes(q)) {
+          suggestions.add(studio.city);
+        }
+        if (studio.state?.toLowerCase().includes(q)) {
+          suggestions.add(studio.state);
+        }
+        if (studio.country?.toLowerCase().includes(q)) {
+          suggestions.add(studio.country);
+        }
+      });
+    } else if (activeTab === "producers" && producers) {
+      producers.forEach((producer) => {
+        if (producer.user?.location?.toLowerCase().includes(q)) {
+          suggestions.add(producer.user.location);
+        }
+      });
+    } else if (activeTab === "artists" && artists) {
+      artists.forEach((artist) => {
+        if (artist.user?.location?.toLowerCase().includes(q)) {
+          suggestions.add(artist.user.location);
+        }
+      });
+    }
+
+    setSearchSuggestions(Array.from(suggestions).slice(0, 5));
+  };
+
   // Reset filters when tab changes
   useEffect(() => {
     setSelectedFilterIndex(null);
     setSortOrder(null);
+    setSearchQuery("");
+    setSearchSuggestions([]);
   }, [activeTab]);
 
   const filteredData = useMemo(() => {
@@ -176,12 +218,48 @@ export default function HomeScreen() {
     else if (activeTab === "producers") data = producers || [];
     else data = artists || [];
 
-    // 1. Search Filter
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      data = data.filter((item) =>
-        (item.name || item.user?.fullName || "").toLowerCase().includes(q),
-      );
+    // 1. Search Filter - Search by name AND location
+    if (searchQuery && searchQuery.trim() !== "") {
+      const q = searchQuery.toLowerCase().trim();
+
+      data = data.filter((item) => {
+        // For studios - search by name AND location fields
+        if (activeTab === "studios") {
+          const name = (item.name || "").toLowerCase();
+          const city = (item.city || "").toLowerCase();
+          const state = (item.state || "").toLowerCase();
+          const country = (item.country || "").toLowerCase();
+          const location = (item.location || "").toLowerCase();
+          const description = (item.description || "").toLowerCase();
+
+          // Check if query matches ANY of these fields
+          return (
+            name.includes(q) ||
+            city.includes(q) ||
+            state.includes(q) ||
+            country.includes(q) ||
+            location.includes(q) ||
+            description.includes(q)
+          );
+        }
+
+        // For producers and artists (they have user object with location)
+        const fullName = (item.user?.fullName || "").toLowerCase();
+        const username = (item.user?.username || "").toLowerCase();
+        const userLocation = (item.user?.location || "").toLowerCase();
+        const bio = (item.user?.bio || "").toLowerCase();
+
+        // For producers - also search by genres
+        const genres = (item.genres?.join(" ") || "").toLowerCase();
+
+        return (
+          fullName.includes(q) ||
+          username.includes(q) ||
+          userLocation.includes(q) ||
+          bio.includes(q) ||
+          genres.includes(q)
+        );
+      });
     }
 
     // 2. Budget/Context Filter
@@ -190,10 +268,9 @@ export default function HomeScreen() {
       if (currentOptions && currentOptions[selectedFilterIndex]) {
         const range = currentOptions[selectedFilterIndex];
 
-        // Determine which field to filter by based on Tab
-        let priceField = "hourlyRate"; // default for studios
+        let priceField = "hourlyRate";
         if (activeTab === "producers") priceField = "productionRate";
-        if (activeTab === "artists") priceField = "featureRate"; // Assuming this field exists, or use generic rate
+        if (activeTab === "artists") priceField = "featureRate";
 
         data = data.filter((d) => {
           const price = d[priceField] || 0;
@@ -204,8 +281,11 @@ export default function HomeScreen() {
 
     // 3. Sort
     if (sortOrder === "price_asc") {
-      const getPrice = (item: any) =>
-        item.hourlyRate || item.productionRate || item.featureRate || 0;
+      const getPrice = (item: any) => {
+        if (activeTab === "studios") return item.hourlyRate || 0;
+        if (activeTab === "producers") return item.productionRate || 0;
+        return item.featureRate || 0;
+      };
       data.sort((a, b) => getPrice(a) - getPrice(b));
     } else if (sortOrder === "rating_desc") {
       const getRating = (item: any) => item.rating || item.user?.rating || 0;
@@ -227,34 +307,25 @@ export default function HomeScreen() {
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 10, // Ignore small accidental vertical moves
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 10,
 
       onPanResponderGrant: () => {
-        // Capture the current value when gesture starts so we don't jump
-        // @ts-ignore
         lastGestureDy.current = animatedTop._value;
         animatedTop.extractOffset();
       },
 
       onPanResponderMove: (_, gs) => {
-        // Simple update without heavy logic
         animatedTop.setValue(gs.dy);
       },
 
       onPanResponderRelease: (_, gs) => {
         animatedTop.flattenOffset();
 
-        // Logic to determine snap point
-        // If dragged Up significantly or velocity is high upwards
         if (gs.dy < -DRAG_THRESHOLD || gs.vy < -0.5) {
           snapTo(true);
-        }
-        // If dragged Down significantly
-        else if (gs.dy > DRAG_THRESHOLD || gs.vy > 0.5) {
+        } else if (gs.dy > DRAG_THRESHOLD || gs.vy > 0.5) {
           snapTo(false);
-        }
-        // Otherwise return to nearest state
-        else {
+        } else {
           const currentPos = lastGestureDy.current + gs.dy;
           const midPoint =
             (height - COLLAPSED_HEIGHT + height - EXPANDED_HEIGHT) / 2;
@@ -268,9 +339,9 @@ export default function HomeScreen() {
     setIsExpanded(expand);
     Animated.spring(animatedTop, {
       toValue: expand ? height - EXPANDED_HEIGHT : height - COLLAPSED_HEIGHT,
-      useNativeDriver: false, // height/top animations usually need false on RN unless using Reanimated
-      tension: 50, // Controls stiffness
-      friction: 8, // Controls overshoot/bounciness
+      useNativeDriver: false,
+      tension: 50,
+      friction: 8,
     }).start();
   };
 
@@ -285,13 +356,12 @@ export default function HomeScreen() {
     const title = activeTab === "studios" ? item.name : item.user?.fullName;
     const subtitle =
       activeTab === "studios"
-        ? item.city
+        ? item.city || item.state || item.country
         : activeTab === "producers"
           ? "Producer"
           : "Artist";
     const img = activeTab === "studios" ? item.imageUrl : item.user?.avatarUrl;
 
-    // Determine Display Rate based on Tab
     let rateDisplay = "";
     let rate = 0;
     if (activeTab === "studios") {
@@ -387,12 +457,11 @@ export default function HomeScreen() {
           theme={effectiveTheme}
           region={region}
           userLocation={userLocation}
-          // 👇 ADD THESE MISSING PROPS 👇
           onStudioPress={(studio) => {
             router.push(`/studio/${studio.id}`);
           }}
-          selectedStudio={null} // You can pass a state here if you want to highlight a specific studio
-          recentActivity={[]} // Pass empty array or your activity data
+          selectedStudio={null}
+          recentActivity={[]}
         />
       </View>
 
@@ -445,10 +514,13 @@ export default function HomeScreen() {
               />
               <TextInput
                 style={[styles.searchInput, { color: theme.text }]}
-                placeholder={`Search ${activeTab}...`}
+                placeholder={`Search ${activeTab} by name or location...`}
                 placeholderTextColor={theme.subtext}
                 value={searchQuery}
-                onChangeText={setSearchQuery}
+                onChangeText={(text) => {
+                  setSearchQuery(text);
+                  updateSearchSuggestions(text);
+                }}
                 onFocus={() => snapTo(true)}
               />
               <TouchableOpacity
@@ -462,6 +534,39 @@ export default function HomeScreen() {
                 />
               </TouchableOpacity>
             </View>
+
+            {/* Search Suggestions */}
+            {searchSuggestions.length > 0 && (
+              <View
+                style={[
+                  styles.suggestionsContainer,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
+                {searchSuggestions.map((suggestion, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.suggestionItem}
+                    onPress={() => {
+                      setSearchQuery(suggestion);
+                      setSearchSuggestions([]);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  >
+                    <Ionicons
+                      name="location-outline"
+                      size={16}
+                      color={theme.subtext}
+                    />
+                    <Text
+                      style={[styles.suggestionText, { color: theme.text }]}
+                    >
+                      {suggestion}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* DYNAMIC FILTERS AREA */}
             {showFilters && (
@@ -607,7 +712,7 @@ export default function HomeScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={{ color: theme.subtext }}>
-                No {activeTab} found in this area
+                No {activeTab} found matching {searchQuery}
               </Text>
             </View>
           }
@@ -693,6 +798,8 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
     marginBottom: 15,
+    position: "relative",
+    zIndex: 1001,
   },
   searchInput: {
     flex: 1,
@@ -701,6 +808,32 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   filterToggle: { paddingRight: 15 },
+  suggestionsContainer: {
+    position: "absolute",
+    top: 46,
+    left: 20,
+    right: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxHeight: 200,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
+  },
+  suggestionText: {
+    marginLeft: 8,
+    fontSize: 14,
+  },
   filterMenu: { marginBottom: 15 },
   filterScroll: { gap: 8, paddingBottom: 10 },
   pill: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18 },
@@ -735,5 +868,5 @@ const styles = StyleSheet.create({
   vRating: { flexDirection: "row", alignItems: "center", gap: 4 },
   vRatingText: { fontSize: 12, fontWeight: "700" },
   vStatus: { fontSize: 12, fontWeight: "600" },
-  empty: { alignItems: "center", marginTop: 40 },
+  empty: { alignItems: "center", marginTop: 40, paddingHorizontal: 20 },
 });

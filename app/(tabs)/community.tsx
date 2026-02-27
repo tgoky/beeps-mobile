@@ -1,22 +1,24 @@
 import CreateClubModal from "@/components/CreateClubModal";
 import { NotificationBell } from "@/components/NotificationBell";
-import { Colors, Spacing } from "@/constants/theme";
+import { Colors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useClubs, useJoinClub, useMyClubs } from "@/hooks/useClubs";
 import { useUserRoles } from "@/hooks/useCommunities";
 import { UserRole } from "@/types/database";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -24,48 +26,48 @@ import {
 } from "react-native";
 
 const { width } = Dimensions.get("window");
-const FEATURED_CARD_WIDTH = width * 0.72;
+const CARD_WIDTH = width * 0.6; // Reduced from 0.75
+const GAP = 12;
 
-type CommunityTab = "clubs" | "communities";
-
+// Refined color palette
 const ROLE_CONFIG: Record<
   UserRole,
   {
     name: string;
     icon: string;
     gradient: string[];
-    description: string;
+    accent: string;
   }
 > = {
   ARTIST: {
     name: "Artists",
     icon: "microphone-variant",
-    gradient: ["#A855F7", "#7C3AED"],
-    description: "Vocalists & Performers",
+    gradient: ["#7C3AED", "#9F7AEA"],
+    accent: "#9F7AEA",
   },
   PRODUCER: {
     name: "Producers",
     icon: "fader",
-    gradient: ["#3B82F6", "#2563EB"],
-    description: "Beat Makers & Engineers",
+    gradient: ["#2563EB", "#60A5FA"],
+    accent: "#60A5FA",
   },
   STUDIO_OWNER: {
     name: "Studios",
     icon: "home-sound-in-out",
-    gradient: ["#10B981", "#059669"],
-    description: "Space Owners",
+    gradient: ["#059669", "#34D399"],
+    accent: "#34D399",
   },
   GEAR_SELLER: {
     name: "Gear",
     icon: "guitar-electric",
-    gradient: ["#F59E0B", "#D97706"],
-    description: "Equipment Specialists",
+    gradient: ["#D97706", "#FBBF24"],
+    accent: "#FBBF24",
   },
   LYRICIST: {
     name: "Writers",
     icon: "pencil-ruler",
-    gradient: ["#EC4899", "#DB2777"],
-    description: "Songwriters & Poets",
+    gradient: ["#DB2777", "#F472B6"],
+    accent: "#F472B6",
   },
 };
 
@@ -74,10 +76,12 @@ export default function CommunityScreen() {
   const { effectiveTheme } = useTheme();
   const colors = Colors[effectiveTheme];
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<CommunityTab>("clubs");
+
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [scrollY] = useState(new Animated.Value(0));
 
+  // Data Hooks
   const {
     data: clubs,
     isLoading: clubsLoading,
@@ -88,7 +92,7 @@ export default function CommunityScreen() {
     isLoading: myClubsLoading,
     refetch: refetchMyClubs,
   } = useMyClubs(user?.id);
-  const { data: userRoles, isLoading: rolesLoading } = useUserRoles(user?.id);
+  const { data: userRoles } = useUserRoles(user?.id);
   const joinClub = useJoinClub();
 
   const handleRefresh = async () => {
@@ -97,302 +101,44 @@ export default function CommunityScreen() {
     setRefreshing(false);
   };
 
-  const renderClubs = () => {
-    if (clubsLoading)
-      return (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      );
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0.9],
+    extrapolate: "clamp",
+  });
 
-    if (!clubs || clubs.length === 0) {
-      return (
-        <View style={styles.emptyState}>
-          <View
-            style={[
-              styles.emptyCircle,
-              { backgroundColor: colors.backgroundSecondary },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="account-group"
-              size={40}
-              color={colors.textTertiary}
-            />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            No Clubs Yet
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            Start a movement. Create the first club.
-          </Text>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: colors.text }]}
-            onPress={() => setCreateModalVisible(true)}
-          >
-            <Text
-              style={[styles.primaryButtonText, { color: colors.background }]}
-            >
-              Create Club
-            </Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+  // --- RENDERERS ---
+
+  const renderHeader = () => (
+    <Animated.View
+      style={[
+        styles.headerContainer,
+        { backgroundColor: "#000000", opacity: headerOpacity },
+      ]}
+    >
+      <Text style={styles.headerTitle}>Community</Text>
+      <View style={styles.headerRight}>
+        <NotificationBell />
+      </View>
+    </Animated.View>
+  );
+
+  // 1. Clean Roles Row
+  const renderRolesRow = () => {
+    if (!userRoles || userRoles.length === 0) return null;
 
     return (
-      <View style={styles.clubsContainer}>
-        {/* Trending Horizontal */}
+      <View style={styles.sectionContainer}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Trending
-          </Text>
+          <Text style={styles.sectionTitle}>Your circles</Text>
+          <Text style={styles.sectionCount}>{userRoles.length}</Text>
         </View>
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.featuredScroll}
+          contentContainerStyle={styles.rolesScroll}
         >
-          {clubs.slice(0, 4).map((club, index) => {
-            const gradients = [
-              ["#8B5CF6", "#6366F1"],
-              ["#EC4899", "#8B5CF6"],
-              ["#3B82F6", "#06B6D4"],
-              ["#10B981", "#059669"],
-            ];
-            return (
-              <TouchableOpacity
-                key={club.id}
-                style={[styles.featuredCard, { backgroundColor: colors.card }]}
-                onPress={() => router.push(`/club/${club.id}`)}
-                activeOpacity={0.9}
-              >
-                <LinearGradient
-                  colors={gradients[index % gradients.length]}
-                  style={styles.featuredCover}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Text style={styles.featuredIcon}>{club.icon || "🎵"}</Text>
-                </LinearGradient>
-                <View style={styles.featuredContent}>
-                  <Text
-                    style={[styles.featuredTitle, { color: colors.text }]}
-                    numberOfLines={1}
-                  >
-                    {club.name}
-                  </Text>
-                  <View style={styles.featuredMeta}>
-                    <Ionicons
-                      name="people-outline"
-                      size={12}
-                      color={colors.textTertiary}
-                    />
-                    <Text
-                      style={[
-                        styles.featuredSubtitle,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      {club.memberCount || 0} Members
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Create CTA */}
-        <TouchableOpacity
-          style={[
-            styles.createBanner,
-            {
-              backgroundColor: colors.backgroundSecondary,
-              borderColor: colors.border,
-            },
-          ]}
-          onPress={() => setCreateModalVisible(true)}
-        >
-          <LinearGradient
-            colors={["#8B5CF6", "#EC4899"]}
-            style={styles.createIconBox}
-          >
-            <Ionicons name="add" size={22} color="#fff" />
-          </LinearGradient>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.createBannerTitle, { color: colors.text }]}>
-              Start a Club
-            </Text>
-            <Text
-              style={[styles.createBannerText, { color: colors.textSecondary }]}
-            >
-              Build your own community
-            </Text>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={colors.textTertiary}
-          />
-        </TouchableOpacity>
-
-        {/* All Clubs */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Discover
-          </Text>
-          <Text style={[styles.sectionCount, { color: colors.textTertiary }]}>
-            {clubs.length} clubs
-          </Text>
-        </View>
-
-        {clubs.map((club) => {
-          const isMember = myClubs?.some((mc: any) => mc.id === club.id);
-          return (
-            <TouchableOpacity
-              key={club.id}
-              style={[styles.clubListCard, { backgroundColor: colors.card }]}
-              onPress={() => router.push(`/club/${club.id}`)}
-              activeOpacity={0.7}
-            >
-              <View
-                style={[
-                  styles.listCover,
-                  { backgroundColor: colors.backgroundSecondary },
-                ]}
-              >
-                <Text style={{ fontSize: 24 }}>{club.icon || "🎸"}</Text>
-              </View>
-
-              <View style={styles.listContent}>
-                <View style={styles.listHeaderRow}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text
-                      style={[styles.listTitle, { color: colors.text }]}
-                      numberOfLines={1}
-                    >
-                      {club.name}
-                    </Text>
-                    <Text
-                      style={[styles.listDesc, { color: colors.textSecondary }]}
-                      numberOfLines={1}
-                    >
-                      {club.description || club.type}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.joinBtn,
-                      isMember
-                        ? {
-                            backgroundColor: "transparent",
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }
-                        : { backgroundColor: colors.text },
-                    ]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      if (!isMember && user?.id)
-                        joinClub.mutate({ clubId: club.id, userId: user.id });
-                    }}
-                    disabled={isMember}
-                  >
-                    <Text
-                      style={[
-                        styles.joinBtnText,
-                        {
-                          color: isMember
-                            ? colors.textSecondary
-                            : colors.background,
-                        },
-                      ]}
-                    >
-                      {isMember ? "Joined" : "Join"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.listFooter}>
-                  <View style={styles.memberCount}>
-                    <Ionicons
-                      name="people-outline"
-                      size={13}
-                      color={colors.textTertiary}
-                    />
-                    <Text style={{ fontSize: 12, color: colors.textTertiary }}>
-                      {club.memberCount || 0}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.typeBadge,
-                      { backgroundColor: colors.backgroundSecondary },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.typeText, { color: colors.textSecondary }]}
-                    >
-                      {club.type}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-        <View style={{ height: 40 }} />
-      </View>
-    );
-  };
-
-  const renderCommunities = () => {
-    if (rolesLoading)
-      return (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      );
-
-    if (!userRoles || userRoles.length === 0) {
-      return (
-        <View style={styles.emptyState}>
-          <View
-            style={[
-              styles.emptyCircle,
-              { backgroundColor: colors.backgroundSecondary },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="shield-account-outline"
-              size={40}
-              color={colors.textTertiary}
-            />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            No Roles Found
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            Complete your profile to unlock role-based communities.
-          </Text>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: colors.text }]}
-            onPress={() => router.push("/settings")}
-          >
-            <Text
-              style={[styles.primaryButtonText, { color: colors.background }]}
-            >
-              Edit Profile
-            </Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.communitiesContainer}>
-        <Text style={[styles.rolesIntro, { color: colors.textSecondary }]}>
-          Access exclusive spaces based on your profile roles.
-        </Text>
-
-        <View style={styles.rolesGrid}>
           {userRoles.map((role) => {
             const config = ROLE_CONFIG[role];
             if (!config) return null;
@@ -400,37 +146,165 @@ export default function CommunityScreen() {
             return (
               <TouchableOpacity
                 key={role}
-                style={[styles.roleCard, { backgroundColor: colors.card }]}
+                style={styles.roleItem}
                 onPress={() => router.push(`/community/${role.toLowerCase()}`)}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 <LinearGradient
                   colors={config.gradient}
-                  style={styles.roleIconCircle}
+                  style={styles.roleCircle}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                 >
                   <MaterialCommunityIcons
                     name={config.icon as any}
-                    size={24}
-                    color="#fff"
+                    size={22}
+                    color="#FFFFFF"
                   />
                 </LinearGradient>
+                <Text style={styles.roleName}>{config.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
 
-                <View style={styles.roleContent}>
-                  <Text style={[styles.roleTitle, { color: colors.text }]}>
-                    {config.name}
+          {/* Create Role Button */}
+          <TouchableOpacity
+            style={styles.roleItem}
+            onPress={() => router.push("/settings")}
+          >
+            <View style={[styles.roleCircle, styles.createRoleCircle]}>
+              <Ionicons name="add" size={22} color="#6B7280" />
+            </View>
+            <Text style={[styles.roleName, styles.createRoleText]}>Add</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // 2. Featured Clubs - Clean and minimal
+  const renderFeaturedClubs = () => {
+    if (clubsLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color="#FFFFFF" />
+        </View>
+      );
+    }
+
+    if (!clubs || clubs.length === 0) return null;
+
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trending</Text>
+          <TouchableOpacity>
+            <Text style={styles.seeAllText}>See all</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.featuredScroll}
+          decelerationRate="fast"
+          snapToInterval={CARD_WIDTH + GAP}
+        >
+          {clubs.slice(0, 5).map((club, index) => (
+            <TouchableOpacity
+              key={club.id}
+              style={styles.featuredCard}
+              onPress={() => router.push(`/club/${club.id}`)}
+              activeOpacity={0.9}
+            >
+              <View style={styles.featuredImageContainer}>
+                <LinearGradient
+                  colors={["#1A1A1A", "#0A0A0A"]}
+                  style={styles.featuredImage}
+                >
+                  <Text style={styles.featuredEmoji}>{club.icon || "🎸"}</Text>
+                </LinearGradient>
+              </View>
+
+              <View style={styles.featuredContent}>
+                <Text style={styles.featuredTitle} numberOfLines={1}>
+                  {club.name}
+                </Text>
+                <View style={styles.featuredMeta}>
+                  <Ionicons name="people-outline" size={12} color="#6B7280" />
+                  <Text style={styles.featuredMetaText}>
+                    {club.memberCount || 128} members
                   </Text>
-                  <Text
-                    style={[styles.roleDesc, { color: colors.textSecondary }]}
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // 3. All Clubs - Clean list
+  const renderAllClubs = () => {
+    if (!clubs) return null;
+
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Discover</Text>
+          <TouchableOpacity>
+            <Text style={styles.seeAllText}>View all</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.listContainer}>
+          {clubs.map((club) => {
+            const isMember = myClubs?.some((mc: any) => mc.id === club.id);
+
+            return (
+              <TouchableOpacity
+                key={club.id}
+                style={styles.listCard}
+                onPress={() => router.push(`/club/${club.id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.listIconContainer}>
+                  <LinearGradient
+                    colors={["#1A1A1A", "#0F0F0F"]}
+                    style={styles.listIcon}
                   >
-                    {config.description}
+                    <Text style={styles.listEmoji}>{club.icon || "🎸"}</Text>
+                  </LinearGradient>
+                </View>
+
+                <View style={styles.listContent}>
+                  <Text style={styles.listTitle} numberOfLines={1}>
+                    {club.name}
+                  </Text>
+                  <Text style={styles.listMeta}>
+                    {club.memberCount || 0} members
                   </Text>
                 </View>
 
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={colors.textTertiary}
-                />
+                <TouchableOpacity
+                  style={[styles.joinButton, isMember && styles.joinedButton]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    if (!isMember && user?.id) {
+                      joinClub.mutate({ clubId: club.id, userId: user.id });
+                    }
+                  }}
+                  disabled={isMember}
+                >
+                  <Text
+                    style={[
+                      styles.joinButtonText,
+                      isMember && styles.joinedButtonText,
+                    ]}
+                  >
+                    {isMember ? "✓" : "+"}
+                  </Text>
+                </TouchableOpacity>
               </TouchableOpacity>
             );
           })}
@@ -440,120 +314,70 @@ export default function CommunityScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+
       <SafeAreaView style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>
-              Community
-            </Text>
-            <Text
-              style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-            >
-              Connect & Build
-            </Text>
-          </View>
-          <View style={styles.headerActions}>
-            <NotificationBell size={22} color={colors.text} />
-            <TouchableOpacity
-              style={[
-                styles.iconButton,
-                { backgroundColor: colors.backgroundSecondary },
-              ]}
-              onPress={() => setCreateModalVisible(true)}
-            >
-              <Ionicons name="add" size={22} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-        </View>
+        {renderHeader()}
 
-        {/* Tabs */}
-        <View style={styles.tabsWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsContainer}
-          >
-            {[
-              {
-                key: "clubs" as CommunityTab,
-                label: "Clubs",
-                icon: "account-group-outline",
-              },
-              {
-                key: "communities" as CommunityTab,
-                label: "Roles",
-                icon: "shield-account-outline",
-              },
-            ].map((tab) => (
-              <TouchableOpacity
-                key={tab.key}
-                style={[
-                  styles.tab,
-                  activeTab === tab.key
-                    ? { backgroundColor: colors.text, borderColor: colors.text }
-                    : {
-                        borderColor: colors.border,
-                        backgroundColor: "transparent",
-                      },
-                ]}
-                onPress={() => setActiveTab(tab.key)}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons
-                  name={tab.icon as any}
-                  size={17}
-                  color={
-                    activeTab === tab.key
-                      ? colors.background
-                      : colors.textSecondary
-                  }
-                  style={{ marginRight: 6 }}
-                />
-                <Text
-                  style={[
-                    styles.tabText,
-                    {
-                      color:
-                        activeTab === tab.key
-                          ? colors.background
-                          : colors.textSecondary,
-                    },
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Content */}
-        <ScrollView
-          style={styles.content}
+        <Animated.ScrollView
+          style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true },
+          )}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={colors.primary}
+              tintColor="#FFFFFF"
             />
           }
         >
-          {activeTab === "clubs" && renderClubs()}
-          {activeTab === "communities" && renderCommunities()}
-        </ScrollView>
+          {/* Minimal Header */}
+          <View style={styles.welcomeContainer}>
+            <Text style={styles.welcomeText}>Welcome back,</Text>
+            <Text style={styles.userName}>
+              {user?.fullName?.split(" ")[0] || "Creator"}
+            </Text>
+          </View>
 
-        {/* Modal */}
-        {user && (
-          <CreateClubModal
-            visible={createModalVisible}
-            onClose={() => setCreateModalVisible(false)}
-            userId={user.id}
-          />
-        )}
+          {/* Roles Section */}
+          {renderRolesRow()}
+
+          {/* Featured Section */}
+          {renderFeaturedClubs()}
+
+          {/* All Clubs List */}
+          {renderAllClubs()}
+
+          <View style={{ height: 100 }} />
+        </Animated.ScrollView>
+
+        {/* Clean FAB */}
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setCreateModalVisible(true)}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={["#FFFFFF", "#F3F4F6"]}
+            style={styles.fabGradient}
+          >
+            <Feather name="plus" size={24} color="#000000" />
+          </LinearGradient>
+        </TouchableOpacity>
       </SafeAreaView>
+
+      {user && (
+        <CreateClubModal
+          visible={createModalVisible}
+          onClose={() => setCreateModalVisible(false)}
+          userId={user.id}
+        />
+      )}
     </View>
   );
 }
@@ -561,99 +385,143 @@ export default function CommunityScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#000000",
   },
-  header: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === "ios" ? 10 : 40,
-    paddingBottom: Spacing.md,
+
+  // Header
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "android" ? 20 : 10,
+    paddingBottom: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: -0.8,
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
   },
-  headerSubtitle: {
-    fontSize: 13,
+  headerRight: {
+    width: 40,
+    alignItems: "flex-end",
+  },
+
+  // Welcome
+  welcomeContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: "#6B7280",
+    fontWeight: "400",
+  },
+  userName: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
     marginTop: 2,
   },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
 
-  // Tabs
-  tabsWrapper: {
-    paddingBottom: Spacing.md,
-  },
-  tabsContainer: {
-    paddingHorizontal: Spacing.lg,
-    gap: 8,
-  },
-  tab: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-
-  content: {
-    flex: 1,
+  // Sections
+  sectionContainer: {
+    marginBottom: 28,
   },
   sectionHeader: {
-    marginBottom: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: -0.3,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   sectionCount: {
-    fontSize: 13,
+    fontSize: 14,
+    color: "#6B7280",
     fontWeight: "500",
   },
-
-  // Featured Clubs
-  featuredScroll: {
-    gap: 14,
-    paddingRight: Spacing.lg,
-    marginBottom: 24,
+  seeAllText: {
+    color: "#9CA3AF",
+    fontWeight: "500",
+    fontSize: 14,
   },
-  featuredCard: {
-    width: FEATURED_CARD_WIDTH,
-    borderRadius: 18,
-    overflow: "hidden",
+
+  // Loading
+  loadingContainer: {
+    padding: 20,
+    alignItems: "center",
+  },
+
+  // Roles Row
+  rolesScroll: {
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  roleItem: {
+    alignItems: "center",
+    gap: 6,
+    width: 64,
+  },
+  roleCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
     elevation: 3,
   },
-  featuredCover: {
-    height: 100,
+  createRoleCircle: {
+    backgroundColor: "#1A1A1A",
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+    borderStyle: "dashed",
+  },
+  roleName: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#FFFFFF",
+  },
+  createRoleText: {
+    color: "#6B7280",
+  },
+
+  // Featured Cards
+  featuredScroll: {
+    paddingHorizontal: 20,
+    gap: GAP,
+  },
+  featuredCard: {
+    width: CARD_WIDTH,
+    backgroundColor: "#0A0A0A",
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#1F1F1F",
+  },
+  featuredImageContainer: {
+    aspectRatio: 1,
+    width: "100%",
+  },
+  featuredImage: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  featuredIcon: {
+  featuredEmoji: {
     fontSize: 40,
   },
   featuredContent: {
@@ -661,7 +529,8 @@ const styles = StyleSheet.create({
   },
   featuredTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   featuredMeta: {
@@ -669,183 +538,98 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  featuredSubtitle: {
+  featuredMetaText: {
     fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
   },
 
-  // Create Banner
-  createBanner: {
+  // List Cards
+  listContainer: {
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  listCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: 12,
+    backgroundColor: "#0A0A0A",
     borderRadius: 16,
     borderWidth: 1,
-    borderStyle: "dashed",
-    marginBottom: 24,
-    gap: 14,
+    borderColor: "#1F1F1F",
   },
-  createIconBox: {
-    width: 44,
-    height: 44,
+  listIconContainer: {
+    marginRight: 14,
+  },
+  listIcon: {
+    width: 48,
+    height: 48,
     borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
   },
-  createBannerTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  createBannerText: {
-    fontSize: 13,
-    marginTop: 1,
-  },
-
-  // Club List
-  clubsContainer: {
-    paddingHorizontal: Spacing.lg,
-  },
-  clubListCard: {
-    flexDirection: "row",
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 12,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  listCover: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
+  listEmoji: {
+    fontSize: 24,
   },
   listContent: {
     flex: 1,
   },
-  listHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
   listTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  listDesc: {
-    fontSize: 12,
-  },
-  listFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  memberCount: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  typeText: {
-    fontSize: 10,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  joinBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  joinBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  // Communities / Roles
-  communitiesContainer: {
-    paddingHorizontal: Spacing.lg,
-  },
-  rolesIntro: {
-    fontSize: 14,
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  rolesGrid: {
-    gap: 12,
-  },
-  roleCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  roleIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  roleContent: {
-    flex: 1,
-  },
-  roleTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginBottom: 2,
+    letterSpacing: -0.3,
   },
-  roleDesc: {
+  listMeta: {
     fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
   },
-
-  // Empty States
-  emptyState: {
-    padding: 40,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  emptyCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  joinButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginLeft: 8,
   },
-  emptyTitle: {
+  joinedButton: {
+    backgroundColor: "#1A1A1A",
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+  },
+  joinButtonText: {
     fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 15,
-    textAlign: "center",
-    marginBottom: 24,
+    fontWeight: "600",
+    color: "#000000",
     lineHeight: 22,
   },
-  primaryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 14,
+  joinedButtonText: {
+    color: "#9CA3AF",
   },
-  primaryButtonText: {
-    fontWeight: "700",
-    fontSize: 15,
+
+  // FAB
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  fabGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
