@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  LayoutAnimation,
   Platform,
   RefreshControl,
   SafeAreaView,
@@ -22,10 +23,19 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  UIManager,
   View,
 } from "react-native";
 
 dayjs.extend(relativeTime);
+
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type FilterType = "all" | "unread" | "bookings" | "messages";
 
@@ -52,12 +62,16 @@ export default function NotificationsScreen() {
     setRefreshing(false);
   };
 
+  const handleDelete = async (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    await deleteNotification(id);
+  };
+
   const handleNotificationPress = async (notification: Notification) => {
     if (!notification.isRead) {
       await markAsRead(notification.id);
     }
-
-    // Navigate based on notification type and reference
+    // Navigation logic...
     if (notification.referenceType === "booking" && notification.referenceId) {
       router.push("/(tabs)/bookings");
     } else if (
@@ -77,240 +91,278 @@ export default function NotificationsScreen() {
     if (filter === "all") return true;
     if (filter === "unread") return !notification.isRead;
     if (filter === "bookings") return notification.type.includes("BOOKING");
-    if (filter === "messages") return notification.type.includes("JOB"); // Service requests
+    if (filter === "messages") return notification.type.includes("JOB");
     return true;
   });
 
-  const getNotificationIcon = (
-    type: string,
-  ): keyof typeof Ionicons.glyphMap => {
-    switch (type) {
-      case "BOOKING_CONFIRMED":
-      case "BOOKING_CANCELLED":
-        return "calendar";
-      case "JOB_REQUEST":
-      case "JOB_ACCEPTED":
-      case "JOB_REJECTED":
-      case "JOB_UPDATED":
-        return "briefcase";
-      case "NEW_FOLLOWER":
-        return "person-add";
-      case "NEW_REVIEW":
-        return "star";
-      case "CLUB_INVITATION":
-        return "people";
-      case "TRANSACTION_COMPLETED":
-        return "card";
-      default:
-        return "notifications";
-    }
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SafeAreaView style={{ backgroundColor: colors.background }}>
-        {/* Header */}
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
+      <SafeAreaView style={{ flex: 1 }}>
+        {/* Modern Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={[styles.iconButton, { backgroundColor: colors.card }]}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+
+            {unreadCount > 0 && (
+              <TouchableOpacity
+                onPress={markAllAsRead}
+                style={styles.markReadPill}
+              >
+                <Ionicons
+                  name="checkmark-done"
+                  size={16}
+                  color={colors.primary}
+                />
+                <Text style={[styles.markAllText, { color: colors.primary }]}>
+                  Mark all read
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           <Text style={[styles.headerTitle, { color: colors.text }]}>
             Notifications
           </Text>
-          {unreadCount > 0 && (
-            <TouchableOpacity
-              onPress={markAllAsRead}
-              style={styles.markAllButton}
+        </View>
+
+        {/* Modern Pill Tabs */}
+        <View style={styles.filterContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScroll}
+          >
+            {(["all", "unread", "bookings", "messages"] as FilterType[]).map(
+              (filterType) => {
+                const isActive = filter === filterType;
+                return (
+                  <TouchableOpacity
+                    key={filterType}
+                    style={[
+                      styles.filterTab,
+                      isActive
+                        ? {
+                            backgroundColor: colors.primary,
+                            borderColor: colors.primary,
+                          }
+                        : {
+                            backgroundColor: "transparent",
+                            borderColor: colors.border,
+                          },
+                    ]}
+                    onPress={() => setFilter(filterType)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        isActive ? { color: "#FFF" } : { color: colors.text },
+                      ]}
+                    >
+                      {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
+                    </Text>
+                    {filterType === "unread" && unreadCount > 0 && (
+                      <View
+                        style={[
+                          styles.badge,
+                          isActive
+                            ? { backgroundColor: "rgba(255,255,255,0.2)" }
+                            : { backgroundColor: colors.primary },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.badgeText,
+                            isActive ? { color: "#FFF" } : { color: "#FFF" },
+                          ]}
+                        >
+                          {unreadCount}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              },
+            )}
+          </ScrollView>
+        </View>
+
+        {/* Content */}
+        {loading && !refreshing ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : filteredNotifications.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <View
+              style={[
+                styles.emptyIconBg,
+                { backgroundColor: colors.primary + "15" },
+              ]}
             >
-              <Text style={[styles.markAllText, { color: colors.primary }]}>
-                Mark all read
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+              <Ionicons
+                name="notifications-outline"
+                size={48}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              No notifications yet
+            </Text>
+            <Text
+              style={[
+                styles.emptySubtitle,
+                { color: colors.text, opacity: 0.6 },
+              ]}
+            >
+              We will let you know when something important arrives.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={colors.primary}
+              />
+            }
+          >
+            {filteredNotifications.map((notification) => (
+              <NotificationCard
+                key={notification.id}
+                notification={notification}
+                colors={colors}
+                onPress={() => handleNotificationPress(notification)}
+                onDelete={() => handleDelete(notification.id)}
+              />
+            ))}
+          </ScrollView>
+        )}
       </SafeAreaView>
-
-      {/* Filter Tabs */}
-      <View
-        style={[
-          styles.filterContainer,
-          { backgroundColor: colors.backgroundSecondary },
-        ]}
-      >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScroll}
-        >
-          {(["all", "unread", "bookings", "messages"] as FilterType[]).map(
-            (filterType) => (
-              <TouchableOpacity
-                key={filterType}
-                style={[
-                  styles.filterTab,
-                  filter === filterType && {
-                    backgroundColor: colors.text,
-                  },
-                ]}
-                onPress={() => setFilter(filterType)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    {
-                      color:
-                        filter === filterType
-                          ? colors.background
-                          : colors.textSecondary,
-                    },
-                  ]}
-                >
-                  {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-                  {filterType === "unread" &&
-                    unreadCount > 0 &&
-                    ` (${unreadCount})`}
-                </Text>
-              </TouchableOpacity>
-            ),
-          )}
-        </ScrollView>
-      </View>
-
-      {/* Notifications List */}
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : filteredNotifications.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons
-            name="notifications-off-outline"
-            size={64}
-            color={colors.textTertiary}
-          />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            No notifications
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            {filter === "unread"
-              ? "You're all caught up!"
-              : "You'll see notifications here when you get them"}
-          </Text>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.primary}
-            />
-          }
-        >
-          {filteredNotifications.map((notification) => (
-            <NotificationItem
-              key={notification.id}
-              notification={notification}
-              colors={colors}
-              onPress={() => handleNotificationPress(notification)}
-              onDelete={() => deleteNotification(notification.id)}
-              getIcon={getNotificationIcon}
-            />
-          ))}
-        </ScrollView>
-      )}
     </View>
   );
 }
 
-interface NotificationItemProps {
+// ------------------------------------------------------------------
+// Sub-Components
+// ------------------------------------------------------------------
+
+interface NotificationCardProps {
   notification: Notification;
   colors: any;
   onPress: () => void;
   onDelete: () => void;
-  getIcon: (type: string) => keyof typeof Ionicons.glyphMap;
 }
 
-function NotificationItem({
+function NotificationCard({
   notification,
   colors,
   onPress,
   onDelete,
-  getIcon,
-}: NotificationItemProps) {
-  const [showActions, setShowActions] = useState(false);
+}: NotificationCardProps) {
+  // Helper to determine styles based on type
+  const getStyleMeta = (type: string) => {
+    switch (type) {
+      case "BOOKING_CONFIRMED":
+      case "JOB_ACCEPTED":
+        return { icon: "checkmark-circle", color: "#10B981", bg: "#D1FAE5" }; // Green
+      case "BOOKING_CANCELLED":
+      case "JOB_REJECTED":
+        return { icon: "close-circle", color: "#EF4444", bg: "#FEE2E2" }; // Red
+      case "JOB_REQUEST":
+      case "JOB_UPDATED":
+        return { icon: "briefcase", color: "#3B82F6", bg: "#DBEAFE" }; // Blue
+      case "NEW_REVIEW":
+        return { icon: "star", color: "#F59E0B", bg: "#FEF3C7" }; // Amber
+      case "TRANSACTION_COMPLETED":
+        return { icon: "wallet", color: "#8B5CF6", bg: "#EDE9FE" }; // Purple
+      default:
+        return {
+          icon: "notifications",
+          color: colors.primary,
+          bg: colors.primary + "20",
+        };
+    }
+  };
+
+  const meta = getStyleMeta(notification.type);
+  const isUnread = !notification.isRead;
 
   return (
-    <TouchableOpacity
-      style={[
-        styles.notificationItem,
-        {
-          backgroundColor: notification.isRead
-            ? colors.card
-            : colors.backgroundSecondary,
-          borderBottomColor: colors.border,
-        },
-      ]}
-      onPress={onPress}
-      onLongPress={() => setShowActions(!showActions)}
-      activeOpacity={0.7}
-    >
-      {/* Icon */}
-      <View
+    <View style={styles.cardWrapper}>
+      <TouchableOpacity
         style={[
-          styles.iconContainer,
+          styles.card,
           {
-            backgroundColor: notification.isRead
-              ? colors.backgroundTertiary
-              : colors.primary + "20",
+            backgroundColor: isUnread ? colors.primary + "08" : colors.card, // Very subtle tint for unread
+            borderColor: isUnread ? colors.primary + "30" : "transparent",
+            borderWidth: isUnread ? 1 : 0,
+            shadowColor: colors.shadow || "#000",
           },
         ]}
+        onPress={onPress}
+        activeOpacity={0.9}
       >
-        <Ionicons
-          name={getIcon(notification.type)}
-          size={20}
-          color={notification.isRead ? colors.textTertiary : colors.primary}
-        />
-      </View>
+        <View style={styles.cardContent}>
+          {/* Icon Column */}
+          <View style={[styles.iconBox, { backgroundColor: meta.bg }]}>
+            <Ionicons name={meta.icon as any} size={22} color={meta.color} />
+          </View>
 
-      {/* Content */}
-      <View style={styles.notificationContent}>
-        <View style={styles.notificationHeader}>
-          <Text
-            style={[styles.notificationTitle, { color: colors.text }]}
-            numberOfLines={1}
+          {/* Text Column */}
+          <View style={styles.textContent}>
+            <View style={styles.textHeader}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                {notification.title}
+              </Text>
+              <Text
+                style={[styles.timeText, { color: colors.text, opacity: 0.5 }]}
+              >
+                {dayjs(notification.createdAt).fromNow(true)}
+              </Text>
+            </View>
+
+            <Text
+              style={[styles.cardBody, { color: colors.text, opacity: 0.7 }]}
+              numberOfLines={2}
+            >
+              {notification.message}
+            </Text>
+          </View>
+
+          {/* Action Column */}
+          <TouchableOpacity
+            style={styles.deleteAction}
+            onPress={onDelete}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            {notification.title}
-          </Text>
-          {!notification.isRead && (
-            <View
-              style={[styles.unreadDot, { backgroundColor: colors.primary }]}
+            <Ionicons
+              name="close"
+              size={18}
+              color={colors.text}
+              style={{ opacity: 0.3 }}
             />
-          )}
+          </TouchableOpacity>
         </View>
-        <Text
-          style={[styles.notificationMessage, { color: colors.textSecondary }]}
-          numberOfLines={2}
-        >
-          {notification.message}
-        </Text>
-        <Text style={[styles.notificationTime, { color: colors.textTertiary }]}>
-          {dayjs(notification.createdAt).fromNow()}
-        </Text>
-      </View>
 
-      {/* Delete Button */}
-      {showActions && (
-        <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
-          <Ionicons name="trash-outline" size={20} color={colors.error} />
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
+        {isUnread && (
+          <View
+            style={[
+              styles.unreadIndicator,
+              { backgroundColor: colors.primary },
+            ]}
+          />
+        )}
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -319,61 +371,92 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === "android" ? 40 : Spacing.md,
-    paddingBottom: Spacing.lg,
-    borderBottomWidth: 1,
+    paddingTop: Platform.OS === "android" ? 40 : Spacing.sm,
+    paddingBottom: Spacing.sm,
   },
-  backButton: {
-    marginRight: Spacing.md,
+  headerTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   headerTitle: {
-    fontSize: FontSizes["2xl"],
-    fontWeight: FontWeights.semiBold,
-    flex: 1,
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
-  markAllButton: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+  markReadPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
   },
   markAllText: {
     fontSize: FontSizes.sm,
-    fontWeight: FontWeights.medium,
+    fontWeight: FontWeights.semiBold,
   },
   filterContainer: {
-    paddingVertical: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
   filterScroll: {
     paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
   },
   filterTab: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    paddingVertical: 8,
+    borderRadius: 100,
+    borderWidth: 1,
+    gap: 6,
   },
   filterText: {
     fontSize: FontSizes.sm,
-    fontWeight: FontWeights.medium,
+    fontWeight: FontWeights.semiBold,
   },
-  loadingContainer: {
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 40,
   },
-  emptyContainer: {
-    flex: 1,
+  emptyIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: Spacing["3xl"],
+    marginBottom: Spacing.md,
   },
   emptyTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: FontWeights.semiBold,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
+    fontSize: FontSizes.lg,
+    fontWeight: FontWeights.bold,
+    marginBottom: Spacing.xs,
   },
   emptySubtitle: {
     fontSize: FontSizes.base,
@@ -383,48 +466,75 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
-  notificationItem: {
-    flexDirection: "row",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
+  listContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing["3xl"],
+    gap: Spacing.md,
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  // Card Styles
+  cardWrapper: {
+    marginBottom: 4,
+  },
+  card: {
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    // Premium Shadow
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+    position: "relative",
+    overflow: "hidden",
+  },
+  cardContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16, // Squircle
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
   },
-  notificationContent: {
+  textContent: {
     flex: 1,
-  },
-  notificationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
-  notificationTitle: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
-    flex: 1,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginLeft: Spacing.sm,
-  },
-  notificationMessage: {
-    fontSize: FontSizes.sm,
-    lineHeight: 18,
-    marginBottom: Spacing.xs,
-  },
-  notificationTime: {
-    fontSize: FontSizes.xs,
-  },
-  deleteButton: {
     justifyContent: "center",
-    paddingHorizontal: Spacing.md,
+    minHeight: 48,
+  },
+  textHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  cardTitle: {
+    fontSize: FontSizes.base,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 8,
+  },
+  timeText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  cardBody: {
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
+    fontWeight: "400",
+  },
+  deleteAction: {
+    paddingLeft: Spacing.sm,
+    paddingTop: 2,
+  },
+  unreadIndicator: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: 4,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderBottomLeftRadius: BorderRadius.xl,
   },
 });

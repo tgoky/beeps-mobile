@@ -13,11 +13,10 @@ import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Dimensions,
   FlatList,
-  Keyboard,
+  LayoutAnimation,
   PanResponder,
   Platform,
   SafeAreaView,
@@ -31,7 +30,7 @@ import {
   View,
 } from "react-native";
 
-// Enable LayoutAnimation on Android
+// Enable LayoutAnimation
 if (
   Platform.OS === "android" &&
   UIManager.setLayoutAnimationEnabledExperimental
@@ -44,20 +43,32 @@ const { width, height } = Dimensions.get("window");
 // --- CONFIGURATION ---
 const COLLAPSED_HEIGHT = height * 0.55;
 const EXPANDED_HEIGHT = height * 0.92;
-const DRAG_THRESHOLD = 30;
+const DRAG_THRESHOLD = 50; // Increased for better intent detection
 
 type TabType = "studios" | "producers" | "artists";
-type FilterType = "budget" | "top_rated" | "open_now" | null;
+type SortOrder = "price_asc" | "price_desc" | "rating_desc" | null;
 
-// Budget ranges configuration
-const BUDGET_RANGES = [
-  { label: "$", min: 0, max: 25, description: "Budget friendly" },
-  { label: "$$", min: 25, max: 50, description: "Moderate" },
-  { label: "$$$", min: 50, max: 100, description: "Premium" },
-  { label: "$$$$", min: 100, max: Infinity, description: "Luxury" },
-];
+// --- DYNAMIC FILTER CONFIGURATION ---
+const FILTER_OPTIONS = {
+  studios: [
+    { label: "Budget", min: 0, max: 25, text: "Under $25/hr" },
+    { label: "Standard", min: 25, max: 50, text: "$25 - $50/hr" },
+    { label: "Premium", min: 50, max: 100, text: "$50 - $100/hr" },
+    { label: "Pro", min: 100, max: 9999, text: "$100+/hr" },
+  ],
+  producers: [
+    { label: "Starter Beats", min: 0, max: 50, text: "Under $50" },
+    { label: "Pro Beats", min: 50, max: 150, text: "$50 - $150" },
+    { label: "Exclusive", min: 150, max: 500, text: "$150 - $500" },
+    { label: "Full Prod", min: 500, max: 99999, text: "$500+" },
+  ],
+  artists: [
+    { label: "New Wave", min: 0, max: 100, text: "Feat. under $100" },
+    { label: "Rising", min: 100, max: 300, text: "Feat. $100-$300" },
+    { label: "Established", min: 300, max: 99999, text: "Feat. $300+" },
+  ],
+};
 
-// --- HELPER: Haversine Distance (Km) ---
 const getDistance = (
   lat1: number,
   lon1: number,
@@ -78,226 +89,127 @@ const getDistance = (
   return (R * c).toFixed(1);
 };
 
-// --- HELPER: Open Status ---
-const getOpenStatus = (item: any) => {
-  const now = new Date();
-  const hour = now.getHours();
-  const open = item.openHour || 9;
-  const close = item.closeHour || 22;
-  const isOpen = hour >= open && hour < close;
-  return {
-    isOpen,
-    text: isOpen ? `Open until ${close}:00` : `Opens at ${open}:00`,
-  };
-};
-
 export default function HomeScreen() {
   const { user } = useAuth();
   const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === "dark";
 
   // Theme Colors
-  const isDark = effectiveTheme === "dark";
-  const bg = isDark ? "#000000" : "#FFFFFF";
-  const txt = isDark ? "#FFFFFF" : "#000000";
-  const cardBg = isDark ? "#121212" : "#FFFFFF";
-  const border = isDark ? "#333333" : "#F0F0F0";
-  const inputBg = isDark ? "#222" : "#F5F5F5";
-  const accent = isDark ? "#FFF" : "#000";
+  const theme = {
+    bg: isDark ? "#000" : "#FFF",
+    card: isDark ? "#121212" : "#FFF",
+    text: isDark ? "#FFF" : "#000",
+    subtext: "#8E8E93",
+    border: isDark ? "#333" : "#E5E5EA",
+    accent: "#FF3B30",
+    input: isDark ? "#222" : "#F2F2F7",
+  };
 
   // Data Hooks
   const { data: studios } = useStudios();
   const { data: producers } = useProducers();
   const { data: artists } = useArtists();
 
-  // --- MAP STATE ---
-  const [region, setRegion] = useState({
-    latitude: 6.5244,
-    longitude: 3.3792,
-  });
-
+  // State
+  const [region, setRegion] = useState({ latitude: 6.5244, longitude: 3.3792 }); // Default Lagos
   const [userLocation, setUserLocation] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<TabType>("studios");
-  const [activeFilter, setActiveFilter] = useState<FilterType>(null);
 
-  // Budget filter specific state
-  const [showBudgetOptions, setShowBudgetOptions] = useState(false);
-  const [selectedBudgetRange, setSelectedBudgetRange] = useState<
-    (typeof BUDGET_RANGES)[0] | null
-  >(null);
+  // Filter States
+  const [sortOrder, setSortOrder] = useState<SortOrder>(null);
+  const [selectedFilterIndex, setSelectedFilterIndex] = useState<number | null>(
+    null,
+  );
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Search State
   const [searchQuery, setSearchQuery] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState<any[]>([]);
-  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
-
-  // UI State
   const [isExpanded, setIsExpanded] = useState(false);
   const [requestServiceProducer, setRequestServiceProducer] =
     useState<any>(null);
 
-  // Animated Value for Sheet
+  // Animation
   const animatedTop = useRef(
     new Animated.Value(height - COLLAPSED_HEIGHT),
   ).current;
+  const lastGestureDy = useRef(0);
 
-  // --- 1. INITIALIZATION (GPS) ---
+  // --- SAFE GPS LOADING ---
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          console.log("Location permission denied");
+          return;
+        }
 
-      let location = await Location.getCurrentPositionAsync({});
-      setUserLocation(location.coords);
-
-      setRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
+        let loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setUserLocation(loc.coords);
+        setRegion({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+      } catch (error) {
+        console.log("Error fetching location, using default:", error);
+        // Fallback is already set in initial state
+      }
     })();
   }, []);
 
-  // --- 2. SEARCH LOGIC ---
-  const fetchLocations = async (query: string) => {
-    if (query.length < 3) {
-      setLocationSuggestions([]);
-      return;
-    }
-    setIsSearchingLocation(true);
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query,
-        )}&addressdetails=1&limit=5&countrycodes=ng`,
-      );
-      const data = await response.json();
-      setLocationSuggestions(data);
-    } catch (error) {
-      console.log("Loc Error", error);
-    } finally {
-      setIsSearchingLocation(false);
-    }
+  // --- FILTER LOGIC ---
+  const toggleFilters = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowFilters(!showFilters);
   };
 
-  const handleSearchChange = (text: string) => {
-    setSearchQuery(text);
-    // Hide budget options when searching
-    setShowBudgetOptions(false);
-    if (activeTab === "studios") fetchLocations(text);
-  };
+  // Reset filters when tab changes
+  useEffect(() => {
+    setSelectedFilterIndex(null);
+    setSortOrder(null);
+  }, [activeTab]);
 
-  const handleLocationSelect = (loc: any) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Keyboard.dismiss();
-    setSearchQuery(loc.display_name.split(",")[0]);
-    setLocationSuggestions([]);
-    setRegion({
-      latitude: parseFloat(loc.lat),
-      longitude: parseFloat(loc.lon),
-    });
-    snapToCollapsed();
-  };
-
-  const handleRecenter = () => {
-    if (userLocation) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setRegion({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      });
-    }
-  };
-
-  // --- 3. BUDGET FILTER HANDLERS ---
-  const handleBudgetPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (activeFilter === "budget") {
-      // If budget filter is active, just show options without clearing
-      setShowBudgetOptions(!showBudgetOptions);
-    } else {
-      // Activate budget filter and show options
-      setActiveFilter("budget");
-      setShowBudgetOptions(true);
-    }
-  };
-
-  const handleBudgetRangeSelect = (range: (typeof BUDGET_RANGES)[0]) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSelectedBudgetRange(range);
-    setShowBudgetOptions(false);
-    // Ensure budget filter stays active
-    setActiveFilter("budget");
-  };
-
-  const handleClearFilters = () => {
-    setActiveFilter(null);
-    setSelectedBudgetRange(null);
-    setShowBudgetOptions(false);
-  };
-
-  // --- 4. FILTER & SORT LOGIC ---
   const filteredData = useMemo(() => {
     let data: any[] = [];
-    switch (activeTab) {
-      case "studios":
-        data = studios || [];
-        break;
-      case "producers":
-        data = producers || [];
-        break;
-      case "artists":
-        data = artists || [];
-        break;
-    }
+    if (activeTab === "studios") data = studios || [];
+    else if (activeTab === "producers") data = producers || [];
+    else data = artists || [];
 
-    // A. Text Search Filter
-    if (searchQuery && locationSuggestions.length === 0) {
+    // 1. Search Filter
+    if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      data = data.filter((item: any) => {
-        const name =
-          activeTab === "studios"
-            ? item.name
-            : item.user?.fullName || item.user?.username;
-        return name?.toLowerCase().includes(q);
-      });
+      data = data.filter((item) =>
+        (item.name || item.user?.fullName || "").toLowerCase().includes(q),
+      );
     }
 
-    // B. Category Filters
-    if (activeFilter === "budget" && selectedBudgetRange) {
-      const priceField =
-        activeTab === "studios" ? "hourlyRate" : "productionRate";
-      data = data.filter((d) => {
-        const price = d[priceField] || 0;
-        return (
-          price >= selectedBudgetRange.min && price < selectedBudgetRange.max
-        );
-      });
-    } else if (activeFilter === "top_rated") {
-      data = data.filter((d) => (d.rating || d.user?.rating || 0) >= 4.5);
-    } else if (activeFilter === "open_now" && activeTab === "studios") {
-      data = data.filter((d) => getOpenStatus(d).isOpen);
+    // 2. Budget/Context Filter
+    if (selectedFilterIndex !== null) {
+      const currentOptions = FILTER_OPTIONS[activeTab];
+      if (currentOptions && currentOptions[selectedFilterIndex]) {
+        const range = currentOptions[selectedFilterIndex];
+
+        // Determine which field to filter by based on Tab
+        let priceField = "hourlyRate"; // default for studios
+        if (activeTab === "producers") priceField = "productionRate";
+        if (activeTab === "artists") priceField = "featureRate"; // Assuming this field exists, or use generic rate
+
+        data = data.filter((d) => {
+          const price = d[priceField] || 0;
+          return price >= range.min && price < range.max;
+        });
+      }
     }
 
-    // C. Sort by Distance from Center
-    if (activeTab === "studios") {
-      data.sort((a, b) => {
-        const distA = parseFloat(
-          getDistance(
-            region.latitude,
-            region.longitude,
-            a.latitude,
-            a.longitude,
-          ) || "9999",
-        );
-        const distB = parseFloat(
-          getDistance(
-            region.latitude,
-            region.longitude,
-            b.latitude,
-            b.longitude,
-          ) || "9999",
-        );
-        return distA - distB;
-      });
+    // 3. Sort
+    if (sortOrder === "price_asc") {
+      const getPrice = (item: any) =>
+        item.hourlyRate || item.productionRate || item.featureRate || 0;
+      data.sort((a, b) => getPrice(a) - getPrice(b));
+    } else if (sortOrder === "rating_desc") {
+      const getRating = (item: any) => item.rating || item.user?.rating || 0;
+      data.sort((a, b) => getRating(b) - getRating(a));
     }
 
     return data;
@@ -307,120 +219,94 @@ export default function HomeScreen() {
     producers,
     artists,
     searchQuery,
-    activeFilter,
-    selectedBudgetRange,
-    locationSuggestions,
-    region,
+    selectedFilterIndex,
+    sortOrder,
   ]);
 
-  // --- 5. GESTURES ---
+  // --- SMOOTHER DRAG GESTURE ---
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        Math.abs(gestureState.dy) > 5,
-      onPanResponderMove: (_, gestureState) => {
-        const currentTop = isExpanded
-          ? height - EXPANDED_HEIGHT
-          : height - COLLAPSED_HEIGHT;
-        let newTop = currentTop + gestureState.dy;
-        if (newTop < height - EXPANDED_HEIGHT)
-          newTop = height - EXPANDED_HEIGHT;
-        if (newTop > height - COLLAPSED_HEIGHT + 50)
-          newTop = height - COLLAPSED_HEIGHT + 50;
-        animatedTop.setValue(newTop);
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 10, // Ignore small accidental vertical moves
+
+      onPanResponderGrant: () => {
+        // Capture the current value when gesture starts so we don't jump
+        // @ts-ignore
+        lastGestureDy.current = animatedTop._value;
+        animatedTop.extractOffset();
       },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy < -DRAG_THRESHOLD) snapToExpanded();
-        else if (gestureState.dy > DRAG_THRESHOLD) snapToCollapsed();
-        else isExpanded ? snapToExpanded() : snapToCollapsed();
+
+      onPanResponderMove: (_, gs) => {
+        // Simple update without heavy logic
+        animatedTop.setValue(gs.dy);
+      },
+
+      onPanResponderRelease: (_, gs) => {
+        animatedTop.flattenOffset();
+
+        // Logic to determine snap point
+        // If dragged Up significantly or velocity is high upwards
+        if (gs.dy < -DRAG_THRESHOLD || gs.vy < -0.5) {
+          snapTo(true);
+        }
+        // If dragged Down significantly
+        else if (gs.dy > DRAG_THRESHOLD || gs.vy > 0.5) {
+          snapTo(false);
+        }
+        // Otherwise return to nearest state
+        else {
+          const currentPos = lastGestureDy.current + gs.dy;
+          const midPoint =
+            (height - COLLAPSED_HEIGHT + height - EXPANDED_HEIGHT) / 2;
+          snapTo(currentPos < midPoint);
+        }
       },
     }),
   ).current;
 
-  const snapToExpanded = () => {
-    setIsExpanded(true);
+  const snapTo = (expand: boolean) => {
+    setIsExpanded(expand);
     Animated.spring(animatedTop, {
-      toValue: height - EXPANDED_HEIGHT,
-      useNativeDriver: false,
-      friction: 8,
-      tension: 40,
+      toValue: expand ? height - EXPANDED_HEIGHT : height - COLLAPSED_HEIGHT,
+      useNativeDriver: false, // height/top animations usually need false on RN unless using Reanimated
+      tension: 50, // Controls stiffness
+      friction: 8, // Controls overshoot/bounciness
     }).start();
   };
 
-  const snapToCollapsed = () => {
-    Keyboard.dismiss();
-    setIsExpanded(false);
-    Animated.spring(animatedTop, {
-      toValue: height - COLLAPSED_HEIGHT,
-      useNativeDriver: false,
-      friction: 8,
-      tension: 40,
-    }).start();
-  };
-
-  if (!user) return null;
-
-  // --- 6. RENDER HELPERS ---
-  const renderHorizontalItem = ({ item }: { item: any }) => {
-    const distance = getDistance(
-      region.latitude,
-      region.longitude,
-      item.latitude,
-      item.longitude,
-    );
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => router.push(`/studio/${item.id}`)}
-        style={[styles.hCard, { backgroundColor: cardBg, borderColor: border }]}
-      >
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.hImage}
-          contentFit="cover"
-        />
-        <View style={styles.hContent}>
-          <Text numberOfLines={1} style={[styles.hTitle, { color: txt }]}>
-            {item.name}
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              marginTop: 4,
-            }}
-          >
-            <Text style={{ fontSize: 12, color: "#666" }}>
-              ${item.hourlyRate}/hr
-            </Text>
-            {distance && (
-              <Text style={{ fontSize: 12, color: "#666" }}>{distance} km</Text>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
+  const handleRecenter = () => {
+    if (userLocation) {
+      setRegion({ ...userLocation });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
   };
 
   const renderVerticalItem = ({ item }: { item: any }) => {
-    let name =
-      activeTab === "studios"
-        ? item.name
-        : item.user?.fullName || item.user?.username;
-    let sub =
+    const title = activeTab === "studios" ? item.name : item.user?.fullName;
+    const subtitle =
       activeTab === "studios"
         ? item.city
         : activeTab === "producers"
           ? "Producer"
           : "Artist";
-    let imageUrl =
-      activeTab === "studios" ? item.imageUrl : item.user?.avatarUrl;
-    let rating = activeTab === "studios" ? item.rating : item.user?.rating;
-    let price = activeTab === "studios" ? item.hourlyRate : item.productionRate;
+    const img = activeTab === "studios" ? item.imageUrl : item.user?.avatarUrl;
 
-    const distance =
+    // Determine Display Rate based on Tab
+    let rateDisplay = "";
+    let rate = 0;
+    if (activeTab === "studios") {
+      rate = item.hourlyRate;
+      rateDisplay = `/hr`;
+    } else if (activeTab === "producers") {
+      rate = item.productionRate;
+      rateDisplay = ``;
+    } else {
+      rate = item.featureRate || 0;
+      rateDisplay = ` feat`;
+    }
+
+    const rating = activeTab === "studios" ? item.rating : item.user?.rating;
+    const dist =
       activeTab === "studios"
         ? getDistance(
             region.latitude,
@@ -430,139 +316,66 @@ export default function HomeScreen() {
           )
         : null;
 
-    if (!imageUrl)
-      imageUrl =
-        "https://images.unsplash.com/photo-1598653222000-6b7b7a552625?auto=format&fit=crop&w=400&q=80";
-
     return (
       <TouchableOpacity
-        style={[styles.vItem, { borderBottomColor: border }]}
-        onPress={() =>
-          router.push(
-            activeTab === "studios"
-              ? `/studio/${item.id}`
-              : activeTab === "producers"
-                ? `/producer/${item.userId}`
-                : `/profile/${item.user.id}`,
-          )
-        }
+        style={[styles.vCard, { borderBottomColor: theme.border }]}
+        onPress={() => {
+          if (activeTab === "producers")
+            setRequestServiceProducer({ id: item.userId, name: title });
+          else
+            router.push(
+              activeTab === "studios"
+                ? `/studio/${item.id}`
+                : `/profile/${item.userId || item.user?.id}`,
+            );
+        }}
       >
-        <Image source={{ uri: imageUrl }} style={styles.vImage} />
-        <View style={{ flex: 1 }}>
-          <View
-            style={{ flexDirection: "row", justifyContent: "space-between" }}
-          >
+        <Image
+          source={{ uri: img || "https://via.placeholder.com/150" }}
+          style={styles.vImage}
+          contentFit="cover"
+        />
+        <View style={styles.vMain}>
+          <View style={styles.vHeader}>
             <Text
-              style={{ color: txt, fontWeight: "700", fontSize: 16, flex: 1 }}
+              style={[styles.vTitle, { color: theme.text }]}
               numberOfLines={1}
             >
-              {name}
+              {title}
             </Text>
-            {distance && (
-              <Text style={{ color: "#888", fontSize: 12 }}>{distance} km</Text>
-            )}
+            <Text style={[styles.vPrice, { color: theme.text }]}>
+              ${rate}
+              <Text style={styles.vUnit}>{rateDisplay}</Text>
+            </Text>
           </View>
-          <Text style={{ color: "#888", fontSize: 13, marginTop: 2 }}>
-            {sub}
+          <Text style={styles.vSub}>
+            {subtitle} {dist ? `• ${dist}km` : ""}
           </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginTop: 6,
-              gap: 10,
-            }}
-          >
-            {rating > 0 && (
-              <View style={styles.badge}>
-                <Ionicons name="star" size={10} color={txt} />
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "700",
-                    marginLeft: 2,
-                    color: txt,
-                  }}
-                >
-                  {rating.toFixed(1)}
-                </Text>
-              </View>
-            )}
-            {selectedBudgetRange && activeFilter === "budget" && (
-              <View style={[styles.badge, { backgroundColor: "transparent" }]}>
-                <Text style={{ fontSize: 11, color: "#888" }}>
-                  {selectedBudgetRange.label}
-                </Text>
-              </View>
+          <View style={styles.vFooter}>
+            <View style={styles.vRating}>
+              <Ionicons name="star" size={14} color="#FFD700" />
+              <Text style={[styles.vRatingText, { color: theme.text }]}>
+                {rating?.toFixed(1) || "New"}
+              </Text>
+            </View>
+            {activeTab === "studios" && (
+              <Text style={[styles.vStatus, { color: "#4CD964" }]}>
+                Open Now
+              </Text>
             )}
           </View>
-        </View>
-        <View
-          style={{
-            alignItems: "flex-end",
-            justifyContent: "center",
-            paddingLeft: 10,
-          }}
-        >
-          {price > 0 ? (
-            <Text style={{ color: txt, fontWeight: "700", fontSize: 15 }}>
-              ${price}
-            </Text>
-          ) : (
-            <Ionicons name="chevron-forward" size={18} color="#ccc" />
-          )}
         </View>
       </TouchableOpacity>
     );
   };
 
-  const renderBudgetOptions = () => (
-    <View style={styles.budgetOptionsContainer}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.budgetOptionsContent}
-      >
-        {BUDGET_RANGES.map((range, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.budgetOption,
-              {
-                backgroundColor:
-                  selectedBudgetRange === range ? txt : "transparent",
-                borderColor: "#343131",
-              },
-            ]}
-            onPress={() => handleBudgetRangeSelect(range)}
-          >
-            <Text
-              style={[
-                styles.budgetOptionLabel,
-                { color: selectedBudgetRange === range ? bg : txt },
-              ]}
-            >
-              {range.label}
-            </Text>
-            <Text
-              style={[
-                styles.budgetOptionDescription,
-                { color: selectedBudgetRange === range ? bg : "#888" },
-              ]}
-            >
-              {range.description}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
+  if (!user) return null;
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* 1. RADAR MAP BACKGROUND */}
+      {/* MAP LAYER */}
       <View
         style={[
           StyleSheet.absoluteFill,
@@ -570,304 +383,246 @@ export default function HomeScreen() {
         ]}
       >
         <CustomMapView
-          studios={activeTab === "studios" ? filteredData : []}
+          studios={studios || []}
+          producers={producers || []}
+          artists={artists || []}
+          recentActivity={[]}
           theme={effectiveTheme}
           region={region}
           userLocation={userLocation}
-          onStudioPress={(studio) => {
-            router.push(`/studio/${studio.id}`);
-          }}
+          onStudioPress={(studio) => router.push(`/studio/${studio.id}`)}
+          onProducerPress={(producer) =>
+            setRequestServiceProducer({
+              id: producer.userId,
+              name: producer.user?.fullName,
+            })
+          }
+          onArtistPress={(artist) =>
+            router.push(`/profile/${artist.userId || artist.user?.id}`)
+          }
+          selectedStudio={null}
         />
       </View>
 
-      {/* 2. UI HEADER */}
-      <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
-        <View style={styles.headerRow}>
+      {/* FLOATING UI LAYER */}
+      <SafeAreaView style={styles.overlayUI} pointerEvents="box-none">
+        <View style={styles.topActions}>
           <TouchableOpacity
+            style={[styles.circleBtn, { backgroundColor: theme.card }]}
             onPress={() => router.push("/profile/settings")}
-            style={[styles.circleBtn, { backgroundColor: cardBg }]}
           >
-            <Ionicons name="menu" size={24} color={txt} />
+            <Ionicons name="menu" size={22} color={theme.text} />
           </TouchableOpacity>
-          <View style={[styles.circleBtn, { backgroundColor: cardBg }]}>
-            <NotificationBell size={24} color={txt} />
+          <View style={[styles.circleBtn, { backgroundColor: theme.card }]}>
+            <NotificationBell size={22} color={theme.text} />
           </View>
         </View>
         {!isExpanded && (
           <TouchableOpacity
+            style={[styles.recenterBtn, { backgroundColor: theme.card }]}
             onPress={handleRecenter}
-            style={[styles.recenterBtn, { backgroundColor: cardBg }]}
-            activeOpacity={0.8}
           >
-            <Ionicons name="navigate" size={22} color={txt} />
+            <Ionicons name="navigate" size={20} color={theme.text} />
           </TouchableOpacity>
         )}
       </SafeAreaView>
 
-      {/* 3. BOTTOM SHEET */}
+      {/* BOTTOM SHEET */}
       <Animated.View
         style={[
-          styles.bottomSheet,
-          { backgroundColor: cardBg, top: animatedTop, height: height },
+          styles.sheet,
+          { backgroundColor: theme.card, top: animatedTop },
         ]}
       >
-        <View {...panResponder.panHandlers} style={{ backgroundColor: cardBg }}>
+        {/* DRAGGABLE HEADER */}
+        <View
+          {...panResponder.panHandlers}
+          style={[styles.headerContainer, { backgroundColor: theme.card }]}
+        >
           <View style={styles.dragHandleContainer}>
-            <View
-              style={[
-                styles.dragHandle,
-                { backgroundColor: isDark ? "#333" : "#E0E0E0" },
-              ]}
-            />
+            <View style={[styles.handle, { backgroundColor: theme.border }]} />
           </View>
 
-          {/* Search */}
-          <View style={styles.searchSection}>
-            <View style={[styles.searchBar, { backgroundColor: inputBg }]}>
+          <View style={styles.sheetHeader}>
+            <View style={[styles.searchRow, { backgroundColor: theme.input }]}>
               <Ionicons
                 name="search"
-                size={20}
-                color="#888"
+                size={18}
+                color={theme.subtext}
                 style={{ marginLeft: 12 }}
               />
               <TextInput
-                style={[styles.searchInput, { color: txt }]}
-                placeholder="Where to create?"
-                placeholderTextColor="#888"
+                style={[styles.searchInput, { color: theme.text }]}
+                placeholder={`Search ${activeTab}...`}
+                placeholderTextColor={theme.subtext}
                 value={searchQuery}
-                onChangeText={handleSearchChange}
-                onFocus={snapToExpanded}
+                onChangeText={setSearchQuery}
+                onFocus={() => snapTo(true)}
               />
-              {isSearchingLocation && (
-                <ActivityIndicator
-                  size="small"
-                  color={txt}
-                  style={{ marginRight: 10 }}
+              <TouchableOpacity
+                onPress={toggleFilters}
+                style={styles.filterToggle}
+              >
+                <Ionicons
+                  name="options-outline"
+                  size={20}
+                  color={showFilters ? theme.accent : theme.text}
                 />
-              )}
-              {searchQuery.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setSearchQuery("");
-                    setLocationSuggestions([]);
+              </TouchableOpacity>
+            </View>
+
+            {/* DYNAMIC FILTERS AREA */}
+            {showFilters && (
+              <View style={styles.filterMenu}>
+                <Text
+                  style={{
+                    color: theme.subtext,
+                    fontSize: 11,
+                    marginBottom: 8,
+                    fontWeight: "600",
                   }}
                 >
-                  <Ionicons
-                    name="close-circle"
-                    size={18}
-                    color="#888"
-                    style={{ marginRight: 10 }}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
+                  {activeTab === "studios"
+                    ? "HOURLY RATE"
+                    : activeTab === "producers"
+                      ? "PRODUCTION RATE"
+                      : "FEATURE PRICE"}
+                </Text>
 
-          {/* Tabs & Filters */}
-          {locationSuggestions.length === 0 && (
-            <>
-              <View style={styles.tabsRow}>
-                {(["studios", "producers", "artists"] as TabType[]).map(
-                  (tab) => (
-                    <TouchableOpacity
-                      key={tab}
-                      style={[
-                        styles.tabItem,
-                        activeTab === tab && {
-                          borderBottomColor: txt,
-                          borderBottomWidth: 2,
-                        },
-                      ]}
-                      onPress={() => {
-                        setActiveTab(tab);
-                        setShowBudgetOptions(false);
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.tabText,
-                          {
-                            color: activeTab === tab ? txt : "#888",
-                            fontFamily:
-                              activeTab === tab
-                                ? "Manrope-Bold"
-                                : "Manrope-Medium",
-                          },
-                        ]}
-                      >
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ),
-                )}
-              </View>
-
-              <View style={styles.filtersRow}>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}
+                  contentContainerStyle={styles.filterScroll}
                 >
-                  <FilterChip
-                    label="Budget"
-                    icon="wallet-outline"
-                    isActive={activeFilter === "budget"}
-                    onPress={handleBudgetPress}
-                    accent={accent}
-                    bg={bg}
-                    txt={txt}
-                  />
-                  <FilterChip
-                    label="Top Rated"
-                    icon="star-outline"
-                    isActive={activeFilter === "top_rated"}
-                    onPress={() =>
-                      setActiveFilter(
-                        activeFilter === "top_rated" ? null : "top_rated",
-                      )
-                    }
-                    accent={accent}
-                    bg={bg}
-                    txt={txt}
-                  />
-                  {activeTab === "studios" && (
-                    <FilterChip
-                      label="Open Now"
-                      icon="time-outline"
-                      isActive={activeFilter === "open_now"}
-                      onPress={() =>
-                        setActiveFilter(
-                          activeFilter === "open_now" ? null : "open_now",
-                        )
-                      }
-                      accent={accent}
-                      bg={bg}
-                      txt={txt}
-                    />
-                  )}
-                  {activeFilter && (
+                  {FILTER_OPTIONS[activeTab].map((option, i) => (
                     <TouchableOpacity
-                      onPress={handleClearFilters}
-                      style={{ justifyContent: "center", paddingHorizontal: 8 }}
-                    >
-                      <Text
-                        style={{
-                          color: "#c45b31",
-                          fontSize: 12,
-                          fontWeight: "700",
-                        }}
-                      >
-                        Clear
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </ScrollView>
-              </View>
-
-              {/* Budget Options */}
-              {showBudgetOptions &&
-                activeFilter === "budget" &&
-                renderBudgetOptions()}
-
-              <View style={{ height: 1, backgroundColor: border }} />
-            </>
-          )}
-        </View>
-
-        {/* Content Lists */}
-        <View style={{ flex: 1 }}>
-          {locationSuggestions.length > 0 && searchQuery.length > 2 ? (
-            <View style={{ flex: 1, width: "100%" }}>
-              <Text style={styles.sectionTitle}>LOCATIONS</Text>
-              <FlatList
-                data={locationSuggestions}
-                keyExtractor={(item) => item.place_id}
-                keyboardShouldPersistTaps="handled"
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.locationItem, { borderBottomColor: border }]}
-                    onPress={() => handleLocationSelect(item)}
-                  >
-                    <View
+                      key={i}
+                      onPress={() => {
+                        setSelectedFilterIndex(
+                          selectedFilterIndex === i ? null : i,
+                        );
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
                       style={[
-                        styles.locIcon,
-                        { backgroundColor: isDark ? "#333" : "#F0F0F0" },
+                        styles.pill,
+                        selectedFilterIndex === i
+                          ? { backgroundColor: theme.text }
+                          : { borderColor: theme.border, borderWidth: 1 },
                       ]}
                     >
-                      <Ionicons name="location-sharp" size={18} color={txt} />
-                    </View>
-                    <View style={{ flex: 1 }}>
                       <Text
-                        style={{ color: txt, fontWeight: "700", fontSize: 15 }}
+                        style={[
+                          styles.pillText,
+                          {
+                            color:
+                              selectedFilterIndex === i ? theme.bg : theme.text,
+                          },
+                        ]}
                       >
-                        {item.display_name.split(",")[0]}
+                        {option.text}
                       </Text>
-                      <Text
-                        style={{ color: "#888", fontSize: 12 }}
-                        numberOfLines={1}
-                      >
-                        {item.display_name}
-                      </Text>
-                    </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <View
+                  style={[styles.divider, { backgroundColor: theme.border }]}
+                />
+
+                <View style={styles.sortRow}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setSortOrder(
+                        sortOrder === "price_asc" ? null : "price_asc",
+                      )
+                    }
+                    style={styles.sortBtn}
+                  >
+                    <Text
+                      style={[
+                        styles.sortBtnText,
+                        sortOrder === "price_asc" && { color: theme.accent },
+                      ]}
+                    >
+                      Lowest Price
+                    </Text>
                   </TouchableOpacity>
-                )}
-              />
-            </View>
-          ) : (
-            <>
-              {/* Horizontal Discovery */}
-              {!isExpanded && !searchQuery && filteredData.length > 0 && (
-                <View style={{ paddingVertical: 15 }}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setSortOrder(
+                        sortOrder === "rating_desc" ? null : "rating_desc",
+                      )
+                    }
+                    style={styles.sortBtn}
+                  >
+                    <Text
+                      style={[
+                        styles.sortBtnText,
+                        sortOrder === "rating_desc" && { color: theme.accent },
+                      ]}
+                    >
+                      Highest Rated
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.tabs}>
+              {(["studios", "producers", "artists"] as TabType[]).map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  onPress={() => {
+                    setActiveTab(tab);
+                    Haptics.selectionAsync();
+                  }}
+                  style={styles.tab}
+                >
                   <Text
                     style={[
-                      styles.sectionTitle,
-                      { marginLeft: 20, marginBottom: 10 },
+                      styles.tabText,
+                      {
+                        color: activeTab === tab ? theme.text : theme.subtext,
+                        fontWeight: activeTab === tab ? "700" : "500",
+                      },
                     ]}
                   >
-                    Nearby {activeTab}
+                    {tab.toUpperCase()}
                   </Text>
-                  <FlatList
-                    horizontal
-                    data={filteredData.slice(0, 5)}
-                    renderItem={renderHorizontalItem}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-                  />
-                </View>
-              )}
-
-              {/* Vertical List */}
-              {(isExpanded || searchQuery) && (
-                <FlatList
-                  data={filteredData}
-                  renderItem={renderVerticalItem}
-                  keyExtractor={(item) =>
-                    item.id || item.userId || Math.random().toString()
-                  }
-                  contentContainerStyle={{
-                    paddingHorizontal: 20,
-                    paddingBottom: 150,
-                    paddingTop: 10,
-                  }}
-                  ListHeaderComponent={
-                    <Text
-                      style={{ color: "#888", fontSize: 12, marginBottom: 10 }}
-                    >
-                      {filteredData.length} results
-                      {selectedBudgetRange &&
-                        ` • ${selectedBudgetRange.label} budget`}
-                      {activeFilter === "top_rated" && " • Top rated"}
-                      {activeFilter === "open_now" && " • Open now"}
-                    </Text>
-                  }
-                />
-              )}
-            </>
-          )}
+                  {activeTab === tab && (
+                    <View
+                      style={[
+                        styles.activeIndicator,
+                        { backgroundColor: theme.text },
+                      ]}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         </View>
+
+        {/* CONTENT */}
+        <FlatList
+          data={filteredData}
+          renderItem={renderVerticalItem}
+          keyExtractor={(item, index) =>
+            item.id || item.userId || index.toString()
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={{ color: theme.subtext }}>
+                No {activeTab} found in this area
+              </Text>
+            </View>
+          }
+        />
       </Animated.View>
 
+      {/* SERVICE MODAL */}
       {requestServiceProducer && (
         <RequestServiceModal
           visible={!!requestServiceProducer}
@@ -881,48 +636,19 @@ export default function HomeScreen() {
   );
 }
 
-// Subcomponents (Chips etc)
-const FilterChip = ({
-  label,
-  icon,
-  isActive,
-  onPress,
-  accent,
-  bg,
-  txt,
-}: any) => (
-  <TouchableOpacity
-    style={[
-      styles.filterChip,
-      isActive
-        ? { backgroundColor: txt, borderColor: txt }
-        : { borderColor: "#333a52" },
-    ]}
-    onPress={() => {
-      onPress();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }}
-  >
-    <Ionicons name={icon} size={14} color={isActive ? bg : txt} />
-    <Text style={[styles.filterText, { color: isActive ? bg : txt }]}>
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: { flex: 1, justifyContent: "space-between" },
-  headerRow: {
+  overlayUI: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
+  topActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    marginTop: 10,
+    paddingTop: 10,
   },
   circleBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -934,134 +660,88 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: COLLAPSED_HEIGHT + 20,
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    elevation: 5,
   },
-  bottomSheet: {
+  sheet: {
     position: "absolute",
     left: 0,
     right: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 10,
-    overflow: "hidden",
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    elevation: 15,
+    bottom: 0,
+    height: height,
   },
-  dragHandleContainer: { alignItems: "center", paddingVertical: 12 },
-  dragHandle: { width: 40, height: 4, borderRadius: 2 },
-  searchSection: { paddingHorizontal: 20, marginBottom: 15 },
-  searchBar: {
+  headerContainer: {
+    width: "100%",
+    paddingBottom: 5,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+  },
+  dragHandleContainer: {
+    alignItems: "center",
+    paddingVertical: 12,
+    width: "100%",
+  },
+  handle: { width: 40, height: 4, borderRadius: 2 },
+  sheetHeader: { paddingHorizontal: 20 },
+  searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    height: 50,
-    borderRadius: 12,
+    height: 46,
+    borderRadius: 23,
+    marginBottom: 15,
   },
   searchInput: {
     flex: 1,
-    height: "100%",
-    marginLeft: 10,
-    fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
-  },
-  tabsRow: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    marginBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
-  },
-  tabItem: { marginRight: 25, paddingBottom: 10 },
-  tabText: { fontSize: 14, fontWeight: "600" },
-  filtersRow: { height: 34, marginBottom: 15 },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  filterText: { fontSize: 12, fontWeight: "600", marginLeft: 6 },
-  budgetOptionsContainer: {
-    marginBottom: 15,
-    paddingHorizontal: 20,
-  },
-  budgetOptionsContent: {
-    gap: 8,
-    paddingRight: 20,
-  },
-  budgetOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    minWidth: 100,
-  },
-  budgetOptionLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  budgetOptionDescription: {
-    fontSize: 10,
+    paddingHorizontal: 12,
+    fontSize: 15,
     fontWeight: "500",
   },
-  sectionTitle: {
-    paddingHorizontal: 20,
-    color: "#888",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  vItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-  },
+  filterToggle: { paddingRight: 15 },
+  filterMenu: { marginBottom: 15 },
+  filterScroll: { gap: 8, paddingBottom: 10 },
+  pill: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18 },
+  pillText: { fontSize: 13, fontWeight: "600" },
+  divider: { height: 1, marginVertical: 10, width: "100%" },
+  sortRow: { flexDirection: "row", gap: 15 },
+  sortBtn: { paddingVertical: 4 },
+  sortBtnText: { fontSize: 12, fontWeight: "700", color: "#8E8E93" },
+  tabs: { flexDirection: "row", marginBottom: 10, gap: 25 },
+  tab: { paddingVertical: 8 },
+  tabText: { fontSize: 12, letterSpacing: 0.5 },
+  activeIndicator: { height: 2, width: "100%", marginTop: 4, borderRadius: 1 },
+  listContent: { paddingHorizontal: 20, paddingBottom: 120 },
+  vCard: { flexDirection: "row", paddingVertical: 16, borderBottomWidth: 0.5 },
   vImage: {
-    width: 64,
-    height: 64,
+    width: 80,
+    height: 80,
     borderRadius: 12,
-    backgroundColor: "#eee",
-    marginRight: 15,
+    backgroundColor: "#F2F2F7",
   },
-  badge: {
+  vMain: { flex: 1, marginLeft: 16, justifyContent: "space-between" },
+  vHeader: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderWidth: 1,
-    borderColor: "#423c3c",
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
-  hCard: { width: 150, borderRadius: 12, borderWidth: 1, overflow: "hidden" },
-  hImage: { width: "100%", height: 90, backgroundColor: "#eee" },
-  hContent: { padding: 8 },
-  hTitle: { fontWeight: "700", fontSize: 14 },
-  locationItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-  },
-  locIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
+  vTitle: { fontSize: 16, fontWeight: "700", flex: 1, marginRight: 8 },
+  vPrice: { fontSize: 16, fontWeight: "800" },
+  vUnit: { fontSize: 11, fontWeight: "400", color: "#8E8E93" },
+  vSub: { fontSize: 13, color: "#8E8E93", marginTop: -2 },
+  vFooter: { flexDirection: "row", alignItems: "center", gap: 12 },
+  vRating: { flexDirection: "row", alignItems: "center", gap: 4 },
+  vRatingText: { fontSize: 12, fontWeight: "700" },
+  vStatus: { fontSize: 12, fontWeight: "600" },
+  empty: { alignItems: "center", marginTop: 40 },
 });

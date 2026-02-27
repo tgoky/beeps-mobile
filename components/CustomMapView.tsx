@@ -31,11 +31,14 @@ import {
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   FadeIn,
   FadeOut,
   SlideInDown,
+  SlideOutDown,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
@@ -67,7 +70,7 @@ const THEME_COLORS = {
     border: "#000000",
     accent: "#000000",
     marker: "#ffffff",
-    history: "#8B5CF6", // Brighter purple
+    history: "#8B5CF6",
     historyBg: "#EDE9FE",
     dropdownBg: "#ffffff",
   },
@@ -82,7 +85,7 @@ const THEME_COLORS = {
     border: "#52525b",
     accent: "#ffffff",
     marker: "#27272a",
-    history: "#A78BFA", // Brighter purple for dark mode
+    history: "#A78BFA",
     historyBg: "#2e1065",
     dropdownBg: "#262626",
   },
@@ -92,10 +95,9 @@ const THEME_COLORS = {
 interface Studio {
   id: string;
   name: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   hourlyRate: number;
-  type: "studio";
 }
 
 export interface RecentActivity {
@@ -112,14 +114,17 @@ export interface RecentActivity {
 
 interface CustomMapViewProps {
   studios: Studio[];
+  producers?: any[]; // Add this
+  artists?: any[]; // Add this
   recentActivity?: RecentActivity[];
   theme: "light" | "dark";
   onStudioPress: (studio: Studio) => void;
+  onProducerPress?: (producer: any) => void; // Add this
+  onArtistPress?: (artist: any) => void; // Add this
   selectedStudio?: Studio | null;
   userLocation?: { latitude: number; longitude: number } | null;
   region: { latitude: number; longitude: number };
 }
-
 // --- Activity Dropdown Component ---
 const ActivityDropdown = ({
   activity,
@@ -134,11 +139,9 @@ const ActivityDropdown = ({
   colors: any;
   position: { x: number; y: number };
 }) => {
-  // Convert map coordinates to screen coordinates
   const screenX = position.x + (SCREEN_WIDTH - MAP_SIZE) / 2;
   const screenY = position.y + (SCREEN_HEIGHT - MAP_SIZE) / 2 - VERTICAL_OFFSET;
 
-  // Adjust dropdown position to not go off screen
   const dropdownX = Math.min(Math.max(screenX - 140, 10), SCREEN_WIDTH - 290);
   const dropdownY = Math.min(Math.max(screenY - 120, 40), SCREEN_HEIGHT - 300);
 
@@ -159,7 +162,6 @@ const ActivityDropdown = ({
         },
       ]}
     >
-      {/* Arrow pointing to the marker */}
       <View
         style={[styles.dropdownArrow, { borderBottomColor: colors.dropdownBg }]}
       />
@@ -232,7 +234,7 @@ const ActivityListModal = ({
 }) => {
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       transparent={true}
       visible={visible}
       onRequestClose={onClose}
@@ -240,7 +242,8 @@ const ActivityListModal = ({
       <View style={styles.modalOverlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
         <Animated.View
-          entering={SlideInDown.springify().damping(15)}
+          entering={SlideInDown.duration(300).easing(Easing.out(Easing.cubic))}
+          exiting={SlideOutDown.duration(200)}
           style={[styles.listModal, { backgroundColor: colors.dropdownBg }]}
         >
           <View style={styles.listModalHeader}>
@@ -307,7 +310,6 @@ const OffScreenIndicator = ({
   const dy = targetY - CENTER_OFFSET;
   const distance = Math.sqrt(dx * dx + dy * dy);
 
-  // Visibility Check: If close to center, don't show arrow
   if (distance < SCREEN_WIDTH / 2 - 20) return null;
 
   const angle = Math.atan2(dy, dx);
@@ -357,9 +359,13 @@ const OffScreenIndicator = ({
 
 export default function CustomMapView({
   studios,
+  producers, // Add this
+  artists, // Add this
   recentActivity = [],
   theme,
   onStudioPress,
+  onProducerPress, // Add this
+  onArtistPress, // Add this
   selectedStudio,
   userLocation,
   region,
@@ -373,8 +379,10 @@ export default function CustomMapView({
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
   const [showActivityList, setShowActivityList] = useState(false);
 
+  // Animation values
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
+  const userPulse = useSharedValue(1);
 
   const initialX = (SCREEN_WIDTH - MAP_SIZE) / 2;
   const initialY = (SCREEN_HEIGHT - MAP_SIZE) / 2 - VERTICAL_OFFSET;
@@ -398,6 +406,20 @@ export default function CustomMapView({
     scale.value = withTiming(1);
     savedScale.value = 1;
   }, [region.latitude, region.longitude]);
+
+  // Pulse Animation for User Marker
+  useEffect(() => {
+    userPulse.value = withRepeat(
+      withTiming(1.5, { duration: 2000 }),
+      -1, // Infinite
+      false, // Do not reverse (ripple out)
+    );
+  }, []);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: userPulse.value }],
+    opacity: 1 - (userPulse.value - 1) * 2,
+  }));
 
   const clamp = (val: number, min: number, max: number) => {
     "worklet";
@@ -444,7 +466,7 @@ export default function CustomMapView({
   const handleViewSession = () => {
     if (selectedActivity?.sessionId) {
       setSelectedActivity(null);
-      router.push(`/session/${selectedActivity.sessionId}`);
+      // router.push(`/sessions/${selectedActivity.sessionId}`);
     }
   };
 
@@ -455,9 +477,6 @@ export default function CustomMapView({
   const userPos = userLocation
     ? getRelativePosition(userLocation.latitude, userLocation.longitude)
     : null;
-
-  // Debug: Log if there are activities
-  console.log("Recent Activities:", recentActivity.length);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -547,17 +566,13 @@ export default function CustomMapView({
                   strokeLinecap="round"
                 />
               </G>
-
-              {userPos && (
-                <G x={userPos.x} y={userPos.y}>
-                  <Circle r="40" fill="#3b82f6" fillOpacity={0.1} />
-                  <Circle r="20" fill="#3b82f6" fillOpacity={0.2} />
-                </G>
-              )}
             </Svg>
 
             {/* Studio Markers */}
             {studios.map((studio) => {
+              // Skip if no coordinates
+              if (!studio.latitude || !studio.longitude) return null;
+
               const pos = getRelativePosition(
                 studio.latitude,
                 studio.longitude,
@@ -612,15 +627,82 @@ export default function CustomMapView({
               );
             })}
 
-            {/* Recent Activity Markers - ENHANCED VISIBILITY */}
+            {/* Producer Markers - ADD THIS HERE */}
+            {producers?.map((producer) => {
+              const pos = getRelativePosition(
+                producer.latitude || region.latitude,
+                producer.longitude || region.longitude,
+              );
+              return (
+                <View
+                  key={producer.userId || `prod-${producer.id}`}
+                  style={{
+                    position: "absolute",
+                    left: pos.x,
+                    top: pos.y,
+                    zIndex: 10,
+                  }}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => onProducerPress?.(producer)}
+                    style={styles.markerContainer}
+                  >
+                    <View
+                      style={[
+                        styles.markerHead,
+                        { backgroundColor: "#8B5CF6" }, // Purple for producers
+                      ]}
+                    >
+                      <Music size={14} color="#fff" />
+                    </View>
+                    <View style={styles.markerStick} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+
+            {/* Artist Markers - ADD THIS HERE */}
+            {artists?.map((artist) => {
+              const pos = getRelativePosition(
+                artist.latitude || region.latitude,
+                artist.longitude || region.longitude,
+              );
+              return (
+                <View
+                  key={artist.userId || `artist-${artist.id}`}
+                  style={{
+                    position: "absolute",
+                    left: pos.x,
+                    top: pos.y,
+                    zIndex: 10,
+                  }}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => onArtistPress?.(artist)}
+                    style={styles.markerContainer}
+                  >
+                    <View
+                      style={[
+                        styles.markerHead,
+                        { backgroundColor: "#10B981" }, // Green for artists
+                      ]}
+                    >
+                      <User size={14} color="#fff" />
+                    </View>
+                    <View style={styles.markerStick} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+
+            {/* Recent Activity Markers */}
             {recentActivity.map((activity) => {
               const pos = getRelativePosition(
                 activity.latitude,
                 activity.longitude,
               );
-
-              // Don't filter out off-screen markers - they'll be handled by indicators
-              // But we still render them on the map
 
               return (
                 <View
@@ -629,7 +711,7 @@ export default function CustomMapView({
                     position: "absolute",
                     left: pos.x,
                     top: pos.y,
-                    zIndex: 100, // Higher zIndex than studios
+                    zIndex: 100,
                   }}
                 >
                   <TouchableOpacity
@@ -637,7 +719,6 @@ export default function CustomMapView({
                     onPress={() => handleActivityPress(activity, pos.x, pos.y)}
                     style={styles.savePointContainer}
                   >
-                    {/* Enhanced Activity Marker - More Visible */}
                     <View
                       style={[
                         styles.activityCard,
@@ -665,7 +746,6 @@ export default function CustomMapView({
                           : activity.name}
                       </Text>
                     </View>
-                    {/* Stem with glow effect */}
                     <View
                       style={{
                         width: 3,
@@ -694,29 +774,62 @@ export default function CustomMapView({
               );
             })}
 
+            {/* USER LOCATION MARKER - STATIC BLACK */}
             {userPos && (
               <View
                 style={{
                   position: "absolute",
                   left: userPos.x,
                   top: userPos.y,
-                  zIndex: 5,
-                  transform: [{ translateX: -16 }, { translateY: -16 }],
+                  zIndex: 200,
+                  transform: [{ translateX: -20 }, { translateY: -20 }],
                 }}
               >
+                {/* Pulsing Ring (Black) */}
+                <Animated.View
+                  style={[
+                    {
+                      position: "absolute",
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: "#000000",
+                      opacity: 0.3,
+                    },
+                    pulseStyle,
+                  ]}
+                />
+
+                {/* Static Black Marker */}
                 <View style={styles.userIcon}>
-                  <Navigation
-                    size={18}
-                    color="#fff"
-                    style={{ transform: [{ rotate: "45deg" }] }}
-                  />
+                  <View
+                    style={{
+                      backgroundColor: "#000000",
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 3,
+                      borderColor: "#ffffff",
+                    }}
+                  >
+                    <Navigation
+                      size={16}
+                      fill="#fff"
+                      color="#fff"
+                      style={{
+                        transform: [{ rotate: "0deg" }, { translateY: 1 }],
+                      }}
+                    />
+                  </View>
                 </View>
               </View>
             )}
           </Animated.View>
         </GestureDetector>
 
-        {/* Off-Screen Indicators - Always on top */}
+        {/* Off-Screen Indicators */}
         {recentActivity.map((activity) => {
           const pos = getRelativePosition(
             activity.latitude,
@@ -733,18 +846,31 @@ export default function CustomMapView({
           );
         })}
 
-        {/* HUD Controls */}
-        <View style={styles.hudZoom}>
+        {/* HUD Controls - Static Black */}
+        <View
+          style={[
+            styles.hudZoom,
+            {
+              backgroundColor: "#000000",
+              shadowColor: "#000000",
+              shadowOpacity: 0.4,
+              shadowRadius: 8,
+            },
+          ]}
+        >
           <TouchableOpacity
             onPress={() =>
               (scale.value = withSpring(Math.min(scale.value * 1.5, MAX_SCALE)))
             }
             style={[
               styles.zoomBtn,
-              { borderBottomWidth: 1, borderColor: "#eee" },
+              {
+                borderBottomWidth: 1,
+                borderBottomColor: "rgba(255,255,255,0.3)",
+              },
             ]}
           >
-            <Maximize2 size={20} color={colors.text} />
+            <Maximize2 size={20} color="#ffffff" />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() =>
@@ -752,11 +878,11 @@ export default function CustomMapView({
             }
             style={styles.zoomBtn}
           >
-            <Minimize2 size={20} color={colors.text} />
+            <Minimize2 size={20} color="#ffffff" />
           </TouchableOpacity>
         </View>
 
-        {/* Activity List Button - Shows count */}
+        {/* Activity List Button */}
         {recentActivity.length > 0 && (
           <TouchableOpacity
             style={[
@@ -791,7 +917,6 @@ export default function CustomMapView({
           activities={recentActivity}
           onSelectActivity={(activity) => {
             setSelectedActivity(activity);
-            // You might want to center the map on this activity here
           }}
           colors={colors}
         />
@@ -831,7 +956,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
 
-  // Activity Marker Styles - Enhanced
+  // Activity Marker Styles
   savePointContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -859,18 +984,14 @@ const styles = StyleSheet.create({
 
   // User Location Marker
   userIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#3b82f6",
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
     shadowColor: "#000",
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 6,
+    elevation: 5,
   },
 
   // HUD Controls
@@ -879,11 +1000,8 @@ const styles = StyleSheet.create({
     top: Platform.OS === "ios" ? 120 : 100,
     right: 20,
     borderRadius: 12,
-    backgroundColor: "#184f71",
     elevation: 5,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
+    zIndex: 50,
   },
   zoomBtn: {
     width: 44,
