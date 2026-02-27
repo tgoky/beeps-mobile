@@ -1,66 +1,80 @@
-import React, { useState, useMemo } from 'react';
+import { useAuth } from "@/contexts/AuthContext";
+import { useCreateBooking, useStudioBookings } from "@/hooks/useBookings";
+import { supabase } from "@/lib/supabase";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
+import dayjs from "dayjs";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Dimensions,
+  ImageBackground,
   Modal,
   Platform,
-} from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { useCreateBooking, useStudioBookings } from '@/hooks/useBookings';
-import dayjs from 'dayjs';
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-type TabType = 'details' | 'equipment' | 'reviews';
+// --- Constants for the Premium Dark Look ---
+const DARK_THEME = {
+  bg: "#000000",
+  surface: "#111111",
+  surfaceHighlight: "#1A1A1A",
+  text: "#FFFFFF",
+  textDim: "rgba(255, 255, 255, 0.6)",
+  textDark: "rgba(255, 255, 255, 0.3)",
+  accent: "#6C63FF",
+  border: "rgba(255, 255, 255, 0.1)",
+  success: "#00E096",
+  error: "#FF453A",
+};
+
+const { width } = Dimensions.get("window");
+const IMG_HEIGHT = 350;
+
+type TabType = "details" | "equipment" | "reviews";
 
 export default function StudioDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const { effectiveTheme } = useTheme();
-  const colors = Colors[effectiveTheme];
+
+  const colors = DARK_THEME;
 
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
+
+  // Calendar State
   const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [selectedTime, setSelectedTime] = useState('');
+  const [currentMonth, setCurrentMonth] = useState(dayjs()); // View state for calendar
+
+  const [selectedTime, setSelectedTime] = useState("");
   const [sessionLength, setSessionLength] = useState(2);
-  const [notes, setNotes] = useState('');
-  const [activeTab, setActiveTab] = useState<TabType>('details');
+  const [notes, setNotes] = useState("");
+  const [activeTab, setActiveTab] = useState<TabType>("details");
 
   const createBooking = useCreateBooking();
 
-  // Fetch studio details
+  // --- Data Fetching ---
   const { data: studio, isLoading } = useQuery({
-    queryKey: ['studio', id],
+    queryKey: ["studio", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('studios')
-        .select(`
-          *,
-          studio_owner_profiles!owner_id (
-            id,
-            users!user_id (
-              id,
-              username,
-              full_name,
-              avatar
-            )
-          )
-        `)
-        .eq('id', id)
+        .from("studios")
+        .select(
+          `*, studio_owner_profiles!owner_id (id, users!user_id (id, username, full_name, avatar))`,
+        )
+        .eq("id", id)
         .single();
 
       if (error) throw error;
-
       const ownerProfile = data.studio_owner_profiles;
       const ownerUser = ownerProfile?.users;
 
@@ -82,8 +96,8 @@ export default function StudioDetailScreen() {
         isActive: data.is_active,
         createdAt: data.created_at,
         owner: {
-          id: ownerUser?.id || '',
-          username: ownerUser?.username || '',
+          id: ownerUser?.id || "",
+          username: ownerUser?.username || "",
           fullName: ownerUser?.full_name,
           avatar: ownerUser?.avatar,
         },
@@ -92,27 +106,61 @@ export default function StudioDetailScreen() {
     enabled: !!id,
   });
 
-  // Fetch existing bookings for this studio
   const { data: existingBookings = [] } = useStudioBookings(id);
 
   const amenities = [
-    { icon: 'wifi', label: 'High-speed WiFi' },
-    { icon: 'car', label: 'Free Parking' },
-    { icon: 'cafe', label: 'Coffee Bar' },
-    { icon: 'people', label: 'Green Room' },
-    { icon: 'volume-high', label: 'Sound Proof' },
+    { icon: "wifi", label: "Fast WiFi" },
+    { icon: "car", label: "Parking" },
+    { icon: "coffee", label: "Coffee" },
+    { icon: "sofa", label: "Lounge" },
+    { icon: "volume-off", label: "Soundproof" },
   ];
 
   const timeSlots = [
-    '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-    '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'
+    "9:00 AM",
+    "10:00 AM",
+    "11:00 AM",
+    "12:00 PM",
+    "1:00 PM",
+    "2:00 PM",
+    "3:00 PM",
+    "4:00 PM",
+    "5:00 PM",
   ];
 
-  // Check if a time slot is available
+  // --- Helper: Generate Calendar Days ---
+  const calendarDays = useMemo(() => {
+    const startOfMonth = currentMonth.startOf("month");
+    const endOfMonth = currentMonth.endOf("month");
+    const startDayOfWeek = startOfMonth.day(); // 0 (Sunday) - 6 (Saturday)
+    const daysInMonth = currentMonth.daysInMonth();
+
+    const days = [];
+
+    // Empty slots for previous month
+    for (let i = 0; i < startDayOfWeek; i++) {
+      days.push({ key: `empty-${i}`, day: null });
+    }
+
+    // Actual days
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push({
+        key: i.toString(),
+        day: i,
+        date: currentMonth.date(i),
+      });
+    }
+
+    return days;
+  }, [currentMonth]);
+
+  const changeMonth = (direction: -1 | 1) => {
+    setCurrentMonth((prev) => prev.add(direction, "month"));
+  };
+
+  // --- Logic Functions ---
   const isTimeSlotAvailable = (time: string) => {
     if (!existingBookings || existingBookings.length === 0) return true;
-
-    // Parse the time slot
     const timeParts = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
     if (!timeParts) return true;
 
@@ -120,67 +168,64 @@ export default function StudioDetailScreen() {
     const minutes = parseInt(timeParts[2]);
     const period = timeParts[3].toUpperCase();
 
-    if (period === 'PM' && hours !== 12) hours += 12;
-    if (period === 'AM' && hours === 12) hours = 0;
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
 
     const slotStart = selectedDate.hour(hours).minute(minutes).second(0);
-    const slotEnd = slotStart.add(sessionLength, 'hour');
+    const slotEnd = slotStart.add(sessionLength, "hour");
 
-    // Check against existing bookings
     return !existingBookings.some((booking) => {
       const bookingStart = dayjs(booking.startTime);
       const bookingEnd = dayjs(booking.endTime);
-      const bookingDate = bookingStart.format('YYYY-MM-DD');
-      const selectedDateStr = selectedDate.format('YYYY-MM-DD');
+      const bookingDate = bookingStart.format("YYYY-MM-DD");
+      const selectedDateStr = selectedDate.format("YYYY-MM-DD");
 
-      // Only check bookings on the selected date
       if (bookingDate !== selectedDateStr) return false;
+      if (booking.status === "CANCELLED") return false;
 
-      // Only check confirmed or pending bookings
-      if (booking.status === 'CANCELLED') return false;
-
-      // Check if time slots overlap
       return (
         (slotStart.isBefore(bookingEnd) && slotEnd.isAfter(bookingStart)) ||
-        (slotStart.isSame(bookingStart)) ||
-        (slotEnd.isSame(bookingEnd))
+        slotStart.isSame(bookingStart) ||
+        slotEnd.isSame(bookingEnd)
       );
     });
   };
 
   const handleBooking = async () => {
     if (!user || !studio) {
-      Alert.alert('Error', 'Please sign in to book a studio');
+      Alert.alert("Error", "Please sign in to book a studio");
       return;
     }
-
     if (!selectedTime) {
-      Alert.alert('Select Time', 'Please select a time slot for your booking');
+      Alert.alert("Select Time", "Please select a time slot");
       return;
     }
-
-    // Check if the selected time slot is available
     if (!isTimeSlotAvailable(selectedTime)) {
-      Alert.alert('Time Unavailable', 'This time slot is already booked. Please select a different time.');
+      Alert.alert("Unavailable", "This time slot is booked.");
       return;
     }
 
-    // Parse selected time to create start and end dates
     const timeParts = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!timeParts) {
-      Alert.alert('Error', 'Invalid time format');
-      return;
-    }
+    if (!timeParts) return;
 
     let hours = parseInt(timeParts[1]);
     const minutes = parseInt(timeParts[2]);
     const period = timeParts[3].toUpperCase();
 
-    if (period === 'PM' && hours !== 12) hours += 12;
-    if (period === 'AM' && hours === 12) hours = 0;
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
 
-    const startDate = selectedDate.hour(hours).minute(minutes).second(0).toDate();
-    const endDate = selectedDate.hour(hours).minute(minutes).add(sessionLength, 'hour').second(0).toDate();
+    const startDate = selectedDate
+      .hour(hours)
+      .minute(minutes)
+      .second(0)
+      .toDate();
+    const endDate = selectedDate
+      .hour(hours)
+      .minute(minutes)
+      .add(sessionLength, "hour")
+      .second(0)
+      .toDate();
     const totalAmount = studio.hourlyRate * sessionLength;
 
     try {
@@ -193,387 +238,457 @@ export default function StudioDetailScreen() {
         notes,
       });
 
-      Alert.alert(
-        'Booking Submitted',
-        `Your booking request has been submitted!\n\nTotal: $${totalAmount.toFixed(2)} for ${sessionLength} hours\n\nYou'll be notified when the studio owner responds.`,
-        [
-          {
-            text: 'View Bookings',
-            onPress: () => {
-              setBookingModalVisible(false);
-              router.push('/bookings');
-            },
+      Alert.alert("Success", "Request sent! Waiting for owner confirmation.", [
+        {
+          text: "OK",
+          onPress: () => {
+            setBookingModalVisible(false);
+            router.push("/(tabs)/bookings");
           },
-          { text: 'OK', onPress: () => setBookingModalVisible(false) },
-        ]
-      );
+        },
+      ]);
     } catch (error) {
-      console.error('Booking error:', error);
-      Alert.alert('Error', 'Failed to create booking. Please try again.');
+      Alert.alert("Error", "Failed to create booking.");
     }
   };
 
-  if (isLoading) {
+  const handleChat = () => {
+    // Navigate to chat screen or open modal
+    Alert.alert("Coming Soon", "Chat functionality is under development.");
+  };
+
+  const calculateBookingPrice = () =>
+    studio ? studio.hourlyRate * sessionLength : 0;
+  const calculateServiceFee = () => calculateBookingPrice() * 0.1;
+  const calculateTotal = () => calculateBookingPrice() + calculateServiceFee();
+
+  // --- Rendering ---
+
+  if (isLoading || !studio) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <StatusBar barStyle="light-content" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
-  if (!studio) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.emptyState}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Studio not found</Text>
-        </View>
-      </View>
-    );
-  }
-
-  const calculateBookingPrice = () => {
-    return studio.hourlyRate * sessionLength;
-  };
-
-  const calculateServiceFee = () => {
-    return calculateBookingPrice() * 0.1;
-  };
-
-  const calculateTotal = () => {
-    return calculateBookingPrice() + calculateServiceFee();
-  };
+  const heroImageSource = studio.imageUrl
+    ? { uri: studio.imageUrl }
+    : {
+        uri: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=2070&auto=format&fit=crop",
+      };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Studio Details</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <View style={styles.container}>
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Studio Cover */}
-        <View style={[styles.cover, { backgroundColor: colors.card }]}>
-          <MaterialCommunityIcons name="microphone" size={64} color={colors.textTertiary} />
-        </View>
+      {/* Scrollable Content */}
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[1]}
+      >
+        {/* Hero Section */}
+        <View style={styles.heroContainer}>
+          <ImageBackground
+            source={heroImageSource}
+            style={styles.heroImage}
+            resizeMode="cover"
+          >
+            <LinearGradient
+              colors={[
+                "rgba(0,0,0,0.3)",
+                "rgba(0,0,0,0.0)",
+                "rgba(0,0,0,0.8)",
+                "#000000",
+              ]}
+              style={styles.heroGradient}
+            >
+              <SafeAreaView style={styles.headerSafeArea}>
+                <TouchableOpacity
+                  onPress={() => router.back()}
+                  style={styles.roundButtonBlur}
+                >
+                  <Ionicons name="chevron-back" size={24} color="#FFF" />
+                </TouchableOpacity>
+              </SafeAreaView>
 
-        {/* Studio Info */}
-        <View style={styles.info}>
-          <Text style={[styles.studioName, { color: colors.text }]}>{studio.name}</Text>
-
-          <View style={styles.stats}>
-            <View style={styles.statItem}>
-              <Ionicons name="location" size={16} color={colors.textTertiary} />
-              <Text style={[styles.statText, { color: colors.textTertiary }]}>
-                {[studio.city, studio.state].filter(Boolean).join(', ') || studio.location}
-              </Text>
-            </View>
-            {studio.rating > 0 && (
-              <View style={styles.statItem}>
-                <Ionicons name="star" size={16} color="#F59E0B" />
-                <Text style={[styles.statText, { color: colors.textTertiary }]}>
-                  {studio.rating.toFixed(1)} ({studio.reviewsCount} reviews)
-                </Text>
+              <View style={styles.heroContent}>
+                <View style={styles.ratingBadge}>
+                  <Ionicons name="star" size={12} color="#FFD700" />
+                  <Text style={styles.ratingText}>
+                    {studio.rating.toFixed(1)} ({studio.reviewsCount})
+                  </Text>
+                </View>
+                <Text style={styles.heroTitle}>{studio.name}</Text>
+                <View style={styles.locationRow}>
+                  <Ionicons
+                    name="location-outline"
+                    size={16}
+                    color={colors.textDim}
+                  />
+                  <Text style={styles.locationText}>
+                    {[studio.city, studio.state].filter(Boolean).join(", ") ||
+                      studio.location}
+                  </Text>
+                </View>
               </View>
-            )}
-          </View>
-
-          <View style={[styles.priceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Hourly Rate</Text>
-            <Text style={[styles.priceAmount, { color: colors.accent }]}>${studio.hourlyRate}/hr</Text>
-          </View>
+            </LinearGradient>
+          </ImageBackground>
         </View>
 
-        {/* Tabs */}
-        <View style={[styles.tabsContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.tabsHeader, { borderBottomColor: colors.border }]}>
-            {(['details', 'equipment', 'reviews'] as TabType[]).map((tab) => (
+        {/* Tab Navigation (Sticky) */}
+        <View style={styles.stickyTabs}>
+          <View style={styles.tabContainer}>
+            {(["details", "equipment", "reviews"] as TabType[]).map((tab) => (
               <TouchableOpacity
                 key={tab}
                 onPress={() => setActiveTab(tab)}
-                style={[
-                  styles.tab,
-                  activeTab === tab && { borderBottomColor: colors.accent, borderBottomWidth: 2 },
-                ]}
+                style={[styles.tab, activeTab === tab && styles.tabActive]}
               >
                 <Text
                   style={[
                     styles.tabText,
-                    { color: activeTab === tab ? colors.accent : colors.textSecondary },
+                    activeTab === tab && styles.tabTextActive,
                   ]}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </Text>
+                {activeTab === tab && <View style={styles.activeIndicator} />}
               </TouchableOpacity>
             ))}
           </View>
+        </View>
 
-          <View style={styles.tabContent}>
-            {activeTab === 'details' && (
-              <View style={styles.tabPanel}>
-                {/* About */}
-                <View style={styles.detailSection}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>About this studio</Text>
-                  <Text style={[styles.description, { color: colors.textSecondary }]}>
-                    {studio.description || 'Professional recording studio with state-of-the-art equipment and comfortable environment for artists and producers.'}
-                  </Text>
-                </View>
-
-                {/* Amenities */}
-                <View style={styles.detailSection}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
-                  <View style={styles.amenitiesList}>
-                    {amenities.map((amenity, index) => (
-                      <View
-                        key={index}
-                        style={[styles.amenityChip, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
-                      >
-                        <Ionicons name={amenity.icon as any} size={16} color={colors.accent} />
-                        <Text style={[styles.amenityText, { color: colors.text }]}>{amenity.label}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {activeTab === 'equipment' && (
-              <View style={styles.tabPanel}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Featured Equipment</Text>
-                {studio.equipment && studio.equipment.length > 0 ? (
-                  <View style={styles.equipmentList}>
-                    {studio.equipment.map((item, index) => (
-                      <View
-                        key={index}
-                        style={[styles.equipmentChip, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
-                      >
-                        <Ionicons name="checkmark-circle" size={16} color={colors.accent} />
-                        <Text style={[styles.equipmentText, { color: colors.text }]}>{item}</Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No equipment listed</Text>
-                )}
-              </View>
-            )}
-
-            {activeTab === 'reviews' && (
-              <View style={styles.tabPanel}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Customer Reviews</Text>
-                <Text style={[styles.emptyText, { color: colors.textSecondary, textAlign: 'center', paddingVertical: Spacing.xl }]}>
-                  No reviews yet
+        {/* Main Content Body */}
+        <View style={styles.bodyContent}>
+          {activeTab === "details" && (
+            <View style={styles.sectionFade}>
+              <View style={styles.priceRow}>
+                <Text style={styles.priceValue}>
+                  ${studio.hourlyRate}
+                  <Text style={styles.priceUnit}>/hr</Text>
                 </Text>
+                <View style={styles.tag}>
+                  <Text style={styles.tagText}>Instant Book</Text>
+                </View>
               </View>
-            )}
-          </View>
-        </View>
 
-        {/* Owner Info */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Studio Owner</Text>
-          <View style={[styles.ownerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.ownerAvatar, { backgroundColor: colors.backgroundSecondary }]}>
-              <Text style={[styles.ownerAvatarText, { color: colors.text }]}>
-                {studio.owner.username.charAt(0).toUpperCase()}
+              <Text style={styles.sectionHeader}>About</Text>
+              <Text style={styles.descriptionText}>
+                {studio.description || "No description provided."}
               </Text>
-            </View>
-            <View style={styles.ownerInfo}>
-              <Text style={[styles.ownerName, { color: colors.text }]}>
-                {studio.owner.fullName || studio.owner.username}
-              </Text>
-              <Text style={[styles.ownerUsername, { color: colors.textSecondary }]}>@{studio.owner.username}</Text>
-            </View>
-          </View>
-        </View>
 
-        <View style={{ height: 100 }} />
+              <Text style={styles.sectionHeader}>Amenities</Text>
+              <View style={styles.gridContainer}>
+                {amenities.map((item, index) => (
+                  <View key={index} style={styles.amenityItem}>
+                    <View style={styles.iconBox}>
+                      <MaterialCommunityIcons
+                        name={item.icon as any}
+                        size={20}
+                        color={colors.text}
+                      />
+                    </View>
+                    <Text style={styles.amenityText}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={styles.sectionHeader}>Hosted By</Text>
+              <View style={styles.ownerCard}>
+                <View style={styles.ownerAvatar}>
+                  {studio.owner.avatar ? (
+                    <ImageBackground
+                      source={{ uri: studio.owner.avatar }}
+                      style={{ flex: 1 }}
+                    />
+                  ) : (
+                    <Text style={styles.avatarInitials}>
+                      {studio.owner.username.charAt(0).toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+                <View>
+                  <Text style={styles.ownerName}>
+                    {studio.owner.fullName || studio.owner.username}
+                  </Text>
+                  <Text style={styles.ownerRole}>Studio Owner</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {activeTab === "equipment" && (
+            <View style={styles.sectionFade}>
+              <Text style={styles.sectionHeader}>Gear List</Text>
+              {studio.equipment && studio.equipment.length > 0 ? (
+                studio.equipment.map((item, i) => (
+                  <View key={i} style={styles.equipmentRow}>
+                    <View style={styles.bulletPoint} />
+                    <Text style={styles.equipmentText}>{item}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.emptyText}>No equipment listed.</Text>
+              )}
+            </View>
+          )}
+
+          {activeTab === "reviews" && (
+            <View style={styles.sectionFade}>
+              <Text style={styles.sectionHeader}>Reviews</Text>
+              <Text style={styles.emptyText}>No reviews yet.</Text>
+            </View>
+          )}
+
+          {/* Spacer for bottom bar */}
+          <View style={{ height: 120 }} />
+        </View>
       </ScrollView>
 
-      {/* Book Now Button */}
-      <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.bookButton, { backgroundColor: colors.accent }]}
-          onPress={() => setBookingModalVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="calendar" size={20} color="#fff" />
-          <Text style={styles.bookButtonText}>Book Studio</Text>
-        </TouchableOpacity>
+      {/* Floating Bottom Booking Bar - UPDATED */}
+      <View style={styles.bottomBar}>
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.9)", "#000"]}
+          style={styles.bottomGradient}
+          pointerEvents="none"
+        />
+        <View style={styles.bottomContainer}>
+          {/* Chat Button */}
+          <TouchableOpacity
+            style={styles.chatButton}
+            onPress={handleChat}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chatbubble-ellipses" size={22} color="#FFF" />
+          </TouchableOpacity>
+
+          {/* Book Button */}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => setBookingModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryButtonText}>Book Studio</Text>
+            <Ionicons name="calendar" size={20} color="#000" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Booking Modal */}
-      <Modal visible={bookingModalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Book {studio.name}</Text>
-            <TouchableOpacity onPress={() => setBookingModalVisible(false)}>
-              <Ionicons name="close" size={24} color={colors.text} />
-            </TouchableOpacity>
-          </View>
+      {/* Dark Mode Booking Modal */}
+      <Modal
+        visible={bookingModalVisible}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHandle} />
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            {/* Date Selection */}
-            <View style={styles.bookingSection}>
-              <Text style={[styles.bookingLabel, { color: colors.text }]}>Select Date</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.dateScrollContent}
-              >
-                {Array.from({ length: 14 }, (_, i) => {
-                  const date = dayjs().add(i, 'day');
-                  const isSelected = selectedDate.format('YYYY-MM-DD') === date.format('YYYY-MM-DD');
-
-                  return (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => setSelectedDate(date)}
-                      style={[
-                        styles.dateChip,
-                        { borderColor: colors.border, backgroundColor: colors.backgroundSecondary },
-                        isSelected && { backgroundColor: colors.accent, borderColor: colors.accent },
-                      ]}
-                    >
-                      <Text style={[styles.dateDay, { color: isSelected ? '#fff' : colors.textSecondary }]}>
-                        {date.format('ddd')}
-                      </Text>
-                      <Text style={[styles.dateNumber, { color: isSelected ? '#fff' : colors.text }]}>
-                        {date.format('D')}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-              <Text style={[styles.selectedDateText, { color: colors.textSecondary }]}>
-                Selected: {selectedDate.format('MMMM D, YYYY')}
-              </Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Request Booking</Text>
+              <TouchableOpacity onPress={() => setBookingModalVisible(false)}>
+                <Ionicons
+                  name="close-circle"
+                  size={30}
+                  color={colors.textDim}
+                />
+              </TouchableOpacity>
             </View>
 
-            {/* Time Slots */}
-            <View style={styles.bookingSection}>
-              <Text style={[styles.bookingLabel, { color: colors.text }]}>Available Times</Text>
-              <View style={styles.timeSlots}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* --- CUSTOM CALENDAR IMPLEMENTATION --- */}
+              <View style={styles.calendarContainer}>
+                <View style={styles.calendarHeader}>
+                  <TouchableOpacity
+                    onPress={() => changeMonth(-1)}
+                    style={styles.calendarArrow}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={20}
+                      color={colors.text}
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.calendarMonthTitle}>
+                    {currentMonth.format("MMMM YYYY")}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => changeMonth(1)}
+                    style={styles.calendarArrow}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={colors.text}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Weekday Labels */}
+                <View style={styles.weekDaysRow}>
+                  {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
+                    <Text key={i} style={styles.weekDayText}>
+                      {day}
+                    </Text>
+                  ))}
+                </View>
+
+                {/* Days Grid */}
+                <View style={styles.calendarGrid}>
+                  {calendarDays.map((item, index) => {
+                    if (!item.day) {
+                      return <View key={index} style={styles.dayCell} />;
+                    }
+
+                    const isSelected =
+                      item.date &&
+                      selectedDate.format("YYYY-MM-DD") ===
+                        item.date.format("YYYY-MM-DD");
+                    const isToday =
+                      item.date &&
+                      item.date.format("YYYY-MM-DD") ===
+                        dayjs().format("YYYY-MM-DD");
+                    const isPast =
+                      item.date && item.date.isBefore(dayjs(), "day");
+
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.dayCell,
+                          isSelected && styles.dayCellSelected,
+                          isToday && !isSelected && styles.dayCellToday,
+                        ]}
+                        disabled={!!isPast}
+                        onPress={() => item.date && setSelectedDate(item.date)}
+                      >
+                        <Text
+                          style={[
+                            styles.dayText,
+                            isPast && styles.dayTextDisabled,
+                            isSelected && styles.dayTextSelected,
+                          ]}
+                        >
+                          {item.day}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={styles.selectedDateText}>
+                  Selected: {selectedDate.format("dddd, MMMM D")}
+                </Text>
+              </View>
+
+              {/* Time Slots */}
+              <Text style={styles.inputLabel}>Start Time</Text>
+              <View style={styles.wrapGrid}>
                 {timeSlots.map((time) => {
                   const isAvailable = isTimeSlotAvailable(time);
                   const isSelected = selectedTime === time;
-
                   return (
                     <TouchableOpacity
                       key={time}
-                      onPress={() => isAvailable && setSelectedTime(time)}
                       disabled={!isAvailable}
+                      onPress={() => setSelectedTime(time)}
                       style={[
-                        styles.timeSlot,
-                        { borderColor: colors.border, backgroundColor: colors.backgroundSecondary },
-                        !isAvailable && { opacity: 0.4 },
-                        isSelected && { backgroundColor: colors.accent, borderColor: colors.accent },
+                        styles.timeChip,
+                        !isAvailable && styles.timeChipDisabled,
+                        isSelected && styles.timeChipSelected,
                       ]}
                     >
-                      <Text style={[styles.timeSlotText, { color: isSelected ? '#fff' : colors.text }]}>
+                      <Text
+                        style={[
+                          styles.timeText,
+                          !isAvailable && styles.timeTextDisabled,
+                          isSelected && styles.textSelected,
+                        ]}
+                      >
                         {time}
                       </Text>
-                      {!isAvailable && (
-                        <Ionicons name="close-circle" size={12} color={colors.error} style={styles.bookedIcon} />
-                      )}
                     </TouchableOpacity>
                   );
                 })}
               </View>
-              {existingBookings && existingBookings.length > 0 && (
-                <Text style={[styles.helpText, { color: colors.textSecondary }]}>
-                  <Ionicons name="close-circle" size={12} color={colors.error} /> = Already booked
-                </Text>
-              )}
-            </View>
 
-            {/* Session Length */}
-            <View style={styles.bookingSection}>
-              <Text style={[styles.bookingLabel, { color: colors.text }]}>Session Length</Text>
-              <View style={styles.sessionLengths}>
-                {[2, 4, 8].map((hours) => (
+              {/* Duration */}
+              <Text style={styles.inputLabel}>Duration</Text>
+              <View style={styles.durationRow}>
+                {[2, 4, 8].map((hrs) => (
                   <TouchableOpacity
-                    key={hours}
-                    onPress={() => setSessionLength(hours)}
+                    key={hrs}
+                    onPress={() => setSessionLength(hrs)}
                     style={[
-                      styles.sessionChip,
-                      { borderColor: colors.border, backgroundColor: colors.backgroundSecondary },
-                      sessionLength === hours && { backgroundColor: colors.accent, borderColor: colors.accent },
+                      styles.durationBtn,
+                      sessionLength === hrs && styles.durationBtnSelected,
                     ]}
                   >
-                    <Text style={[styles.sessionText, { color: sessionLength === hours ? '#fff' : colors.text }]}>
-                      {hours} hours
+                    <Text
+                      style={[
+                        styles.durationText,
+                        sessionLength === hrs && styles.textSelected,
+                      ]}
+                    >
+                      {hrs} Hours
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
 
-            {/* Price Summary */}
-            <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
-                  {sessionLength} hours × ${studio.hourlyRate}/hr
-                </Text>
-                <Text style={[styles.summaryValue, { color: colors.text }]}>
-                  ${calculateBookingPrice().toFixed(2)}
-                </Text>
+              {/* Receipt / Total */}
+              <View style={styles.receiptContainer}>
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Rate</Text>
+                  <Text style={styles.receiptValue}>
+                    ${studio.hourlyRate} x {sessionLength}hrs
+                  </Text>
+                </View>
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Service Fee</Text>
+                  <Text style={styles.receiptValue}>
+                    ${calculateServiceFee().toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.receiptRow}>
+                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={styles.totalValue}>
+                    ${calculateTotal().toFixed(2)}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Service fee</Text>
-                <Text style={[styles.summaryValue, { color: colors.text }]}>
-                  ${calculateServiceFee().toFixed(2)}
-                </Text>
-              </View>
-              <View style={[styles.summaryRow, styles.summaryTotal, { borderTopColor: colors.border }]}>
-                <Text style={[styles.summaryLabel, { color: colors.text, fontWeight: FontWeights.bold }]}>
-                  Total
-                </Text>
-                <Text style={[styles.summaryValue, { color: colors.accent, fontWeight: FontWeights.bold }]}>
-                  ${calculateTotal().toFixed(2)}
-                </Text>
-              </View>
-            </View>
 
-            {/* Confirm Button */}
-            <TouchableOpacity
-              style={[
-                styles.confirmButton,
-                { backgroundColor: colors.accent },
-                (!selectedTime || createBooking.isPending) && { opacity: 0.5 },
-              ]}
-              onPress={handleBooking}
-              disabled={!selectedTime || createBooking.isPending}
-            >
-              {createBooking.isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={styles.confirmButtonText}>Request to Book</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <Text style={[styles.noteText, { color: colors.textSecondary }]}>
-              You will only be charged when the studio confirms
-            </Text>
-          </ScrollView>
+              <TouchableOpacity
+                style={[
+                  styles.confirmButton,
+                  (!selectedTime || createBooking.isPending) && {
+                    opacity: 0.5,
+                  },
+                ]}
+                onPress={handleBooking}
+                disabled={!selectedTime || createBooking.isPending}
+              >
+                {createBooking.isPending ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Confirm & Pay</Text>
+                )}
+              </TouchableOpacity>
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -583,346 +698,533 @@ export default function StudioDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: DARK_THEME.bg,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
+  // Hero
+  heroContainer: {
+    height: IMG_HEIGHT,
+    width: "100%",
   },
-  backButton: {
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroGradient: {
+    flex: 1,
+    justifyContent: "flex-end",
+    padding: 20,
+  },
+  headerSafeArea: {
+    position: "absolute",
+    top: 0,
+    left: 20,
+    right: 20,
+    paddingTop: Platform.OS === "android" ? 40 : 0,
+  },
+  roundButtonBlur: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: FontWeights.bold,
-  },
-  content: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
-  },
-  emptyText: {
-    fontSize: FontSizes.base,
-  },
-  cover: {
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  info: {
-    padding: Spacing.lg,
-    alignItems: 'center',
-  },
-  studioName: {
-    fontSize: FontSizes['2xl'],
-    fontWeight: FontWeights.bold,
-    marginBottom: Spacing.sm,
-    textAlign: 'center',
-  },
-  stats: {
-    flexDirection: 'row',
-    gap: Spacing.lg,
-    marginBottom: Spacing.md,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statText: {
-    fontSize: FontSizes.sm,
-  },
-  priceCard: {
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    alignItems: 'center',
-    width: '100%',
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  priceLabel: {
-    fontSize: FontSizes.sm,
-    marginBottom: 4,
+  heroContent: {
+    marginBottom: 20,
   },
-  priceAmount: {
-    fontSize: FontSizes['3xl'],
-    fontWeight: FontWeights.bold,
+  heroTitle: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#FFF",
+    letterSpacing: -0.5,
+    marginBottom: 8,
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
-  tabsContainer: {
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.md,
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginBottom: 10,
     borderWidth: 1,
-    overflow: 'hidden',
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  tabsHeader: {
-    flexDirection: 'row',
+  ratingText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 4,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  locationText: {
+    color: DARK_THEME.textDim,
+    fontSize: 14,
+    marginLeft: 4,
+  },
+
+  // Tabs
+  stickyTabs: {
+    backgroundColor: DARK_THEME.bg,
+    paddingVertical: 10,
     borderBottomWidth: 1,
+    borderBottomColor: DARK_THEME.surfaceHighlight,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    marginHorizontal: 20,
   },
   tab: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
+    marginRight: 24,
+    paddingVertical: 10,
+    position: "relative",
   },
+  tabActive: {},
   tabText: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semiBold,
+    color: DARK_THEME.textDim,
+    fontSize: 16,
+    fontWeight: "600",
   },
-  tabContent: {
-    padding: Spacing.lg,
+  tabTextActive: {
+    color: "#FFF",
   },
-  tabPanel: {
-    gap: Spacing.lg,
+  activeIndicator: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: DARK_THEME.accent,
+    shadowColor: DARK_THEME.accent,
+    shadowOpacity: 0.8,
+    shadowRadius: 5,
   },
-  detailSection: {
-    gap: Spacing.sm,
+
+  // Body
+  bodyContent: {
+    padding: 20,
   },
-  section: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
+  sectionFade: {
+    // animation hooks could go here
   },
-  sectionTitle: {
-    fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold,
-    marginBottom: Spacing.sm,
+  priceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: DARK_THEME.border,
   },
-  description: {
-    fontSize: FontSizes.base,
-    lineHeight: 22,
+  priceValue: {
+    color: "#FFF",
+    fontSize: 28,
+    fontWeight: "700",
   },
-  amenitiesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
+  priceUnit: {
+    fontSize: 14,
+    color: DARK_THEME.textDim,
+    fontWeight: "400",
   },
-  amenityChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.xs,
+  tag: {
+    backgroundColor: "#1E1E1E",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 100,
     borderWidth: 1,
+    borderColor: DARK_THEME.border,
   },
-  amenityText: {
-    fontSize: FontSizes.sm,
+  tagText: {
+    color: DARK_THEME.accent,
+    fontSize: 12,
+    fontWeight: "bold",
   },
-  equipmentList: {
-    gap: Spacing.sm,
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFF",
+    marginBottom: 16,
+    marginTop: 8,
   },
-  equipmentChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.xs,
-    borderWidth: 1,
+  descriptionText: {
+    color: DARK_THEME.textDim,
+    lineHeight: 24,
+    fontSize: 15,
+    marginBottom: 24,
   },
-  equipmentText: {
-    fontSize: FontSizes.sm,
+
+  // Amenities
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 24,
   },
-  ownerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    gap: Spacing.md,
+  amenityItem: {
+    width: "33.33%",
+    alignItems: "center",
+    marginBottom: 20,
   },
-  ownerAvatar: {
+  iconBox: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: DARK_THEME.surfaceHighlight,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
   },
-  ownerAvatarText: {
-    fontSize: FontSizes.lg,
-    fontWeight: FontWeights.semiBold,
+  amenityText: {
+    color: DARK_THEME.textDim,
+    fontSize: 12,
   },
-  ownerInfo: {
-    flex: 1,
+
+  // Owner
+  ownerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: DARK_THEME.surface,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: DARK_THEME.border,
+  },
+  ownerAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#333",
+    marginRight: 16,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarInitials: {
+    color: "#FFF",
+    fontSize: 20,
+    fontWeight: "bold",
   },
   ownerName: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
-  ownerUsername: {
-    fontSize: FontSizes.sm,
-    marginTop: 2,
+  ownerRole: {
+    color: DARK_THEME.textDim,
+    fontSize: 12,
   },
-  footer: {
-    padding: Spacing.lg,
-    borderTopWidth: 1,
+
+  // Equipment
+  equipmentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    backgroundColor: DARK_THEME.surface,
+    padding: 12,
+    borderRadius: 8,
   },
-  bookButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
+  bulletPoint: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: DARK_THEME.accent,
+    marginRight: 12,
   },
-  bookButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
+  equipmentText: {
+    color: "#FFF",
+    fontSize: 14,
+  },
+  emptyText: {
+    color: DARK_THEME.textDark,
+    fontStyle: "italic",
+  },
+
+  // Bottom Bar
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+  },
+  bottomGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+  },
+  bottomContainer: {
+    flexDirection: "row", // Changed to row
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12, // Gap between Chat and Book
+  },
+  chatButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.1)", // Glass effect
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    backdropFilter: "blur(10px)", // Works on iOS mostly
+  },
+  primaryButton: {
+    flex: 1, // Takes remaining space
+    backgroundColor: "#FFF",
+    height: 56,
+    borderRadius: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  primaryButtonText: {
+    color: "#000",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
   },
   modalContainer: {
-    flex: 1,
+    backgroundColor: "#111",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    height: "90%", // Made slightly taller for calendar
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    borderTopWidth: 1,
+    borderTopColor: DARK_THEME.border,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#333",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 20,
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: FontWeights.bold,
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FFF",
   },
-  modalContent: {
-    flex: 1,
-    padding: Spacing.lg,
+  inputLabel: {
+    color: DARK_THEME.textDim,
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 12,
+    fontWeight: "600",
+    marginTop: 20,
   },
-  bookingSection: {
-    marginBottom: Spacing.xl,
-  },
-  bookingLabel: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
-    marginBottom: Spacing.sm,
-  },
-  dateScrollContent: {
-    paddingRight: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  dateChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+
+  // Calendar Styles
+  calendarContainer: {
+    backgroundColor: DARK_THEME.surfaceHighlight,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    minWidth: 60,
-    alignItems: 'center',
+    borderColor: DARK_THEME.border,
   },
-  dateDay: {
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.medium,
-    marginBottom: 2,
+  calendarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  dateNumber: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.bold,
+  calendarMonthTitle: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  calendarArrow: {
+    padding: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 8,
+  },
+  weekDaysRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+    paddingBottom: 8,
+  },
+  weekDayText: {
+    width: "14.28%", // 100 / 7
+    textAlign: "center",
+    color: DARK_THEME.textDim,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dayCell: {
+    width: "14.28%",
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+    borderRadius: 8,
+  },
+  dayCellToday: {
+    borderWidth: 1,
+    borderColor: DARK_THEME.accent,
+  },
+  dayCellSelected: {
+    backgroundColor: DARK_THEME.accent,
+    borderColor: DARK_THEME.accent,
+  },
+  dayText: {
+    color: "#FFF",
+    fontSize: 14,
+  },
+  dayTextDisabled: {
+    color: DARK_THEME.textDark,
+  },
+  dayTextSelected: {
+    color: "#FFF",
+    fontWeight: "bold",
   },
   selectedDateText: {
-    fontSize: FontSizes.xs,
-    marginTop: Spacing.xs,
+    color: DARK_THEME.accent,
+    fontSize: 12,
+    marginTop: 12,
+    textAlign: "center",
+    fontWeight: "600",
   },
-  timeSlots: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
+
+  // Time & Duration
+  wrapGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 10,
   },
-  timeSlot: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+  timeChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: DARK_THEME.surfaceHighlight,
     borderWidth: 1,
-    flexBasis: '30%',
-    alignItems: 'center',
-    position: 'relative',
+    borderColor: DARK_THEME.border,
   },
-  timeSlotText: {
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.medium,
+  timeChipDisabled: {
+    opacity: 0.3,
   },
-  bookedIcon: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
+  timeChipSelected: {
+    backgroundColor: "#FFF",
+    borderColor: "#FFF",
   },
-  helpText: {
-    fontSize: FontSizes.xs,
-    marginTop: Spacing.xs,
+  timeText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "500",
   },
-  sessionLengths: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
+  timeTextDisabled: {
+    textDecorationLine: "line-through",
   },
-  sessionChip: {
+  textSelected: {
+    color: "#000",
+  },
+  durationRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 30,
+  },
+  durationBtn: {
     flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    backgroundColor: DARK_THEME.surfaceHighlight,
+    borderRadius: 12,
+    alignItems: "center",
     borderWidth: 1,
-    alignItems: 'center',
+    borderColor: DARK_THEME.border,
   },
-  sessionText: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.medium,
+  durationBtnSelected: {
+    backgroundColor: "#FFF",
+    borderColor: "#FFF",
   },
-  summaryCard: {
+  durationText: {
+    color: "#FFF",
+    fontWeight: "600",
+  },
+  receiptContainer: {
+    backgroundColor: DARK_THEME.surfaceHighlight,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 30,
     borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
+    borderColor: DARK_THEME.border,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
+  receiptRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
-  summaryTotal: {
-    borderTopWidth: 1,
-    paddingTop: Spacing.sm,
-    marginTop: Spacing.sm,
-    marginBottom: 0,
+  receiptLabel: {
+    color: DARK_THEME.textDim,
+    fontSize: 14,
   },
-  summaryLabel: {
-    fontSize: FontSizes.sm,
+  receiptValue: {
+    color: "#FFF",
+    fontSize: 14,
   },
-  summaryValue: {
-    fontSize: FontSizes.sm,
+  divider: {
+    height: 1,
+    backgroundColor: DARK_THEME.border,
+    marginVertical: 12,
+  },
+  totalLabel: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  totalValue: {
+    color: DARK_THEME.accent,
+    fontSize: 20,
+    fontWeight: "bold",
   },
   confirmButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
+    backgroundColor: DARK_THEME.accent,
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    shadowColor: DARK_THEME.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
   confirmButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semiBold,
-  },
-  noteText: {
-    fontSize: FontSizes.xs,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "bold",
   },
 });
