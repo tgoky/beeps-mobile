@@ -6,10 +6,11 @@ import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   ImageBackground,
   Modal,
@@ -20,7 +21,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
 // --- Constants for the Premium Dark Look ---
@@ -47,13 +48,16 @@ export default function StudioDetailScreen() {
   const router = useRouter();
   const { user } = useAuth();
 
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const iconScale = useRef(new Animated.Value(0)).current;
+
   const colors = DARK_THEME;
 
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
 
   // Calendar State
   const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [currentMonth, setCurrentMonth] = useState(dayjs()); // View state for calendar
+  const [currentMonth, setCurrentMonth] = useState(dayjs());
 
   const [selectedTime, setSelectedTime] = useState("");
   const [sessionLength, setSessionLength] = useState(2);
@@ -132,17 +136,14 @@ export default function StudioDetailScreen() {
   const calendarDays = useMemo(() => {
     const startOfMonth = currentMonth.startOf("month");
     const endOfMonth = currentMonth.endOf("month");
-    const startDayOfWeek = startOfMonth.day(); // 0 (Sunday) - 6 (Saturday)
+    const startDayOfWeek = startOfMonth.day();
     const daysInMonth = currentMonth.daysInMonth();
-
     const days = [];
 
-    // Empty slots for previous month
     for (let i = 0; i < startDayOfWeek; i++) {
       days.push({ key: `empty-${i}`, day: null });
     }
 
-    // Actual days
     for (let i = 1; i <= daysInMonth; i++) {
       days.push({
         key: i.toString(),
@@ -150,13 +151,26 @@ export default function StudioDetailScreen() {
         date: currentMonth.date(i),
       });
     }
-
     return days;
   }, [currentMonth]);
 
   const changeMonth = (direction: -1 | 1) => {
     setCurrentMonth((prev) => prev.add(direction, "month"));
   };
+
+  // Animation Effect
+  useEffect(() => {
+    if (bookingSuccess) {
+      Animated.spring(iconScale, {
+        toValue: 1,
+        friction: 5,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      iconScale.setValue(0);
+    }
+  }, [bookingSuccess]);
 
   // --- Logic Functions ---
   const isTimeSlotAvailable = (time: string) => {
@@ -220,12 +234,14 @@ export default function StudioDetailScreen() {
       .minute(minutes)
       .second(0)
       .toDate();
+
     const endDate = selectedDate
       .hour(hours)
       .minute(minutes)
       .add(sessionLength, "hour")
       .second(0)
       .toDate();
+
     const totalAmount = studio.hourlyRate * sessionLength;
 
     try {
@@ -238,22 +254,21 @@ export default function StudioDetailScreen() {
         notes,
       });
 
-      Alert.alert("Success", "Request sent! Waiting for owner confirmation.", [
-        {
-          text: "OK",
-          onPress: () => {
-            setBookingModalVisible(false);
-            router.push("/(tabs)/bookings");
-          },
-        },
-      ]);
+      setBookingSuccess(true);
     } catch (error) {
-      Alert.alert("Error", "Failed to create booking.");
+      console.error(error);
+      Alert.alert("Error", "Failed to create booking. Please try again.");
     }
   };
 
+  const handleNegotiate = () => {
+    Alert.alert(
+      "Start Negotiation",
+      "This feature will allow you to offer a custom price to the studio owner.",
+    );
+  };
+
   const handleChat = () => {
-    // Navigate to chat screen or open modal
     Alert.alert("Coming Soon", "Chat functionality is under development.");
   };
 
@@ -261,6 +276,53 @@ export default function StudioDetailScreen() {
     studio ? studio.hourlyRate * sessionLength : 0;
   const calculateServiceFee = () => calculateBookingPrice() * 0.1;
   const calculateTotal = () => calculateBookingPrice() + calculateServiceFee();
+
+  const renderSuccessView = () => (
+    <View style={styles.successContainer}>
+      <View style={styles.successIconBg}>
+        <Animated.View style={{ transform: [{ scale: iconScale }] }}>
+          <Ionicons
+            name="checkmark-circle"
+            size={80}
+            color={DARK_THEME.success}
+          />
+        </Animated.View>
+      </View>
+
+      <Text style={styles.successTitle}>Request Sent!</Text>
+      <Text style={styles.successMessage}>
+        Your booking request has been sent to the studio owner. You will be
+        notified once they accept.
+      </Text>
+
+      <TouchableOpacity
+        style={styles.successButton}
+        onPress={() => {
+          setBookingModalVisible(false);
+          setBookingSuccess(false); // Reset
+          router.push({
+            pathname: "/(tabs)/bookings",
+            params: {
+              initialView: "bookings",
+              initialBookingView: "my_bookings",
+            },
+          });
+        }}
+      >
+        <Text style={styles.successButtonText}>View My Bookings</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.closeSuccessButton}
+        onPress={() => {
+          setBookingModalVisible(false);
+          setBookingSuccess(false);
+        }}
+      >
+        <Text style={styles.closeSuccessText}>Close</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   // --- Rendering ---
 
@@ -324,13 +386,19 @@ export default function StudioDetailScreen() {
               </SafeAreaView>
 
               <View style={styles.heroContent}>
-                <View style={styles.ratingBadge}>
-                  <Ionicons name="star" size={12} color="#FFD700" />
+                {/* --- IMPROVED SLEEK RATING BADGE --- */}
+                <View style={styles.sleekRatingPill}>
+                  <Ionicons name="star" size={14} color="#FFD700" />
                   <Text style={styles.ratingText}>
-                    {studio.rating.toFixed(1)} ({studio.reviewsCount})
+                    {studio.rating.toFixed(1)}{" "}
+                    <Text style={{ color: colors.textDim }}>
+                      ({studio.reviewsCount})
+                    </Text>
                   </Text>
                 </View>
+
                 <Text style={styles.heroTitle}>{studio.name}</Text>
+
                 <View style={styles.locationRow}>
                   <Ionicons
                     name="location-outline"
@@ -452,12 +520,11 @@ export default function StudioDetailScreen() {
             </View>
           )}
 
-          {/* Spacer for bottom bar */}
           <View style={{ height: 120 }} />
         </View>
       </ScrollView>
 
-      {/* Floating Bottom Booking Bar - UPDATED */}
+      {/* Floating Bottom Booking Bar */}
       <View style={styles.bottomBar}>
         <LinearGradient
           colors={["transparent", "rgba(0,0,0,0.9)", "#000"]}
@@ -465,7 +532,6 @@ export default function StudioDetailScreen() {
           pointerEvents="none"
         />
         <View style={styles.bottomContainer}>
-          {/* Chat Button */}
           <TouchableOpacity
             style={styles.chatButton}
             onPress={handleChat}
@@ -474,7 +540,6 @@ export default function StudioDetailScreen() {
             <Ionicons name="chatbubble-ellipses" size={22} color="#FFF" />
           </TouchableOpacity>
 
-          {/* Book Button */}
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => setBookingModalVisible(true)}
@@ -496,198 +561,218 @@ export default function StudioDetailScreen() {
           <View style={styles.modalContainer}>
             <View style={styles.modalHandle} />
 
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Request Booking</Text>
-              <TouchableOpacity onPress={() => setBookingModalVisible(false)}>
-                <Ionicons
-                  name="close-circle"
-                  size={30}
-                  color={colors.textDim}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* --- CUSTOM CALENDAR IMPLEMENTATION --- */}
-              <View style={styles.calendarContainer}>
-                <View style={styles.calendarHeader}>
+            {/* CONDITIONAL RENDERING STARTS HERE */}
+            {bookingSuccess ? (
+              renderSuccessView()
+            ) : (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Request Booking</Text>
                   <TouchableOpacity
-                    onPress={() => changeMonth(-1)}
-                    style={styles.calendarArrow}
+                    onPress={() => setBookingModalVisible(false)}
                   >
                     <Ionicons
-                      name="chevron-back"
-                      size={20}
-                      color={colors.text}
-                    />
-                  </TouchableOpacity>
-                  <Text style={styles.calendarMonthTitle}>
-                    {currentMonth.format("MMMM YYYY")}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => changeMonth(1)}
-                    style={styles.calendarArrow}
-                  >
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={colors.text}
+                      name="close-circle"
+                      size={30}
+                      color={colors.textDim}
                     />
                   </TouchableOpacity>
                 </View>
 
-                {/* Weekday Labels */}
-                <View style={styles.weekDaysRow}>
-                  {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
-                    <Text key={i} style={styles.weekDayText}>
-                      {day}
-                    </Text>
-                  ))}
-                </View>
-
-                {/* Days Grid */}
-                <View style={styles.calendarGrid}>
-                  {calendarDays.map((item, index) => {
-                    if (!item.day) {
-                      return <View key={index} style={styles.dayCell} />;
-                    }
-
-                    const isSelected =
-                      item.date &&
-                      selectedDate.format("YYYY-MM-DD") ===
-                        item.date.format("YYYY-MM-DD");
-                    const isToday =
-                      item.date &&
-                      item.date.format("YYYY-MM-DD") ===
-                        dayjs().format("YYYY-MM-DD");
-                    const isPast =
-                      item.date && item.date.isBefore(dayjs(), "day");
-
-                    return (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {/* Calendar */}
+                  <View style={styles.calendarContainer}>
+                    <View style={styles.calendarHeader}>
                       <TouchableOpacity
-                        key={index}
+                        onPress={() => changeMonth(-1)}
+                        style={styles.calendarArrow}
+                      >
+                        <Ionicons
+                          name="chevron-back"
+                          size={20}
+                          color={colors.text}
+                        />
+                      </TouchableOpacity>
+                      <Text style={styles.calendarMonthTitle}>
+                        {currentMonth.format("MMMM YYYY")}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => changeMonth(1)}
+                        style={styles.calendarArrow}
+                      >
+                        <Ionicons
+                          name="chevron-forward"
+                          size={20}
+                          color={colors.text}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.weekDaysRow}>
+                      {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
+                        <Text key={i} style={styles.weekDayText}>
+                          {day}
+                        </Text>
+                      ))}
+                    </View>
+
+                    <View style={styles.calendarGrid}>
+                      {calendarDays.map((item, index) => {
+                        if (!item.day)
+                          return <View key={index} style={styles.dayCell} />;
+
+                        const isSelected =
+                          item.date &&
+                          selectedDate.format("YYYY-MM-DD") ===
+                            item.date.format("YYYY-MM-DD");
+                        const isToday =
+                          item.date &&
+                          item.date.format("YYYY-MM-DD") ===
+                            dayjs().format("YYYY-MM-DD");
+                        const isPast =
+                          item.date && item.date.isBefore(dayjs(), "day");
+
+                        return (
+                          <TouchableOpacity
+                            key={index}
+                            style={[
+                              styles.dayCell,
+                              isSelected && styles.dayCellSelected,
+                              isToday && !isSelected && styles.dayCellToday,
+                            ]}
+                            disabled={!!isPast}
+                            onPress={() =>
+                              item.date && setSelectedDate(item.date)
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.dayText,
+                                isPast && styles.dayTextDisabled,
+                                isSelected && styles.dayTextSelected,
+                              ]}
+                            >
+                              {item.day}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <Text style={styles.selectedDateText}>
+                      Selected: {selectedDate.format("dddd, MMMM D")}
+                    </Text>
+                  </View>
+
+                  {/* Time Slots (Centered) */}
+                  <Text style={styles.inputLabel}>Start Time</Text>
+                  <View style={styles.wrapGrid}>
+                    {timeSlots.map((time) => {
+                      const isAvailable = isTimeSlotAvailable(time);
+                      const isSelected = selectedTime === time;
+                      return (
+                        <TouchableOpacity
+                          key={time}
+                          disabled={!isAvailable}
+                          onPress={() => setSelectedTime(time)}
+                          style={[
+                            styles.timeChip,
+                            !isAvailable && styles.timeChipDisabled,
+                            isSelected && styles.timeChipSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.timeText,
+                              !isAvailable && styles.timeTextDisabled,
+                              isSelected && styles.textSelected,
+                            ]}
+                          >
+                            {time}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Duration (Includes 1 Hour) */}
+                  <Text style={styles.inputLabel}>Duration</Text>
+                  <View style={styles.durationRow}>
+                    {[1, 2, 4, 8].map((hrs) => (
+                      <TouchableOpacity
+                        key={hrs}
+                        onPress={() => setSessionLength(hrs)}
                         style={[
-                          styles.dayCell,
-                          isSelected && styles.dayCellSelected,
-                          isToday && !isSelected && styles.dayCellToday,
+                          styles.durationBtn,
+                          sessionLength === hrs && styles.durationBtnSelected,
                         ]}
-                        disabled={!!isPast}
-                        onPress={() => item.date && setSelectedDate(item.date)}
                       >
                         <Text
                           style={[
-                            styles.dayText,
-                            isPast && styles.dayTextDisabled,
-                            isSelected && styles.dayTextSelected,
+                            styles.durationText,
+                            sessionLength === hrs && styles.textSelected,
                           ]}
                         >
-                          {item.day}
+                          {hrs}h
                         </Text>
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                <Text style={styles.selectedDateText}>
-                  Selected: {selectedDate.format("dddd, MMMM D")}
-                </Text>
-              </View>
+                    ))}
+                  </View>
 
-              {/* Time Slots */}
-              <Text style={styles.inputLabel}>Start Time</Text>
-              <View style={styles.wrapGrid}>
-                {timeSlots.map((time) => {
-                  const isAvailable = isTimeSlotAvailable(time);
-                  const isSelected = selectedTime === time;
-                  return (
-                    <TouchableOpacity
-                      key={time}
-                      disabled={!isAvailable}
-                      onPress={() => setSelectedTime(time)}
-                      style={[
-                        styles.timeChip,
-                        !isAvailable && styles.timeChipDisabled,
-                        isSelected && styles.timeChipSelected,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.timeText,
-                          !isAvailable && styles.timeTextDisabled,
-                          isSelected && styles.textSelected,
-                        ]}
-                      >
-                        {time}
+                  {/* Receipt / Total */}
+                  <View style={styles.receiptContainer}>
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptLabel}>Rate</Text>
+                      <Text style={styles.receiptValue}>
+                        ${studio.hourlyRate} x {sessionLength}hrs
                       </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                    </View>
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptLabel}>Service Fee</Text>
+                      <Text style={styles.receiptValue}>
+                        ${calculateServiceFee().toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.divider} />
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.totalLabel}>Total</Text>
+                      <Text style={styles.totalValue}>
+                        ${calculateTotal().toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
 
-              {/* Duration */}
-              <Text style={styles.inputLabel}>Duration</Text>
-              <View style={styles.durationRow}>
-                {[2, 4, 8].map((hrs) => (
-                  <TouchableOpacity
-                    key={hrs}
-                    onPress={() => setSessionLength(hrs)}
-                    style={[
-                      styles.durationBtn,
-                      sessionLength === hrs && styles.durationBtnSelected,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.durationText,
-                        sessionLength === hrs && styles.textSelected,
-                      ]}
+                  {/* --- NEGOTIATE & CONFIRM BUTTONS --- */}
+                  <View style={styles.actionButtonsContainer}>
+                    <TouchableOpacity
+                      style={styles.negotiateButton}
+                      onPress={handleNegotiate}
                     >
-                      {hrs} Hours
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                      <Text style={styles.negotiateButtonText}>Negotiate</Text>
+                    </TouchableOpacity>
 
-              {/* Receipt / Total */}
-              <View style={styles.receiptContainer}>
-                <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Rate</Text>
-                  <Text style={styles.receiptValue}>
-                    ${studio.hourlyRate} x {sessionLength}hrs
-                  </Text>
-                </View>
-                <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Service Fee</Text>
-                  <Text style={styles.receiptValue}>
-                    ${calculateServiceFee().toFixed(2)}
-                  </Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.receiptRow}>
-                  <Text style={styles.totalLabel}>Total</Text>
-                  <Text style={styles.totalValue}>
-                    ${calculateTotal().toFixed(2)}
-                  </Text>
-                </View>
-              </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.confirmButton,
+                        (!selectedTime || createBooking.isPending) && {
+                          opacity: 0.5,
+                        },
+                      ]}
+                      onPress={handleBooking}
+                      disabled={!selectedTime || createBooking.isPending}
+                    >
+                      {createBooking.isPending ? (
+                        <ActivityIndicator color="#000" />
+                      ) : (
+                        <Text style={styles.confirmButtonText}>Confirm</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.confirmButton,
-                  (!selectedTime || createBooking.isPending) && {
-                    opacity: 0.5,
-                  },
-                ]}
-                onPress={handleBooking}
-                disabled={!selectedTime || createBooking.isPending}
-              >
-                {createBooking.isPending ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <Text style={styles.confirmButtonText}>Confirm & Pay</Text>
-                )}
-              </TouchableOpacity>
-              <View style={{ height: 40 }} />
-            </ScrollView>
+                  <View style={{ height: 40 }} />
+                </ScrollView>
+              </>
+            )}
+            {/* CONDITIONAL RENDERING ENDS HERE */}
           </View>
         </View>
       </Modal>
@@ -744,24 +829,28 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
-  ratingBadge: {
+
+  // --- UPDATED SLEEK RATING PILL ---
+  sleekRatingPill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.15)", // Glassy
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 100,
     alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
+    backdropFilter: "blur(10px)",
   },
   ratingText: {
     color: "#FFF",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "bold",
-    marginLeft: 4,
+    marginLeft: 6,
   },
+
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -813,9 +902,7 @@ const styles = StyleSheet.create({
   bodyContent: {
     padding: 20,
   },
-  sectionFade: {
-    // animation hooks could go here
-  },
+  sectionFade: {},
   priceRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -964,24 +1051,23 @@ const styles = StyleSheet.create({
     height: 150,
   },
   bottomContainer: {
-    flexDirection: "row", // Changed to row
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12, // Gap between Chat and Book
+    gap: 12,
   },
   chatButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.1)", // Glass effect
+    backgroundColor: "rgba(255,255,255,0.1)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
-    backdropFilter: "blur(10px)", // Works on iOS mostly
   },
   primaryButton: {
-    flex: 1, // Takes remaining space
+    flex: 1,
     backgroundColor: "#FFF",
     height: 56,
     borderRadius: 28,
@@ -1006,7 +1092,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#111",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    height: "90%", // Made slightly taller for calendar
+    height: "90%",
     padding: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -10 },
@@ -1076,7 +1162,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   weekDayText: {
-    width: "14.28%", // 100 / 7
+    width: "14.28%",
     textAlign: "center",
     color: DARK_THEME.textDim,
     fontSize: 12,
@@ -1125,6 +1211,7 @@ const styles = StyleSheet.create({
   wrapGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "center",
     gap: 10,
     marginBottom: 10,
   },
@@ -1135,6 +1222,8 @@ const styles = StyleSheet.create({
     backgroundColor: DARK_THEME.surfaceHighlight,
     borderWidth: 1,
     borderColor: DARK_THEME.border,
+    minWidth: "28%",
+    alignItems: "center",
   },
   timeChipDisabled: {
     opacity: 0.3,
@@ -1212,7 +1301,28 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
+
+  // --- SPLIT ACTION BUTTONS ---
+  actionButtonsContainer: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  negotiateButton: {
+    flex: 1,
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  negotiateButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
   confirmButton: {
+    flex: 1,
     backgroundColor: DARK_THEME.accent,
     paddingVertical: 18,
     borderRadius: 16,
@@ -1224,7 +1334,66 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: "#FFF",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
+  },
+
+  // SUCCESS VIEW STYLES
+  successContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  successIconBg: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(0, 224, 150, 0.1)", // Subtle green glow
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "rgba(0, 224, 150, 0.2)",
+  },
+  successTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#FFF",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  successMessage: {
+    fontSize: 16,
+    color: DARK_THEME.textDim,
+    textAlign: "center",
+    marginBottom: 40,
+    lineHeight: 24,
+  },
+  successButton: {
+    backgroundColor: DARK_THEME.accent,
+    width: "100%",
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    marginBottom: 16,
+    shadowColor: DARK_THEME.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  successButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  closeSuccessButton: {
+    paddingVertical: 12,
+  },
+  closeSuccessText: {
+    color: DARK_THEME.textDim,
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

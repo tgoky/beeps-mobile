@@ -16,7 +16,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -31,7 +31,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 dayjs.extend(relativeTime);
@@ -105,12 +105,22 @@ export default function BookingsScreen() {
   const colors = Colors[effectiveTheme];
   const isDark = effectiveTheme === "dark";
 
-  const [mainView, setMainView] = useState<MainViewMode>("service_requests");
+  // Get navigation params
+  const params = useLocalSearchParams<{
+    initialView?: string;
+    initialBookingView?: string;
+  }>();
+
+  const [mainView, setMainView] = useState<MainViewMode>(
+    (params.initialView as MainViewMode) || "service_requests",
+  );
   const [serviceRequestView, setServiceRequestView] =
     useState<ServiceRequestViewMode>("sent");
-  const [bookingView, setBookingView] =
-    useState<BookingViewMode>("my_bookings");
+  const [bookingView, setBookingView] = useState<BookingViewMode>(
+    (params.initialBookingView as BookingViewMode) || "my_bookings",
+  );
   const [filter, setFilter] = useState<FilterType>("all");
+
   const [refreshing, setRefreshing] = useState(false);
   const [showResponseModal, setShowResponseModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
