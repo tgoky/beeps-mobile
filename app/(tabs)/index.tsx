@@ -383,24 +383,16 @@ export default function HomeScreen() {
         ]}
       >
         <CustomMapView
-          studios={studios || []}
-          producers={producers || []}
-          artists={artists || []}
-          recentActivity={[]}
+          studios={activeTab === "studios" ? filteredData : []}
           theme={effectiveTheme}
           region={region}
           userLocation={userLocation}
-          onStudioPress={(studio) => router.push(`/studio/${studio.id}`)}
-          onProducerPress={(producer) =>
-            setRequestServiceProducer({
-              id: producer.userId,
-              name: producer.user?.fullName,
-            })
-          }
-          onArtistPress={(artist) =>
-            router.push(`/profile/${artist.userId || artist.user?.id}`)
-          }
-          selectedStudio={null}
+          // 👇 ADD THESE MISSING PROPS 👇
+          onStudioPress={(studio) => {
+            router.push(`/studio/${studio.id}`);
+          }}
+          selectedStudio={null} // You can pass a state here if you want to highlight a specific studio
+          recentActivity={[]} // Pass empty array or your activity data
         />
       </View>
 

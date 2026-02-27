@@ -95,9 +95,10 @@ const THEME_COLORS = {
 interface Studio {
   id: string;
   name: string;
-  latitude?: number;
-  longitude?: number;
+  latitude: number;
+  longitude: number;
   hourlyRate: number;
+  type: "studio";
 }
 
 export interface RecentActivity {
@@ -359,13 +360,9 @@ const OffScreenIndicator = ({
 
 export default function CustomMapView({
   studios,
-  producers, // Add this
-  artists, // Add this
   recentActivity = [],
   theme,
   onStudioPress,
-  onProducerPress, // Add this
-  onArtistPress, // Add this
   selectedStudio,
   userLocation,
   region,
@@ -466,7 +463,7 @@ export default function CustomMapView({
   const handleViewSession = () => {
     if (selectedActivity?.sessionId) {
       setSelectedActivity(null);
-      // router.push(`/sessions/${selectedActivity.sessionId}`);
+      router.push(`/session/${selectedActivity.sessionId}`);
     }
   };
 
@@ -570,9 +567,6 @@ export default function CustomMapView({
 
             {/* Studio Markers */}
             {studios.map((studio) => {
-              // Skip if no coordinates
-              if (!studio.latitude || !studio.longitude) return null;
-
               const pos = getRelativePosition(
                 studio.latitude,
                 studio.longitude,
@@ -620,76 +614,6 @@ export default function CustomMapView({
                           ${studio.hourlyRate}
                         </Text>
                       )}
-                    </View>
-                    <View style={styles.markerStick} />
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-
-            {/* Producer Markers - ADD THIS HERE */}
-            {producers?.map((producer) => {
-              const pos = getRelativePosition(
-                producer.latitude || region.latitude,
-                producer.longitude || region.longitude,
-              );
-              return (
-                <View
-                  key={producer.userId || `prod-${producer.id}`}
-                  style={{
-                    position: "absolute",
-                    left: pos.x,
-                    top: pos.y,
-                    zIndex: 10,
-                  }}
-                >
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={() => onProducerPress?.(producer)}
-                    style={styles.markerContainer}
-                  >
-                    <View
-                      style={[
-                        styles.markerHead,
-                        { backgroundColor: "#8B5CF6" }, // Purple for producers
-                      ]}
-                    >
-                      <Music size={14} color="#fff" />
-                    </View>
-                    <View style={styles.markerStick} />
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-
-            {/* Artist Markers - ADD THIS HERE */}
-            {artists?.map((artist) => {
-              const pos = getRelativePosition(
-                artist.latitude || region.latitude,
-                artist.longitude || region.longitude,
-              );
-              return (
-                <View
-                  key={artist.userId || `artist-${artist.id}`}
-                  style={{
-                    position: "absolute",
-                    left: pos.x,
-                    top: pos.y,
-                    zIndex: 10,
-                  }}
-                >
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={() => onArtistPress?.(artist)}
-                    style={styles.markerContainer}
-                  >
-                    <View
-                      style={[
-                        styles.markerHead,
-                        { backgroundColor: "#10B981" }, // Green for artists
-                      ]}
-                    >
-                      <User size={14} color="#fff" />
                     </View>
                     <View style={styles.markerStick} />
                   </TouchableOpacity>
