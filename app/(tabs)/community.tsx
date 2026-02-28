@@ -17,6 +17,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -44,18 +45,45 @@ const COLORS = {
   yellow: "#FFD600", // MTN
   blue: "#2962FF", // Button Blue
   orange: "#FF6D00",
+  // New specific blue for the screenshot design
+  badgeBlue: "#2563eb",
 };
 
 // Map Roles to simple icon colors (keeping original colors)
 const ROLE_CONFIG: Record<
   UserRole,
-  { name: string; icon: string; color: string }
+  { name: string; displayName: string; icon: string; color: string }
 > = {
-  ARTIST: { name: "Artist", icon: "microphone", color: COLORS.red },
-  PRODUCER: { name: "Producer", icon: "fader", color: COLORS.blue },
-  STUDIO_OWNER: { name: "Studio", icon: "domain", color: COLORS.green },
-  GEAR_SELLER: { name: "Gear", icon: "guitar-pick", color: COLORS.orange },
-  LYRICIST: { name: "Writer", icon: "pencil", color: COLORS.yellow },
+  ARTIST: {
+    name: "Artist",
+    displayName: "Artist",
+    icon: "microphone",
+    color: COLORS.red,
+  },
+  PRODUCER: {
+    name: "Producer",
+    displayName: "Producer",
+    icon: "fader",
+    color: COLORS.blue,
+  },
+  STUDIO_OWNER: {
+    name: "Studio",
+    displayName: "Studio",
+    icon: "domain",
+    color: COLORS.green,
+  },
+  GEAR_SELLER: {
+    name: "Gear",
+    displayName: "Gear",
+    icon: "guitar-pick",
+    color: COLORS.orange,
+  },
+  LYRICIST: {
+    name: "Writer",
+    displayName: "Writer",
+    icon: "pencil",
+    color: COLORS.yellow,
+  },
 };
 
 export default function CommunityScreen() {
@@ -65,6 +93,7 @@ export default function CommunityScreen() {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [scrollY] = useState(new Animated.Value(0));
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Data Hooks
   const {
@@ -82,28 +111,49 @@ export default function CommunityScreen() {
     setRefreshing(false);
   };
 
-  // 1. HEADER SECTION
+  // Filter clubs based on search query
+  const filteredClubs = clubs?.filter((club) =>
+    club.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  // 1. HEADER SECTION - Updated with Search Bar
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      <View>
-        <Text style={styles.headerLabel}>Current Location</Text>
-        <View style={styles.locationRow}>
-          <Ionicons name="location-sharp" size={14} color={COLORS.offWhite} />
-          <Text style={styles.headerTitle}>Lagos, Nigeria</Text>
-        </View>
+      <View style={styles.searchSection}>
+        <Ionicons
+          name="search"
+          size={20}
+          color={COLORS.textGrey}
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search clubs..."
+          placeholderTextColor={COLORS.textGrey}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchQuery("")}
+            style={styles.clearButton}
+          >
+            <Ionicons name="close-circle" size={16} color={COLORS.textGrey} />
+          </TouchableOpacity>
+        )}
       </View>
       <NotificationBell />
     </View>
   );
 
-  // 2. CARD SECTION (Updated with brand accent)
+  // 2. CARD SECTION - Updated with Pattern Backgrounds
   const renderHeroSection = () => (
     <View style={styles.heroContainer}>
       <View style={styles.blackCard}>
         <View style={styles.blackCardTop}>
           <Text style={styles.blackCardLabel}>COMMUNITY STATUS</Text>
           <View style={styles.historyPill}>
-            <Text style={styles.historyText}>History</Text>
+            <Text style={styles.historyText}>Clubs Created</Text>
             <Ionicons name="chevron-down" size={12} color={COLORS.black} />
           </View>
         </View>
@@ -122,61 +172,64 @@ export default function CommunityScreen() {
           />
         </View>
 
-        {/* Action Row */}
-        <View style={styles.actionRow}>
-          {userRoles?.slice(0, 4).map((role) => (
-            <TouchableOpacity
-              key={role}
-              style={styles.actionItem}
-              onPress={() => router.push(`/community/${role.toLowerCase()}`)}
-            >
-              <View
-                style={[
-                  styles.actionIconBox,
-                  { backgroundColor: "rgba(245, 158, 11, 0.2)" },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={(ROLE_CONFIG[role]?.icon as any) || "star"}
-                  size={24}
-                  color={COLORS.accent}
-                />
-              </View>
-              <Text style={styles.actionText}>{ROLE_CONFIG[role]?.name}</Text>
-            </TouchableOpacity>
-          ))}
+        {/* REPLACED SECTION: New Badge Design with Patterns */}
+        <View style={styles.badgeRow}>
+          {/* Artists Community Badge */}
+          <TouchableOpacity
+            style={styles.blueBadge}
+            onPress={() => router.push(`/community/artist`)}
+          >
+            {/* Cool Pattern: Sound Wave - VISIBILITY INCREASED */}
+            <View style={styles.patternContainer}>
+              <MaterialCommunityIcons
+                name="waveform"
+                size={90}
+                color="rgba(255,255,255,0.2)" // Increased opacity
+              />
+            </View>
+            <Text style={styles.blueBadgeText}>Artists{"\n"}Community</Text>
+          </TouchableOpacity>
 
-          {/* If no roles, show default actions */}
-          {(!userRoles || userRoles.length === 0) && (
-            <TouchableOpacity
-              style={styles.actionItem}
-              onPress={() => router.push("/settings")}
+          {/* Producers Community Badge */}
+          <TouchableOpacity
+            style={styles.blueBadge}
+            onPress={() => router.push(`/community/producer`)}
+          >
+            {/* Cool Pattern: Sliders/Lines - VISIBILITY INCREASED */}
+            <View
+              style={[styles.patternContainer, { right: -10, bottom: -20 }]}
             >
-              <View
-                style={[
-                  styles.actionIconBox,
-                  { backgroundColor: "rgba(245, 158, 11, 0.2)" },
-                ]}
-              >
-                <Ionicons name="add" size={28} color={COLORS.accent} />
-              </View>
-              <Text style={styles.actionText}>Join Role</Text>
-            </TouchableOpacity>
-          )}
+              <MaterialCommunityIcons
+                name="tune"
+                size={90}
+                color="rgba(255,255,255,0.2)" // Increased opacity
+              />
+            </View>
+            <Text style={styles.blueBadgeText}>Producers{"\n"}Community</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
   );
 
-  // 3. PROMO BANNER (Updated with brand accent)
+  // 3. PROMO BANNER (Updated with brand accent + Pattern)
   const renderPromoBanner = () => (
     <View style={styles.promoContainer}>
+      {/* ADDED: Background Pattern for Promo */}
+      <View style={styles.promoPatternContainer}>
+        <MaterialCommunityIcons
+          name="playlist-music"
+          size={120}
+          color="rgba(0,0,0,0.06)"
+        />
+      </View>
+
       <View style={styles.promoContent}>
         <Text style={[styles.promoLabel, { color: "#000000" }]}>
-          No active events yet
+          join clubs & communities
         </Text>
         <Text style={styles.promoTitle}>
-          Start hosting your{"\n"}own events
+          Get creative and join{"\n"}create your magic!
         </Text>
 
         <TouchableOpacity
@@ -203,19 +256,51 @@ export default function CommunityScreen() {
     </View>
   );
 
-  // 4. GRID SECTION
-  const renderClubsGrid = () => {
-    if (clubsLoading)
-      return (
-        <ActivityIndicator color={COLORS.accent} style={{ marginTop: 20 }} />
-      );
+  // 4. MY CLUBS SECTION - Updated with "See More" Logic
+  const renderMyClubsSection = () => {
+    if (clubsLoading) return null;
+
+    const myClubsList = myClubs || [];
+    if (myClubsList.length === 0) return null;
+
+    // Logic: If user has > 6 clubs, show 5 clubs + 1 "See More" card.
+    // If user has <= 6 clubs, show all of them.
+    const DISPLAY_LIMIT = 6;
+    const shouldTruncate = myClubsList.length > DISPLAY_LIMIT;
+
+    // We display 5 real clubs if truncating (to make room for the 6th "See More" card),
+    // otherwise we display all of them.
+    const clubsToDisplay = shouldTruncate
+      ? myClubsList.slice(0, 5)
+      : myClubsList;
+
+    const remainingCount = myClubsList.length - 5;
 
     return (
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Explore Communities</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
+            My Clubs
+          </Text>
+          {/* Optional text link if preferred over card */}
+          {shouldTruncate && (
+            <Text
+              style={{ color: COLORS.accent, fontSize: 12, fontWeight: "700" }}
+            >
+              See All
+            </Text>
+          )}
+        </View>
 
         <View style={styles.gridContainer}>
-          {clubs?.map((club) => (
+          {clubsToDisplay.map((club) => (
             <TouchableOpacity
               key={club.id}
               style={styles.gridItem}
@@ -231,28 +316,110 @@ export default function CommunityScreen() {
               <Text style={styles.gridLabel} numberOfLines={1}>
                 {club.name}
               </Text>
-
-              {/* Optional "New" or "Hot" Badge */}
-              {club.memberCount > 50 && (
-                <View
-                  style={[styles.gridBadge, { backgroundColor: COLORS.accent }]}
-                >
-                  <Text style={styles.gridBadgeText}>Hot</Text>
-                </View>
-              )}
             </TouchableOpacity>
           ))}
 
-          {/* "See More" placeholder item */}
-          <TouchableOpacity style={styles.gridItem}>
-            <View
-              style={[styles.gridIconContainer, { backgroundColor: "#222" }]}
+          {/* SEE MORE CARD: Only renders if shouldTruncate is true */}
+          {shouldTruncate && (
+            <TouchableOpacity
+              style={[
+                styles.gridItem,
+                { backgroundColor: "#222", borderColor: COLORS.accent },
+              ]}
+              onPress={() => router.push("/my-clubs")} // Example route
+              activeOpacity={0.7}
             >
-              <Ionicons name="grid" size={20} color={COLORS.accent} />
-            </View>
-            <Text style={styles.gridLabel}>All Clubs</Text>
-          </TouchableOpacity>
+              <View
+                style={[
+                  styles.gridIconContainer,
+                  { backgroundColor: "transparent" },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 18,
+                    color: COLORS.accent,
+                    fontWeight: "800",
+                  }}
+                >
+                  +{remainingCount}
+                </Text>
+              </View>
+              <Text style={[styles.gridLabel, { color: COLORS.accent }]}>
+                See More
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
+      </View>
+    );
+  };
+
+  // 5. EXPLORE CLUBS SECTION
+  const renderExploreClubsSection = () => {
+    if (clubsLoading)
+      return (
+        <ActivityIndicator color={COLORS.accent} style={{ marginTop: 20 }} />
+      );
+
+    const displayClubs = filteredClubs || [];
+
+    return (
+      <View style={styles.sectionContainer}>
+        <Text style={styles.sectionTitle}>
+          Explore Clubs or Join Communities
+        </Text>
+
+        {displayClubs.length === 0 && searchQuery.length > 0 ? (
+          <View style={styles.noResultsContainer}>
+            <Text style={styles.noResultsText}>
+              No clubs found matching "{searchQuery}"
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.gridContainer}>
+            {displayClubs.map((club) => (
+              <TouchableOpacity
+                key={club.id}
+                style={styles.gridItem}
+                onPress={() => router.push(`/club/${club.id}`)}
+                activeOpacity={0.7}
+              >
+                {/* Icon */}
+                <View style={styles.gridIconContainer}>
+                  <Text style={{ fontSize: 24 }}>{club.icon || "🎸"}</Text>
+                </View>
+
+                {/* Text */}
+                <Text style={styles.gridLabel} numberOfLines={1}>
+                  {club.name}
+                </Text>
+
+                {/* Optional "New" or "Hot" Badge */}
+                {club.memberCount > 50 && (
+                  <View
+                    style={[
+                      styles.gridBadge,
+                      { backgroundColor: COLORS.accent },
+                    ]}
+                  >
+                    <Text style={styles.gridBadgeText}>Hot</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* "See More" placeholder item */}
+            <TouchableOpacity style={styles.gridItem}>
+              <View
+                style={[styles.gridIconContainer, { backgroundColor: "#222" }]}
+              >
+                <Ionicons name="grid" size={20} color={COLORS.accent} />
+              </View>
+              <Text style={styles.gridLabel}>All Clubs</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -278,7 +445,8 @@ export default function CommunityScreen() {
         >
           {renderHeroSection()}
           {renderPromoBanner()}
-          {renderClubsGrid()}
+          {renderMyClubsSection()}
+          {renderExploreClubsSection()}
         </ScrollView>
 
         {/* Floating Action Button */}
@@ -315,22 +483,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
+    gap: 12,
   },
-  headerLabel: {
-    fontSize: 12,
-    color: COLORS.textGrey,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  locationRow: {
+  searchSection: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    backgroundColor: COLORS.cardBlack,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    height: 44,
   },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+  searchIcon: {
+    marginLeft: 12,
+  },
+  searchInput: {
+    flex: 1,
     color: COLORS.offWhite,
+    fontSize: 15,
+    paddingHorizontal: 8,
+    height: "100%",
+  },
+  clearButton: {
+    marginRight: 12,
   },
 
   // Black Card (Hero)
@@ -397,29 +573,44 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
 
-  // Action Row
-  actionRow: {
+  // NEW STYLES FOR SCREENSHOT LOOKING BUTTONS WITH PATTERNS
+  badgeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 10,
+    gap: 12,
+    marginTop: 5,
   },
-  actionItem: {
-    alignItems: "center",
-    gap: 8,
-  },
-  actionIconBox: {
-    width: 48,
-    height: 48,
+  blueBadge: {
+    flex: 1,
+    backgroundColor: COLORS.badgeBlue, // The blue from screenshot
     borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
+    borderWidth: 2,
+    borderColor: "#000000",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    justifyContent: "center", // Text centered vertically
+    minHeight: 90,
+    overflow: "hidden", // Clips the large pattern icons
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  actionText: {
-    color: COLORS.offWhite,
-    fontSize: 12,
-    fontWeight: "600",
+  blueBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+    lineHeight: 22,
+    zIndex: 2, // Ensures text is above the pattern
+  },
+  patternContainer: {
+    position: "absolute",
+    right: -15,
+    bottom: -15,
+    // Removed Opacity container, used Color Alpha instead
+    transform: [{ rotate: "-15deg" }],
   },
 
   // Promo Banner
@@ -441,6 +632,13 @@ const styles = StyleSheet.create({
     elevation: 2,
     position: "relative",
     overflow: "hidden",
+  },
+  promoPatternContainer: {
+    position: "absolute",
+    left: -20,
+    bottom: -30,
+    opacity: 1,
+    zIndex: 1,
   },
   promoContent: {
     flex: 1,
@@ -547,6 +745,15 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: COLORS.pureWhite,
     fontWeight: "700",
+  },
+  noResultsContainer: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  noResultsText: {
+    color: COLORS.textGrey,
+    fontSize: 14,
+    textAlign: "center",
   },
 
   fab: {
