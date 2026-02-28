@@ -288,7 +288,7 @@ export default function UserProfileScreen() {
             >
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons
-                  name="fader"
+                  name="speaker"
                   size={20}
                   color={colors.primary}
                 />

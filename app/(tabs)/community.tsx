@@ -2,24 +2,6 @@ import CreateClubModal from "@/components/CreateClubModal";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClubs, useMyClubs } from "@/hooks/useClubs";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Dimensions,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-
-// 1. IMPORT MANROPE
 import {
   Manrope_400Regular,
   Manrope_500Medium,
@@ -28,6 +10,33 @@ import {
   Manrope_800ExtraBold,
   useFonts,
 } from "@expo-google-fonts/manrope";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  Modal,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  UIManager,
+  View,
+} from "react-native";
+
+// Enable LayoutAnimation
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const { width } = Dimensions.get("window");
 const GAP = 12;
@@ -37,20 +46,146 @@ const GRID_ITEM_WIDTH = (width - PADDING * 2 - GAP * 2) / 3;
 const COLORS = {
   background: "#000000",
   cardBlack: "#0A0A0A",
+  cardDark: "#151515",
   pureWhite: "#FFFFFF",
   offWhite: "#F5F5F5",
   textGrey: "#888888",
-  lightGrey: "#1A1A1A",
   border: "#222222",
   accent: "#f59e0b",
   badgeBlue: "#2563eb",
+  red: "#D50000",
 };
 
+// --- TERMS MODAL COMPONENT ---
+const CommunityTermsModal = ({
+  visible,
+  onClose,
+  onAccept,
+  type,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onAccept: () => void;
+  type: "artist" | "producer";
+}) => {
+  const communityName = type === "artist" ? "Artist" : "Producer";
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet" // Native iOS sheet look
+      onRequestClose={onClose}
+      transparent={Platform.OS === "android"} // Transparent on Android to avoid white background
+    >
+      {/* Wrapper to ensure black background on Android/Cross-platform */}
+      <View style={styles.modalWrapper}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>COMMUNITY GUIDELINES</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color={COLORS.textGrey} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            style={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.iconHeader}>
+              <View style={styles.shieldIcon}>
+                <MaterialCommunityIcons
+                  name={type === "artist" ? "microphone-variant" : "speaker"}
+                  size={48}
+                  color={COLORS.accent}
+                />
+              </View>
+              {/* DYNAMIC WELCOME TEXT */}
+              <Text style={styles.welcomeTextModal}>
+                Welcome to the {communityName} Community
+              </Text>
+              <Text style={styles.welcomeSubText}>
+                To ensure a safe and creative environment for everyone, please
+                agree to the following rules before entering.
+              </Text>
+            </View>
+
+            {/* RULES LIST */}
+            <View style={styles.rulesContainer}>
+              <RuleItem
+                icon="hand-shake"
+                title="Respect Everyone"
+                desc="Harassment, hate speech, and bullying will result in an immediate ban. Be cool."
+              />
+              <RuleItem
+                icon="copyright"
+                title="Respect Copyright"
+                desc="Only upload beats, lyrics, and content you own or have rights to. No stealing flows."
+              />
+              <RuleItem
+                icon="message-alert"
+                title="No Spamming"
+                desc="Don't spam collaborations or self-promo in inappropriate channels."
+              />
+              <RuleItem
+                icon="account-check"
+                title="Authenticity"
+                desc="Be yourself. Impersonating other artists or producers is not allowed."
+              />
+            </View>
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
+
+          {/* FOOTER ACTIONS */}
+          <View style={styles.modalFooter}>
+            <Text style={styles.legalFinePrint}>
+              By clicking "I Agree", you acknowledge that you have read and
+              understood our full Terms of Service and Privacy Policy.
+            </Text>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={styles.declineButton} onPress={onClose}>
+                <Text style={styles.declineText}>DECLINE</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.acceptButton} onPress={onAccept}>
+                <Text style={styles.acceptText}>I AGREE & ENTER</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const RuleItem = ({
+  icon,
+  title,
+  desc,
+}: {
+  icon: any;
+  title: string;
+  desc: string;
+}) => (
+  <View style={styles.ruleItem}>
+    <View style={styles.ruleIconBox}>
+      <MaterialCommunityIcons name={icon} size={20} color={COLORS.pureWhite} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.ruleTitle}>{title}</Text>
+      <Text style={styles.ruleDesc}>{desc}</Text>
+    </View>
+  </View>
+);
+
+// --- MAIN SCREEN ---
 export default function CommunityScreen() {
   const { user } = useAuth();
   const router = useRouter();
 
-  // 2. LOAD FONTS
+  // Load Fonts
   let [fontsLoaded] = useFonts({
     Manrope_400Regular,
     Manrope_500Medium,
@@ -62,6 +197,15 @@ export default function CommunityScreen() {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // TERMS STATE
+  const [termsVisible, setTermsVisible] = useState(false);
+  const [targetRoute, setTargetRoute] = useState<string | null>(null);
+  const [selectedCommunityType, setSelectedCommunityType] = useState<
+    "artist" | "producer"
+  >("artist");
+  // In a real app, this would come from the User Profile DB
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
 
   const {
     data: clubs,
@@ -83,6 +227,25 @@ export default function CommunityScreen() {
   const filteredClubs = clubs?.filter((club) =>
     club.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+
+  // LOGIC TO HANDLE COMMUNITY CLICK
+  const handleCommunityPress = (type: "artist" | "producer", route: string) => {
+    setSelectedCommunityType(type);
+    if (hasAcceptedTerms) {
+      router.push(route as any);
+    } else {
+      setTargetRoute(route);
+      setTermsVisible(true);
+    }
+  };
+
+  const handleAcceptTerms = () => {
+    setHasAcceptedTerms(true);
+    setTermsVisible(false);
+    if (targetRoute) {
+      router.push(targetRoute as any);
+    }
+  };
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
@@ -120,7 +283,7 @@ export default function CommunityScreen() {
           <Text style={styles.blackCardLabel}>COMMUNITY STATUS</Text>
           <View style={styles.historyPill}>
             <Text style={styles.historyText}>Clubs Created</Text>
-            <Ionicons name="chevron-down" size={12} color={COLORS.black} />
+            <Ionicons name="chevron-down" size={12} color={COLORS.cardBlack} />
           </View>
         </View>
 
@@ -141,7 +304,7 @@ export default function CommunityScreen() {
         <View style={styles.badgeRow}>
           <TouchableOpacity
             style={styles.blueBadge}
-            onPress={() => router.push(`/community/artist`)}
+            onPress={() => handleCommunityPress("artist", "/community/artist")}
           >
             <View style={styles.patternContainer}>
               <MaterialCommunityIcons
@@ -155,7 +318,9 @@ export default function CommunityScreen() {
 
           <TouchableOpacity
             style={styles.blueBadge}
-            onPress={() => router.push(`/community/producer`)}
+            onPress={() =>
+              handleCommunityPress("producer", "/community/producer")
+            }
           >
             <View
               style={[styles.patternContainer, { right: -10, bottom: -20 }]}
@@ -392,6 +557,7 @@ export default function CommunityScreen() {
           <Feather name="plus" size={28} color={COLORS.pureWhite} />
         </TouchableOpacity>
       </SafeAreaView>
+
       {user && (
         <CreateClubModal
           visible={createModalVisible}
@@ -399,6 +565,14 @@ export default function CommunityScreen() {
           userId={user.id}
         />
       )}
+
+      {/* TERMS AND CONDITIONS MODAL */}
+      <CommunityTermsModal
+        visible={termsVisible}
+        onClose={() => setTermsVisible(false)}
+        onAccept={handleAcceptTerms}
+        type={selectedCommunityType}
+      />
     </View>
   );
 }
@@ -477,7 +651,7 @@ const styles = StyleSheet.create({
   },
   historyText: {
     fontSize: 10,
-    color: COLORS.black,
+    color: COLORS.cardBlack,
     fontFamily: "Manrope_800ExtraBold",
   },
   welcomeText: {
@@ -700,5 +874,144 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 8,
+  },
+
+  // --- MODAL STYLES (Fixed to eliminate white area) ---
+  modalWrapper: {
+    flex: 1,
+    backgroundColor: Platform.OS === "android" ? "rgba(0,0,0,0.8)" : undefined, // Dim background on Android
+    justifyContent: "flex-end", // Aligns modal to bottom on Android (optional) or fills screen
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background, // Black background!
+    // No marginTop to avoid white gaps
+
+    overflow: "hidden",
+    // For Android, if we want it to look like a sheet:
+    marginTop: Platform.OS === "android" ? 50 : 0,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
+    letterSpacing: 1,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  iconHeader: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  shieldIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+  },
+  welcomeTextModal: {
+    fontSize: 24,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  welcomeSubText: {
+    fontSize: 14,
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.textGrey,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  rulesContainer: {
+    gap: 20,
+  },
+  ruleItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: COLORS.cardBlack,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  ruleIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: COLORS.lightGrey,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  ruleTitle: {
+    fontSize: 16,
+    fontFamily: "Manrope_700Bold",
+    color: COLORS.pureWhite,
+    marginBottom: 4,
+  },
+  ruleDesc: {
+    fontSize: 13,
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.textGrey,
+    lineHeight: 18,
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+    backgroundColor: COLORS.background, // Ensure footer is black
+  },
+  legalFinePrint: {
+    fontSize: 11,
+    color: COLORS.textGrey,
+    textAlign: "center",
+    marginBottom: 16,
+    fontFamily: "Manrope_500Medium",
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  declineButton: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  declineText: {
+    color: COLORS.textGrey,
+    fontFamily: "Manrope_700Bold",
+    fontSize: 14,
+  },
+  acceptButton: {
+    flex: 2, // Bigger
+    paddingVertical: 16,
+    alignItems: "center",
+    borderRadius: 12,
+    backgroundColor: COLORS.accent,
+  },
+  acceptText: {
+    color: COLORS.pureWhite,
+    fontFamily: "Manrope_800ExtraBold",
+    fontSize: 14,
   },
 });

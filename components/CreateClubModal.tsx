@@ -29,89 +29,74 @@ const { width } = Dimensions.get("window");
 const COLORS = {
   background: "#000000",
   cardBlack: "#0A0A0A",
-  cardDark: "#151515",
+  cardDark: "#121212",
+  inputBg: "#1A1A1A",
   pureWhite: "#FFFFFF",
-  offWhite: "#F5F5F5",
+  offWhite: "#E5E5E5",
   textGrey: "#888888",
   border: "#222222",
-  accent: "#f59e0b",
-  accentDim: "rgba(245, 158, 11, 0.15)",
-  red: "#D50000",
-  disabled: "#333333", // New distinct disabled color
+  accent: "#f59e0b", // Amber
+  accentDim: "rgba(245, 158, 11, 0.1)",
+  disabled: "#333333",
+  success: "#10B981",
 };
 
-// Club types mapped with specific background patterns
+// Professional Vector Icons instead of Emojis
+const CLUB_ICONS = [
+  "microphone-variant",
+  "music-clef-treble",
+  "piano",
+  "guitar-electric",
+  "drums",
+  "speaker",
+  "headphones",
+  "cassette",
+  "waveform",
+  "account-group",
+];
+
 const CLUB_TYPES: {
   value: ClubType;
   label: string;
-  emoji: string;
-  grantsRole: string;
+  icon: any;
   description: string;
-  patternIcon: any;
 }[] = [
   {
     value: "RECORDING",
-    label: "Recording",
-    emoji: "🎙️",
-    grantsRole: "ARTIST",
-    description: "Recording sessions & vocals",
-    patternIcon: "waveform",
+    label: "Recording Studio",
+    icon: "microphone",
+    description: "Vocals, tracking & sessions",
   },
   {
     value: "PRODUCTION",
-    label: "Production",
-    emoji: "🎚️",
-    grantsRole: "PRODUCER",
-    description: "Mixing & mastering",
-    patternIcon: "tune",
+    label: "Production House",
+    icon: "speaker",
+    description: "Beat making, mixing & mastering",
   },
   {
     value: "RENTAL",
-    label: "Rental",
-    emoji: "🏠",
-    grantsRole: "STUDIO_OWNER",
-    description: "Studio space rental",
-    patternIcon: "domain",
+    label: "Rehearsal Space",
+    icon: "domain",
+    description: "Room rentals & practice",
   },
   {
     value: "MANAGEMENT",
-    label: "Management",
-    emoji: "🧑‍💼",
-    grantsRole: "OTHER",
-    description: "Artist & business management",
-    patternIcon: "briefcase-outline",
+    label: "Label / Mgmt",
+    icon: "briefcase-variant",
+    description: "Artist development & business",
   },
   {
     value: "DISTRIBUTION",
     label: "Distribution",
-    emoji: "📣",
-    grantsRole: "OTHER",
-    description: "Promotion & publicity",
-    patternIcon: "bullhorn-outline",
+    icon: "broadcast",
+    description: "Marketing, promo & release",
   },
   {
     value: "CREATIVE",
-    label: "Creative",
-    emoji: "🎨",
-    grantsRole: "LYRICIST",
-    description: "Artistic direction",
-    patternIcon: "palette-outline",
+    label: "Creative Collective",
+    icon: "palette",
+    description: "Art, video & direction",
   },
-];
-
-const ICON_OPTIONS = [
-  "🎵",
-  "🎸",
-  "🎹",
-  "🎧",
-  "🎼",
-  "🎺",
-  "🎷",
-  "🥁",
-  "🎻",
-  "🎤",
-  "💿",
-  "📻",
 ];
 
 export default function CreateClubModal({
@@ -124,11 +109,11 @@ export default function CreateClubModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedType, setSelectedType] = useState<ClubType>("RECORDING");
-  const [selectedIcon, setSelectedIcon] = useState("🎵");
+  const [selectedIcon, setSelectedIcon] = useState("microphone-variant");
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      Alert.alert("Missing Information", "Please enter a name for your club.");
+      Alert.alert("Missing Name", "Please enter a name for your club.");
       return;
     }
 
@@ -137,22 +122,14 @@ export default function CreateClubModal({
         name: name.trim(),
         type: selectedType,
         description: description.trim() || undefined,
-        icon: selectedIcon,
+        icon: selectedIcon, // Saving the icon name string
         ownerId: userId,
       });
 
-      const grantedRole = CLUB_TYPES.find(
-        (t) => t.value === selectedType,
-      )?.grantsRole;
-      Alert.alert(
-        "Club Created 🚀",
-        `You created ${name} and now have access to the ${grantedRole} community.`,
-      );
+      Alert.alert("Success", "Club created successfully!");
       handleClose();
     } catch (error: any) {
-      const errorMessage =
-        error?.message || "Failed to create club. Please try again.";
-      Alert.alert("Error", errorMessage);
+      Alert.alert("Error", error?.message || "Failed to create club.");
     }
   };
 
@@ -160,11 +137,10 @@ export default function CreateClubModal({
     setName("");
     setDescription("");
     setSelectedType("RECORDING");
-    setSelectedIcon("🎵");
+    setSelectedIcon("microphone-variant");
     onClose();
   };
 
-  const selectedClubType = CLUB_TYPES.find((t) => t.value === selectedType);
   const isFormValid = name.trim().length > 0;
 
   return (
@@ -178,170 +154,145 @@ export default function CreateClubModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
-        {/* Header */}
+        {/* HEADER */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>CREATE NEW CLUB</Text>
-          <TouchableOpacity
-            onPress={handleClose}
-            style={styles.closeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
+          <Text style={styles.headerTitle}>NEW CLUB</Text>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color={COLORS.pureWhite} />
           </TouchableOpacity>
         </View>
 
         <ScrollView
           style={styles.content}
-          contentContainerStyle={{ paddingBottom: 150 }}
+          contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* 1. HERO PREVIEW CARD */}
-          <View style={styles.previewContainer}>
-            <View style={styles.previewCard}>
-              <View style={styles.cardPatternContainer}>
-                <MaterialCommunityIcons
-                  name={selectedClubType?.patternIcon || "waveform"}
-                  size={180}
-                  color="rgba(255,255,255,0.03)"
+          {/* SECTION 1: IDENTITY (Name + Icon) */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>IDENTITY</Text>
+
+            <View style={styles.identityContainer}>
+              {/* Name Input */}
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputLabel}>CLUB NAME</Text>
+                <TextInput
+                  style={styles.mainInput}
+                  placeholder="e.g. Metro Boomin"
+                  placeholderTextColor={COLORS.textGrey}
+                  value={name}
+                  onChangeText={setName}
+                  maxLength={40}
                 />
               </View>
 
-              <View style={styles.previewIconCircle}>
-                <Text style={styles.previewIcon}>{selectedIcon}</Text>
+              {/* Selected Icon Preview */}
+              <View style={styles.iconPreviewBox}>
+                <MaterialCommunityIcons
+                  name={selectedIcon as any}
+                  size={32}
+                  color={COLORS.accent}
+                />
               </View>
+            </View>
 
-              <Text
-                style={[
-                  styles.previewName,
-                  !name && { color: COLORS.textGrey, opacity: 0.5 },
-                ]}
-                numberOfLines={1}
-              >
-                {name || "CLUB NAME"}
-              </Text>
-
-              <View style={styles.previewBadge}>
-                <Text style={styles.previewBadgeText}>
-                  {selectedClubType?.label.toUpperCase()}
-                </Text>
-              </View>
+            {/* Icon Grid Selector */}
+            <Text
+              style={[styles.inputLabel, { marginTop: 16, marginBottom: 8 }]}
+            >
+              BADGE ICON
+            </Text>
+            <View style={styles.iconGrid}>
+              {CLUB_ICONS.map((icon) => {
+                const isSelected = selectedIcon === icon;
+                return (
+                  <TouchableOpacity
+                    key={icon}
+                    style={[
+                      styles.iconOption,
+                      isSelected && styles.iconOptionSelected,
+                    ]}
+                    onPress={() => setSelectedIcon(icon)}
+                  >
+                    <MaterialCommunityIcons
+                      name={icon as any}
+                      size={20}
+                      color={isSelected ? COLORS.pureWhite : COLORS.textGrey}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
-          {/* 2. FORM SECTION */}
-          <View style={styles.formSection}>
-            {/* Name Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>CLUB NAME</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex. Metro Studios"
-                placeholderTextColor={COLORS.textGrey}
-                value={name}
-                onChangeText={setName}
-                maxLength={30}
-              />
-            </View>
-
-            {/* Icon Selection */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>CHOOSE ICON</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.iconScroll}
-              >
-                {ICON_OPTIONS.map((emoji) => {
-                  const isSelected = selectedIcon === emoji;
-                  return (
-                    <TouchableOpacity
-                      key={emoji}
+          {/* SECTION 2: CATEGORY (List Layout) */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>CATEGORY</Text>
+            <View style={styles.listContainer}>
+              {CLUB_TYPES.map((type, index) => {
+                const isSelected = selectedType === type.value;
+                const isLast = index === CLUB_TYPES.length - 1;
+                return (
+                  <TouchableOpacity
+                    key={type.value}
+                    style={[
+                      styles.listItem,
+                      !isLast && styles.listItemBorder,
+                      isSelected && styles.listItemSelected,
+                    ]}
+                    onPress={() => setSelectedType(type.value)}
+                    activeOpacity={0.8}
+                  >
+                    <View
                       style={[
-                        styles.iconCircle,
-                        isSelected && styles.iconCircleSelected,
+                        styles.listIconBox,
+                        isSelected && { backgroundColor: COLORS.accent },
                       ]}
-                      onPress={() => setSelectedIcon(emoji)}
-                      activeOpacity={0.7}
                     >
-                      <Text style={styles.iconEmoji}>{emoji}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
+                      <MaterialCommunityIcons
+                        name={type.icon}
+                        size={18}
+                        color={isSelected ? "#000" : COLORS.pureWhite}
+                      />
+                    </View>
 
-            {/* Club Type Grid */}
-            <View style={styles.inputGroup}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "baseline",
-                }}
-              >
-                <Text style={styles.label}>CATEGORY</Text>
-                <Text style={styles.subLabel}>Determines your role</Text>
-              </View>
-
-              <View style={styles.typeGrid}>
-                {CLUB_TYPES.map((type) => {
-                  const isSelected = selectedType === type.value;
-                  return (
-                    <TouchableOpacity
-                      key={type.value}
-                      style={[
-                        styles.typeCard,
-                        isSelected && styles.typeCardSelected,
-                      ]}
-                      onPress={() => setSelectedType(type.value)}
-                      activeOpacity={0.9}
-                    >
-                      <View style={styles.typeCardTop}>
-                        <Text style={styles.typeEmoji}>{type.emoji}</Text>
-                        {isSelected && (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={20}
-                            color={COLORS.accent}
-                          />
-                        )}
-                      </View>
-
+                    <View style={styles.listContent}>
                       <Text
                         style={[
-                          styles.typeLabel,
+                          styles.listTitle,
                           isSelected && { color: COLORS.accent },
                         ]}
                       >
                         {type.label}
                       </Text>
-                      <Text style={styles.typeDesc} numberOfLines={2}>
-                        {type.description}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+                      <Text style={styles.listDesc}>{type.description}</Text>
+                    </View>
 
-            {/* Description */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>DESCRIPTION</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Briefly describe what your club does..."
-                placeholderTextColor={COLORS.textGrey}
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={3}
-                maxLength={200}
-              />
+                    <View style={styles.radioCircle}>
+                      {isSelected && <View style={styles.radioDot} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+          </View>
+
+          {/* SECTION 3: DESCRIPTION */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>ABOUT</Text>
+            <TextInput
+              style={styles.textArea}
+              placeholder="What is your community about?"
+              placeholderTextColor={COLORS.textGrey}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={3}
+              maxLength={150}
+            />
           </View>
         </ScrollView>
 
-        {/* 3. FLOATING FOOTER */}
+        {/* FOOTER */}
         <View style={styles.footer}>
           <TouchableOpacity
             style={[
@@ -351,15 +302,14 @@ export default function CreateClubModal({
             ]}
             onPress={handleCreate}
             disabled={!isFormValid || createClub.isPending}
-            activeOpacity={0.8}
           >
             {createClub.isPending ? (
-              <ActivityIndicator color={isFormValid ? "#000" : "#fff"} />
+              <ActivityIndicator color={COLORS.textGrey} />
             ) : (
               <Text
                 style={[
                   styles.createButtonText,
-                  !isFormValid && styles.createButtonTextDisabled,
+                  !isFormValid && { color: COLORS.textGrey },
                 ]}
               >
                 CREATE CLUB
@@ -377,6 +327,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+
   // HEADER
   header: {
     flexDirection: "row",
@@ -395,186 +346,158 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.cardBlack,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    padding: 4,
   },
 
   content: {
     flex: 1,
+    paddingTop: 20,
   },
 
-  // HERO PREVIEW CARD
-  previewContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  previewCard: {
-    backgroundColor: "#343029",
-    borderRadius: 24,
-    paddingVertical: 40,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    position: "relative",
-    overflow: "hidden",
-  },
-  cardPatternContainer: {
-    position: "absolute",
-    right: -40,
-    bottom: -40,
-    transform: [{ rotate: "-15deg" }],
-    opacity: 0.8,
-  },
-  previewIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  previewIcon: {
-    fontSize: 40,
-  },
-  previewName: {
-    fontSize: 26,
-    color: COLORS.pureWhite,
-    fontFamily: "Manrope_800ExtraBold",
-    marginBottom: 16,
-    textTransform: "uppercase",
-    textAlign: "center",
-    paddingHorizontal: 20,
-    letterSpacing: -0.5,
-  },
-  previewBadge: {
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  previewBadgeText: {
-    color: "#000",
-    fontSize: 12,
-    fontFamily: "Manrope_800ExtraBold",
-    letterSpacing: 0.5,
-  },
-
-  // FORM
-  formSection: {
-    paddingHorizontal: 20,
-  },
-  inputGroup: {
+  section: {
     marginBottom: 32,
+    paddingHorizontal: 20,
   },
-  label: {
+  sectionLabel: {
     fontSize: 12,
     color: COLORS.textGrey,
     fontFamily: "Manrope_800ExtraBold",
-    marginBottom: 12,
     letterSpacing: 1,
+    marginBottom: 12,
+  },
+
+  // IDENTITY SECTION
+  identityContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  inputWrapper: {
+    flex: 1,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontFamily: "Manrope_700Bold",
+    color: COLORS.textGrey,
+    marginBottom: 6,
     textTransform: "uppercase",
   },
-  subLabel: {
-    fontSize: 12,
-    color: COLORS.accent,
-    fontFamily: "Manrope_600SemiBold",
-  },
-  input: {
-    backgroundColor: COLORS.cardBlack,
+  mainInput: {
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 16,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 18,
+    height: 56,
     color: COLORS.pureWhite,
-    fontSize: 16,
-    fontFamily: "Manrope_600SemiBold",
+    fontSize: 18,
+    fontFamily: "Manrope_700Bold",
   },
-  textArea: {
-    height: 100,
-    textAlignVertical: "top",
-    paddingTop: 16,
-  },
-
-  // ICON SCROLL
-  iconScroll: {
-    gap: 12,
-    paddingRight: 20,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  iconPreviewBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
     backgroundColor: COLORS.cardBlack,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.accent,
     justifyContent: "center",
     alignItems: "center",
-  },
-  iconCircleSelected: {
-    backgroundColor: COLORS.accentDim,
-    borderColor: COLORS.accent,
-    borderWidth: 2,
-  },
-  iconEmoji: {
-    fontSize: 30,
+    marginTop: 19, // Align with input
   },
 
-  // TYPE GRID
-  typeGrid: {
+  // ICON GRID
+  iconGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: 10,
   },
-  typeCard: {
-    width: "48%",
-    backgroundColor: COLORS.cardBlack,
+  iconOption: {
+    width: (width - 40 - 50) / 6, // roughly 6 per row
+    aspectRatio: 1,
+    backgroundColor: COLORS.cardDark,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 16,
-    padding: 16,
-    minHeight: 140,
-    justifyContent: "space-between",
   },
-  typeCardSelected: {
+  iconOptionSelected: {
+    backgroundColor: COLORS.accent,
     borderColor: COLORS.accent,
-    backgroundColor: COLORS.accentDim,
-    borderWidth: 2,
   },
-  typeCardTop: {
+
+  // CATEGORY LIST
+  listContainer: {
+    backgroundColor: COLORS.cardBlack,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: "hidden",
+  },
+  listItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: COLORS.cardBlack,
   },
-  typeEmoji: {
-    fontSize: 28,
+  listItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  typeLabel: {
+  listItemSelected: {
+    backgroundColor: COLORS.accentDim,
+  },
+  listIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: COLORS.cardDark,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  listContent: {
+    flex: 1,
+  },
+  listTitle: {
     fontSize: 14,
+    fontFamily: "Manrope_700Bold",
     color: COLORS.pureWhite,
-    fontFamily: "Manrope_800ExtraBold",
-    marginBottom: 4,
-    textTransform: "uppercase",
+    marginBottom: 2,
   },
-  typeDesc: {
+  listDesc: {
     fontSize: 12,
-    color: COLORS.textGrey,
     fontFamily: "Manrope_500Medium",
-    lineHeight: 18,
+    color: COLORS.textGrey,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 10,
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.accent,
+  },
+
+  // DESCRIPTION
+  textArea: {
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    color: COLORS.pureWhite,
+    fontSize: 15,
+    fontFamily: "Manrope_500Medium",
+    height: 100,
+    textAlignVertical: "top",
   },
 
   // FOOTER
@@ -583,12 +506,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: COLORS.background, // Ensure this isn't transparent
+    backgroundColor: COLORS.background,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    // Add extra padding for iOS home indicator
+    padding: 20,
     paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
   createButton: {
@@ -599,25 +520,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     shadowColor: COLORS.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
-    elevation: 5,
   },
-  // FIXED: DISABLED BUTTON STYLE IS NOW VISIBLE
   createButtonDisabled: {
-    backgroundColor: COLORS.disabled, // Visible Dark Grey (#333)
-    borderWidth: 0,
-    opacity: 1, // Full opacity so it doesn't vanish
+    backgroundColor: COLORS.disabled,
     shadowOpacity: 0,
   },
   createButtonText: {
-    color: "#000000",
+    color: "#000",
     fontSize: 16,
     fontFamily: "Manrope_800ExtraBold",
     letterSpacing: 1,
-  },
-  // FIXED: DISABLED TEXT COLOR
-  createButtonTextDisabled: {
-    color: "#888888", // Grey text for disabled state
   },
 });
