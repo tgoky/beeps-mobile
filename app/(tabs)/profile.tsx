@@ -1,5 +1,4 @@
 import { NotificationBell } from "@/components/NotificationBell";
-import { Colors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyClubs } from "@/hooks/useClubs";
 import {
@@ -8,6 +7,14 @@ import {
   useUserEquipment,
   useUserProfile,
 } from "@/hooks/useProfile";
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/manrope";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,29 +35,43 @@ import {
 } from "react-native";
 
 const { width } = Dimensions.get("window");
+const GAP = 12;
+const ITEM_WIDTH = (width - 40 - GAP) / 2;
 
 type ProfileTab = "beats" | "equipment" | "collabs" | "clubs";
 
-// --- NEW COMPONENT: Section Divider ---
-const SectionDivider = ({ theme }: { theme: any }) => (
+// 🎨 THEME COLORS
+const COLORS = {
+  background: "#000000",
+  cardBlack: "#0A0A0A",
+  cardDark: "#151515",
+  pureWhite: "#FFFFFF",
+  offWhite: "#F5F5F5",
+  textGrey: "#888888",
+  border: "#222222",
+  accent: "#f59e0b",
+  accentDim: "rgba(245, 158, 11, 0.15)",
+  red: "#D50000",
+};
+
+// --- COMPONENT: Section Divider ---
+const SectionDivider = () => (
   <View style={styles.dividerContainer}>
-    <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+    <View style={styles.dividerLine} />
   </View>
 );
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
 
-  // Refined Dark Theme Palette
-  const theme = {
-    bg: "#000000",
-    surface: "#111111",
-    border: "#333333",
-    text: "#FFFFFF",
-    textDim: "#888888",
-    primary: Colors.dark.primary,
-    danger: "#EF4444",
-  };
+  // Load Fonts
+  let [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
 
   const [activeTab, setActiveTab] = useState<ProfileTab>("collabs");
 
@@ -92,7 +113,9 @@ export default function ProfileScreen() {
   const handleShareProfile = async () => {
     try {
       await Share.share({
-        message: `Check out ${profile?.fullName || user?.fullName}'s profile on BeatConnect!`,
+        message: `Check out ${
+          profile?.fullName || user?.fullName
+        }'s profile on BeatConnect!`,
         url: `https://beatconnect.app/user/${user?.id}`,
       });
     } catch (error) {
@@ -117,13 +140,13 @@ export default function ProfileScreen() {
         isLoading = equipmentLoading;
         data = equipment || [];
         emptyIcon = "microphone-off";
-        emptyText = "No equipment";
+        emptyText = "No equipment listed";
         break;
       case "collabs":
         isLoading = collabsLoading;
         data = collaborations || [];
         emptyIcon = "account-group-outline";
-        emptyText = "No collaborations";
+        emptyText = "No active collaborations";
         break;
       case "clubs":
         isLoading = clubsLoading;
@@ -136,7 +159,7 @@ export default function ProfileScreen() {
     if (isLoading)
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={theme.primary} />
+          <ActivityIndicator size="small" color={COLORS.accent} />
         </View>
       );
 
@@ -145,12 +168,10 @@ export default function ProfileScreen() {
         <View style={styles.emptyTabState}>
           <MaterialCommunityIcons
             name={emptyIcon as any}
-            size={32}
-            color={theme.textDim}
+            size={40}
+            color="#333"
           />
-          <Text style={[styles.emptyTabText, { color: theme.textDim }]}>
-            {emptyText}
-          </Text>
+          <Text style={styles.emptyTabText}>{emptyText}</Text>
         </View>
       );
     }
@@ -160,10 +181,7 @@ export default function ProfileScreen() {
         {data.map((item: any) => (
           <TouchableOpacity
             key={item.id}
-            style={[
-              styles.gridItem,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
+            style={styles.gridItem}
             activeOpacity={0.7}
           >
             <View style={styles.gridImagePlaceholder}>
@@ -175,23 +193,26 @@ export default function ProfileScreen() {
                 />
               ) : (
                 <MaterialCommunityIcons
-                  name="image-filter-hdr"
-                  size={20}
-                  color={theme.textDim}
+                  name="waveform"
+                  size={40}
+                  color={COLORS.textGrey}
+                  style={{ opacity: 0.5 }}
                 />
+              )}
+              {item.price && (
+                <View style={styles.priceTag}>
+                  <Text style={styles.priceText}>${item.price}</Text>
+                </View>
               )}
             </View>
             <View style={styles.gridContent}>
-              <Text
-                style={[styles.gridTitle, { color: theme.text }]}
-                numberOfLines={1}
-              >
+              <Text style={styles.gridTitle} numberOfLines={1}>
                 {item.title || item.name}
               </Text>
-              <Text style={[styles.gridSubtitle, { color: theme.textDim }]}>
-                {activeTab === "beats" && `${item.bpm} BPM • $${item.price}`}
-                {activeTab === "collabs" && item.status}
-                {activeTab === "equipment" && `$${item.price}`}
+              <Text style={styles.gridSubtitle}>
+                {activeTab === "beats" && `${item.bpm} BPM`}
+                {activeTab === "collabs" && (item.status || "Active")}
+                {activeTab === "equipment" && "Gear"}
                 {activeTab === "clubs" && "Member"}
               </Text>
             </View>
@@ -201,20 +222,22 @@ export default function ProfileScreen() {
     );
   };
 
-  if (!user) return null;
+  if (!user || !fontsLoaded) return null;
 
   const avatarUrl =
     profile?.avatar ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.fullName || "User")}&background=random`;
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(
+      user?.fullName || "User",
+    )}&background=random`;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
       {/* Atmospheric Glow */}
       <View style={styles.spotlightContainer}>
         <LinearGradient
-          colors={[theme.primary + "40", "transparent"]}
+          colors={["rgba(245, 158, 11, 0.15)", "transparent"]}
           style={styles.spotlightGradient}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
@@ -224,20 +247,24 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.safeArea}>
         {/* Top Navigation */}
         <View style={styles.topBar}>
-          <View style={styles.topBarLeft} />
+          <TouchableOpacity style={styles.iconBtn} onPress={handleShareProfile}>
+            <Ionicons
+              name="share-social-outline"
+              size={22}
+              color={COLORS.pureWhite}
+            />
+          </TouchableOpacity>
           <View style={styles.topBarRight}>
-            <TouchableOpacity
-              onPress={handleShareProfile}
-              style={styles.topIconButton}
-            >
-              <Ionicons name="share-outline" size={22} color={theme.text} />
-            </TouchableOpacity>
-            <NotificationBell size={22} color={theme.text} />
+            <NotificationBell />
             <TouchableOpacity
               onPress={() => router.push("/settings")}
-              style={styles.topIconButton}
+              style={[styles.iconBtn, { marginLeft: 16 }]}
             >
-              <Ionicons name="settings-outline" size={22} color={theme.text} />
+              <Ionicons
+                name="settings-outline"
+                size={22}
+                color={COLORS.pureWhite}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -246,116 +273,118 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
         >
-          {/* --- SECTION 1: IDENTITY --- */}
-          <View style={styles.headerSection}>
-            <View style={styles.avatarWrapper}>
-              <View
-                style={[
-                  styles.avatarRing,
-                  { borderColor: theme.border, backgroundColor: theme.bg },
-                ]}
-              >
-                <Image
-                  source={{ uri: avatarUrl }}
-                  style={styles.avatarImage}
-                  contentFit="cover"
-                />
-              </View>
-            </View>
+          {/* --- SECTION 1: IDENTITY & STATS BACKGROUND PATTERNS --- */}
+          <View style={styles.headerBackgroundContainer}>
+            {/* Pattern 1: Spectrum Lines (Left) - INCREASED OPACITY */}
+            <MaterialCommunityIcons
+              name="graphic-eq"
+              size={180}
+              color="rgba(255,255,255,0.12)" // Much brighter
+              style={styles.patternLeft}
+            />
 
-            <View style={styles.nameContainer}>
-              <View style={styles.nameRow}>
-                <Text style={[styles.fullName, { color: theme.text }]}>
-                  {profile?.fullName || user?.fullName}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => router.push("/profile/edit")}
-                  style={[styles.editNameButton, { borderColor: theme.border }]}
-                >
-                  <Ionicons
-                    name="create-outline"
-                    size={16}
-                    color={theme.textDim}
+            {/* Pattern 2: Tune/Sliders (Right) - CHANGED FROM STAR to LINES */}
+            <MaterialCommunityIcons
+              name="tune"
+              size={160}
+              color="rgba(245, 158, 11, 0.15)" // Brighter Amber
+              style={styles.patternRight}
+            />
+
+            {/* Content */}
+            <View style={styles.headerSection}>
+              <View style={styles.avatarWrapper}>
+                <View style={styles.avatarRing}>
+                  <Image
+                    source={{ uri: avatarUrl }}
+                    style={styles.avatarImage}
+                    contentFit="cover"
                   />
+                </View>
+                <TouchableOpacity
+                  style={styles.editBadge}
+                  onPress={() => router.push("/profile/edit")}
+                >
+                  <Ionicons name="pencil" size={12} color="#000" />
                 </TouchableOpacity>
               </View>
-              <Text style={[styles.roleText, { color: theme.textDim }]}>
-                {profile?.primaryRole || "User"} • @
-                {profile?.username || user?.username}
-                {profile?.verified && (
-                  <MaterialCommunityIcons
-                    name="check-decagram"
-                    size={16}
-                    color={theme.primary}
-                    style={{ marginLeft: 4 }}
-                  />
-                )}
-              </Text>
+
+              <View style={styles.nameContainer}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.fullName}>
+                    {profile?.fullName || user?.fullName}
+                  </Text>
+                  {profile?.verified && (
+                    <MaterialCommunityIcons
+                      name="check-decagram"
+                      size={20}
+                      color={COLORS.accent}
+                      style={{ marginLeft: 6 }}
+                    />
+                  )}
+                </View>
+                <Text style={styles.roleText}>
+                  {profile?.primaryRole || "Artist"} • @
+                  {profile?.username || user?.username}
+                </Text>
+              </View>
             </View>
+
+            {/* Stats */}
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>
+                  {profile?.collaborationCount || 0}
+                </Text>
+                <Text style={styles.statLabel}>COLLABS</Text>
+              </View>
+
+              <View style={styles.statDivider} />
+
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>
+                  {profile?.studioCount || 0}
+                </Text>
+                <Text style={styles.statLabel}>STUDIOS</Text>
+              </View>
+
+              <View style={styles.statDivider} />
+
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{profile?.clubCount || 0}</Text>
+                <Text style={styles.statLabel}>CLUBS</Text>
+              </View>
+            </View>
+
+            {/* Bio */}
+            {profile?.bio && (
+              <Text style={styles.bioText} numberOfLines={3}>
+                {profile.bio}
+              </Text>
+            )}
           </View>
 
-          {/* Stats */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>
-                {profile?.collaborationCount || 0}
-              </Text>
-              <Text style={[styles.statLabel, { color: "#666" }]}>COLLABS</Text>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>
-                {profile?.studioCount || 0}
-              </Text>
-              <Text style={[styles.statLabel, { color: "#666" }]}>STUDIOS</Text>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>
-                {profile?.clubCount || 0}
-              </Text>
-              <Text style={[styles.statLabel, { color: "#666" }]}>CLUBS</Text>
-            </View>
-          </View>
-
-          {/* Bio */}
-          {profile?.bio && (
-            <Text style={[styles.bioText, { color: theme.textDim }]}>
-              {profile.bio}
-            </Text>
-          )}
-
-          {/* --- DIVIDER 1: Separating Identity from Utility --- */}
-          <SectionDivider theme={theme} />
+          <SectionDivider />
 
           {/* --- SECTION 2: UTILITY (Wallet/Manager) --- */}
           <View style={styles.dashboardGrid}>
             <DashboardButton
-              title="Wallet"
+              title="WALLET"
               subtitle="Transactions"
-              icon="wallet-outline" // Changed to outline for cleaner look
-              color={theme.primary}
+              icon="wallet-outline"
               onPress={() => router.push("/transactions")}
-              theme={theme}
             />
             <DashboardButton
-              title="Studio"
+              title="STUDIO"
               subtitle="Manager"
               icon="options-outline"
-              color={theme.primary}
               onPress={() => router.push("/(tabs)/debug-studios")}
-              theme={theme}
             />
           </View>
 
-          {/* --- DIVIDER 2: Separating Utility from Content --- */}
-          <SectionDivider theme={theme} />
+          <SectionDivider />
 
-          {/* --- SECTION 3: CONTENT (Tabs & Grid) --- */}
+          {/* --- SECTION 3: CONTENT TABS --- */}
           <View style={styles.tabsContainer}>
             <ScrollView
               horizontal
@@ -365,16 +394,15 @@ export default function ProfileScreen() {
               {isProducer && (
                 <TouchableOpacity
                   onPress={() => setActiveTab("beats")}
-                  style={styles.tabButton}
+                  style={[
+                    styles.tabButton,
+                    activeTab === "beats" && styles.tabButtonActive,
+                  ]}
                 >
                   <Text
                     style={[
                       styles.tabText,
-                      {
-                        color:
-                          activeTab === "beats" ? theme.primary : theme.textDim,
-                        fontWeight: activeTab === "beats" ? "700" : "500",
-                      },
+                      activeTab === "beats" && { color: COLORS.accent },
                     ]}
                   >
                     BEATS
@@ -384,16 +412,15 @@ export default function ProfileScreen() {
 
               <TouchableOpacity
                 onPress={() => setActiveTab("collabs")}
-                style={styles.tabButton}
+                style={[
+                  styles.tabButton,
+                  activeTab === "collabs" && styles.tabButtonActive,
+                ]}
               >
                 <Text
                   style={[
                     styles.tabText,
-                    {
-                      color:
-                        activeTab === "collabs" ? theme.primary : theme.textDim,
-                      fontWeight: activeTab === "collabs" ? "700" : "500",
-                    },
+                    activeTab === "collabs" && { color: COLORS.accent },
                   ]}
                 >
                   COLLABS
@@ -402,18 +429,15 @@ export default function ProfileScreen() {
 
               <TouchableOpacity
                 onPress={() => setActiveTab("equipment")}
-                style={styles.tabButton}
+                style={[
+                  styles.tabButton,
+                  activeTab === "equipment" && styles.tabButtonActive,
+                ]}
               >
                 <Text
                   style={[
                     styles.tabText,
-                    {
-                      color:
-                        activeTab === "equipment"
-                          ? theme.primary
-                          : theme.textDim,
-                      fontWeight: activeTab === "equipment" ? "700" : "500",
-                    },
+                    activeTab === "equipment" && { color: COLORS.accent },
                   ]}
                 >
                   GEAR
@@ -422,16 +446,15 @@ export default function ProfileScreen() {
 
               <TouchableOpacity
                 onPress={() => setActiveTab("clubs")}
-                style={styles.tabButton}
+                style={[
+                  styles.tabButton,
+                  activeTab === "clubs" && styles.tabButtonActive,
+                ]}
               >
                 <Text
                   style={[
                     styles.tabText,
-                    {
-                      color:
-                        activeTab === "clubs" ? theme.primary : theme.textDim,
-                      fontWeight: activeTab === "clubs" ? "700" : "500",
-                    },
+                    activeTab === "clubs" && { color: COLORS.accent },
                   ]}
                 >
                   CLUBS
@@ -444,11 +467,7 @@ export default function ProfileScreen() {
           <View style={styles.contentArea}>{renderContent()}</View>
 
           <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
-            <Text
-              style={{ color: theme.danger, fontSize: 14, fontWeight: "600" }}
-            >
-              Sign Out
-            </Text>
+            <Text style={styles.signOutText}>SIGN OUT</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -456,237 +475,348 @@ export default function ProfileScreen() {
   );
 }
 
-// Dashboard Button Component
-const DashboardButton = ({
-  title,
-  subtitle,
-  icon,
-  color,
-  onPress,
-  theme,
-}: any) => (
+// Reusable Dashboard Button
+const DashboardButton = ({ title, subtitle, icon, onPress }: any) => (
   <TouchableOpacity
-    style={[styles.dashboardCard, { borderColor: theme.border }]}
+    style={styles.dashboardCard}
     activeOpacity={0.7}
     onPress={onPress}
   >
-    <LinearGradient
-      colors={["#252525", "#111111"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={StyleSheet.absoluteFill}
-    />
-    <View
-      style={[styles.iconBox, { backgroundColor: "rgba(255,255,255,0.05)" }]}
-    >
-      <Ionicons name={icon} size={22} color={color} />
+    <View style={styles.iconBox}>
+      <Ionicons name={icon} size={24} color={COLORS.accent} />
     </View>
-    <View style={{ flex: 1 }}>
-      <Text style={[styles.dashboardLabel, { color: theme.text }]}>
-        {title}
-      </Text>
-      <Text style={[styles.dashboardSubLabel, { color: theme.textDim }]}>
-        {subtitle}
-      </Text>
+    <View>
+      <Text style={styles.dashboardLabel}>{title}</Text>
+      <Text style={styles.dashboardSubLabel}>{subtitle}</Text>
+    </View>
+    <View style={styles.arrowBox}>
+      <Ionicons name="arrow-forward" size={14} color={COLORS.textGrey} />
     </View>
   </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: COLORS.background },
   safeArea: { flex: 1 },
 
-  // --- NEW STYLES: Divider ---
+  // DIVIDER
   dividerContainer: {
     alignItems: "center",
-    marginVertical: 20, // Generous spacing
+    marginVertical: 24,
     paddingHorizontal: 20,
   },
   dividerLine: {
-    width: "100%", // Full width minus padding
+    width: "100%",
     height: 1,
-    opacity: 0.5, // Subtle look
+    backgroundColor: COLORS.border,
   },
 
-  // Spotlight
+  // SPOTLIGHT
   spotlightContainer: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: 350,
+    height: 400,
     overflow: "hidden",
   },
-  spotlightGradient: { width: "100%", height: "100%", opacity: 0.6 },
+  spotlightGradient: { width: "100%", height: "100%", opacity: 0.8 },
 
-  // Top Bar
+  // TOP BAR
   topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  topBarLeft: {
-    flex: 1,
+    paddingTop: 10,
+    marginBottom: 10,
   },
   topBarRight: {
     flexDirection: "row",
-    gap: 20,
     alignItems: "center",
   },
-  topIconButton: {
-    padding: 4,
+  iconBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: COLORS.cardBlack,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
-  // Header Section
+  // HEADER CONTAINER
+  headerBackgroundContainer: {
+    position: "relative",
+    overflow: "hidden",
+    paddingBottom: 10,
+  },
+
+  // PATTERNS
+  patternLeft: {
+    position: "absolute",
+    top: 40,
+    left: -40,
+    opacity: 0.8, // Increased for visibility
+    transform: [{ rotate: "90deg" }],
+  },
+  patternRight: {
+    position: "absolute",
+    top: 20,
+    right: -40,
+    opacity: 0.9, // Increased for visibility
+    transform: [{ rotate: "-15deg" }],
+  },
+
+  // HEADER SECTION
   headerSection: {
     alignItems: "center",
-    marginTop: 8,
-    marginBottom: 20,
+    marginTop: 10,
+    marginBottom: 24,
   },
   avatarWrapper: {
     marginBottom: 16,
+    position: "relative",
   },
   avatarRing: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.cardBlack,
+  },
+  avatarImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 2,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarImage: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
     backgroundColor: "#222",
   },
+  editBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: COLORS.accent,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: COLORS.background,
+  },
 
-  // Name
+  // NAME
   nameContainer: {
     alignItems: "center",
-    gap: 6,
+    gap: 4,
   },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
   },
   fullName: {
-    fontSize: 26,
-    fontWeight: "800",
+    fontSize: 24,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
     letterSpacing: -0.5,
   },
-  editNameButton: {
-    padding: 6,
-    borderRadius: 18,
-    borderWidth: 1,
-    backgroundColor: "rgba(255,255,255,0.03)",
-  },
   roleText: {
-    fontSize: 15,
-    fontWeight: "500",
+    fontSize: 14,
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.textGrey,
   },
 
-  // Stats
+  // STATS
   statsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20, // Slightly reduced to bring Bio closer
+    marginBottom: 20,
     paddingHorizontal: 20,
   },
-  statItem: { alignItems: "center", minWidth: 90 },
-  statValue: { fontSize: 24, fontWeight: "800" },
+  statItem: { alignItems: "center", minWidth: 80 },
+  statValue: {
+    fontSize: 20,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
+  },
   statLabel: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 11,
+    fontFamily: "Manrope_700Bold",
+    color: COLORS.textGrey,
     textTransform: "uppercase",
     marginTop: 4,
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   statDivider: {
     width: 1,
-    height: 35,
-    backgroundColor: "#333",
+    height: 30,
+    backgroundColor: COLORS.border,
     marginHorizontal: 15,
   },
 
   bioText: {
     textAlign: "center",
-    fontSize: 15,
+    fontSize: 14,
+    fontFamily: "Manrope_500Medium",
+    color: "#CCC",
     lineHeight: 22,
     paddingHorizontal: 40,
-    marginBottom: 10, // Reduced because Divider adds margin
+    marginBottom: 10,
   },
 
-  // Dashboard Grid
+  // DASHBOARD GRID
   dashboardGrid: {
     flexDirection: "row",
     gap: 12,
     paddingHorizontal: 20,
-    // No marginBottom here because Divider handles it
   },
   dashboardCard: {
-    flex: 1, // Make them expand to fill space
+    flex: 1,
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 20,
+    backgroundColor: COLORS.cardBlack,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderWidth: 1,
-    overflow: "hidden",
   },
   iconBox: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 12,
+    backgroundColor: COLORS.cardDark,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  dashboardLabel: { fontSize: 15, fontWeight: "700" },
-  dashboardSubLabel: { fontSize: 12 },
+  dashboardLabel: {
+    fontSize: 14,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  dashboardSubLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.textGrey,
+  },
+  arrowBox: {
+    marginLeft: "auto",
+  },
 
-  // Tabs
+  // TABS
   tabsContainer: {
     paddingHorizontal: 20,
     marginBottom: 20,
   },
   tabsScrollContent: {
-    gap: 32,
-    paddingVertical: 4,
+    gap: 30,
   },
   tabButton: {
-    paddingVertical: 4,
+    paddingVertical: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  tabButtonActive: {
+    borderBottomColor: COLORS.accent,
   },
   tabText: {
-    fontSize: 16,
-    letterSpacing: 0.5,
+    fontSize: 14,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.textGrey,
+    letterSpacing: 1,
   },
 
-  contentArea: { paddingHorizontal: 20, minHeight: 200 },
-  loadingContainer: { padding: 40, alignItems: "center" },
-  emptyTabState: { padding: 40, alignItems: "center", gap: 8, opacity: 0.7 },
-  emptyTabText: { fontSize: 15 },
+  // CONTENT AREA
+  contentArea: {
+    paddingHorizontal: 20,
+    minHeight: 200,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyTabState: {
+    padding: 40,
+    alignItems: "center",
+    gap: 12,
+    opacity: 0.7,
+  },
+  emptyTabText: {
+    fontSize: 14,
+    fontFamily: "Manrope_600SemiBold",
+    color: COLORS.textGrey,
+  },
 
-  gridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  // GRID ITEMS
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: GAP,
+  },
   gridItem: {
-    width: (width - 40 - 12) / 2,
-    borderRadius: 12,
+    width: ITEM_WIDTH,
+    borderRadius: 16,
+    backgroundColor: COLORS.cardBlack,
     borderWidth: 1,
+    borderColor: COLORS.border,
     overflow: "hidden",
     marginBottom: 4,
   },
   gridImagePlaceholder: {
-    height: 120,
-    backgroundColor: "#1A1A1A",
+    height: ITEM_WIDTH,
+    backgroundColor: COLORS.cardDark,
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
   },
   gridImage: { width: "100%", height: "100%" },
+  priceTag: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  priceText: {
+    color: "#000",
+    fontFamily: "Manrope_800ExtraBold",
+    fontSize: 10,
+  },
   gridContent: { padding: 12 },
-  gridTitle: { fontSize: 14, fontWeight: "700", marginBottom: 4 },
-  gridSubtitle: { fontSize: 12 },
+  gridTitle: {
+    fontSize: 14,
+    fontFamily: "Manrope_700Bold",
+    color: COLORS.pureWhite,
+    marginBottom: 4,
+  },
+  gridSubtitle: {
+    fontSize: 12,
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.textGrey,
+  },
 
-  signOutBtn: { alignSelf: "center", marginTop: 40, padding: 10 },
+  // SIGN OUT
+  signOutBtn: {
+    alignSelf: "center",
+    marginTop: 40,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.red,
+  },
+  signOutText: {
+    color: COLORS.red,
+    fontFamily: "Manrope_700Bold",
+    fontSize: 12,
+    letterSpacing: 1,
+  },
 });

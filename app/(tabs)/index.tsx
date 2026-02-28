@@ -6,6 +6,14 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useArtists } from "@/hooks/useArtists";
 import { useProducers } from "@/hooks/useProducers";
 import { useStudios } from "@/hooks/useStudios";
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/manrope";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
@@ -20,7 +28,6 @@ import {
   PanResponder,
   Platform,
   SafeAreaView,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -93,6 +100,15 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === "dark";
+
+  // LOAD FONTS
+  let [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
 
   // Theme Colors
   const theme = {
@@ -439,7 +455,7 @@ export default function HomeScreen() {
     );
   };
 
-  if (!user) return null;
+  if (!user || !fontsLoaded) return null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -576,7 +592,7 @@ export default function HomeScreen() {
                     color: theme.subtext,
                     fontSize: 11,
                     marginBottom: 8,
-                    fontWeight: "600",
+                    fontFamily: "Manrope_800ExtraBold",
                   }}
                 >
                   {activeTab === "studios"
@@ -680,7 +696,10 @@ export default function HomeScreen() {
                       styles.tabText,
                       {
                         color: activeTab === tab ? theme.text : theme.subtext,
-                        fontWeight: activeTab === tab ? "700" : "500",
+                        fontFamily:
+                          activeTab === tab
+                            ? "Manrope_800ExtraBold"
+                            : "Manrope_500Medium",
                       },
                     ]}
                   >
@@ -711,7 +730,12 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={{ color: theme.subtext }}>
+              <Text
+                style={{
+                  color: theme.subtext,
+                  fontFamily: "Manrope_500Medium",
+                }}
+              >
                 No {activeTab} found matching {searchQuery}
               </Text>
             </View>
@@ -805,7 +829,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 12,
     fontSize: 15,
-    fontWeight: "500",
+    fontFamily: "Manrope_500Medium",
   },
   filterToggle: { paddingRight: 15 },
   suggestionsContainer: {
@@ -833,15 +857,20 @@ const styles = StyleSheet.create({
   suggestionText: {
     marginLeft: 8,
     fontSize: 14,
+    fontFamily: "Manrope_500Medium",
   },
   filterMenu: { marginBottom: 15 },
   filterScroll: { gap: 8, paddingBottom: 10 },
   pill: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18 },
-  pillText: { fontSize: 13, fontWeight: "600" },
+  pillText: { fontSize: 13, fontFamily: "Manrope_600SemiBold" },
   divider: { height: 1, marginVertical: 10, width: "100%" },
   sortRow: { flexDirection: "row", gap: 15 },
   sortBtn: { paddingVertical: 4 },
-  sortBtnText: { fontSize: 12, fontWeight: "700", color: "#8E8E93" },
+  sortBtnText: {
+    fontSize: 12,
+    color: "#8E8E93",
+    fontFamily: "Manrope_700Bold",
+  },
   tabs: { flexDirection: "row", marginBottom: 10, gap: 25 },
   tab: { paddingVertical: 8 },
   tabText: { fontSize: 12, letterSpacing: 0.5 },
@@ -860,13 +889,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-  vTitle: { fontSize: 16, fontWeight: "700", flex: 1, marginRight: 8 },
-  vPrice: { fontSize: 16, fontWeight: "800" },
-  vUnit: { fontSize: 11, fontWeight: "400", color: "#8E8E93" },
-  vSub: { fontSize: 13, color: "#8E8E93", marginTop: -2 },
+  vTitle: {
+    fontSize: 16,
+    flex: 1,
+    marginRight: 8,
+    fontFamily: "Manrope_700Bold",
+  },
+  vPrice: { fontSize: 16, fontFamily: "Manrope_800ExtraBold" },
+  vUnit: {
+    fontSize: 11,
+    color: "#8E8E93",
+    fontFamily: "Manrope_500Medium",
+  },
+  vSub: {
+    fontSize: 13,
+    color: "#8E8E93",
+    marginTop: -2,
+    fontFamily: "Manrope_500Medium",
+  },
   vFooter: { flexDirection: "row", alignItems: "center", gap: 12 },
   vRating: { flexDirection: "row", alignItems: "center", gap: 4 },
-  vRatingText: { fontSize: 12, fontWeight: "700" },
-  vStatus: { fontSize: 12, fontWeight: "600" },
+  vRatingText: { fontSize: 12, fontFamily: "Manrope_700Bold" },
+  vStatus: { fontSize: 12, fontFamily: "Manrope_600SemiBold" },
   empty: { alignItems: "center", marginTop: 40, paddingHorizontal: 20 },
 });

@@ -1,5 +1,3 @@
-import { BorderRadius, Colors, FontSizes, Spacing } from "@/constants/theme";
-import { useTheme } from "@/contexts/ThemeContext";
 import { useCreateCollaboration } from "@/hooks/useCollaborations";
 import { CollaborationType } from "@/types/database";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -7,6 +5,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   LayoutAnimation,
   Modal,
   Platform,
@@ -16,7 +15,7 @@ import {
   TextInput,
   TouchableOpacity,
   UIManager,
-  View,
+  View
 } from "react-native";
 
 // Enable LayoutAnimation for Android
@@ -33,22 +32,37 @@ interface CreateCollaborationModalProps {
   userId: string;
 }
 
+// 🎨 THEME COLORS (Matching Community Screen)
+const COLORS = {
+  background: "#000000",
+  cardBlack: "#0A0A0A",
+  cardDark: "#151515",
+  pureWhite: "#FFFFFF",
+  offWhite: "#F5F5F5",
+  textGrey: "#888888",
+  border: "#222222",
+  accent: "#f59e0b",
+  accentDim: "rgba(245, 158, 11, 0.15)",
+  red: "#D50000",
+  disabled: "#333333",
+};
+
 const COLLAB_TYPES: {
   value: CollaborationType;
   label: string;
-  icon: string;
+  icon: any; // MaterialCommunityIcons name
   description: string;
 }[] = [
   {
     value: "PROJECT",
     label: "Project",
-    icon: "folder-music",
+    icon: "folder-music-outline",
     description: "Long-term collaboration",
   },
   {
     value: "SESSION",
     label: "Session",
-    icon: "record-circle",
+    icon: "album",
     description: "Recording session",
   },
   {
@@ -83,8 +97,6 @@ export default function CreateCollaborationModal({
   onClose,
   userId,
 }: CreateCollaborationModalProps) {
-  const { effectiveTheme } = useTheme();
-  const colors = Colors[effectiveTheme];
   const createCollaboration = useCreateCollaboration();
 
   // Form State
@@ -98,8 +110,7 @@ export default function CreateCollaborationModal({
   const [genre, setGenre] = useState("");
   const [slots, setSlots] = useState("");
 
-  // UI State for interactivity
-  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  // UI State
   const [isGenreDropdownOpen, setIsGenreDropdownOpen] = useState(false);
 
   const toggleGenreDropdown = () => {
@@ -138,7 +149,6 @@ export default function CreateCollaborationModal({
       const errorMessage =
         error?.message || "Failed to create collaboration. Please try again.";
       Alert.alert("Error", errorMessage);
-      console.error("Create collaboration error:", error);
     }
   };
 
@@ -156,45 +166,7 @@ export default function CreateCollaborationModal({
     onClose();
   };
 
-  // Helper to render sleek inputs
-  const renderInput = (
-    label: string,
-    value: string,
-    setter: (val: string) => void,
-    placeholder: string,
-    id: string,
-    isMultiline = false,
-    keyboardType: "default" | "number-pad" | "decimal-pad" = "default",
-  ) => {
-    const isFocused = focusedInput === id;
-    return (
-      <View style={styles.section}>
-        <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
-        <TextInput
-          style={[
-            styles.input,
-            isMultiline && styles.textArea,
-            {
-              backgroundColor: colors.card,
-              borderColor: isFocused ? colors.accent : colors.border,
-              borderWidth: isFocused ? 2 : 1,
-              color: colors.text,
-            },
-          ]}
-          placeholder={placeholder}
-          placeholderTextColor={colors.textTertiary}
-          value={value}
-          onChangeText={setter}
-          multiline={isMultiline}
-          numberOfLines={isMultiline ? 4 : 1}
-          maxLength={isMultiline ? 500 : 100}
-          keyboardType={keyboardType}
-          onFocus={() => setFocusedInput(id)}
-          onBlur={() => setFocusedInput(null)}
-        />
-      </View>
-    );
-  };
+  const isFormValid = title.trim().length > 0;
 
   return (
     <Modal
@@ -203,291 +175,263 @@ export default function CreateCollaborationModal({
       presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Sleek Header */}
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>CREATE COLLABORATION</Text>
           <TouchableOpacity
             onPress={handleClose}
-            style={[styles.closeButton, { backgroundColor: colors.card }]}
-            activeOpacity={0.7}
+            style={styles.closeButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="close" size={22} color={colors.text} />
+            <Ionicons name="close" size={24} color={COLORS.pureWhite} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Create Collaboration
-          </Text>
-          <View style={{ width: 40 }} />
         </View>
 
         <ScrollView
           style={styles.content}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={{ paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Type Selection Grid */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>Type *</Text>
-            <View style={styles.typeGrid}>
-              {COLLAB_TYPES.map((collabType) => {
-                const isSelected = type === collabType.value;
-                return (
-                  <TouchableOpacity
-                    key={collabType.value}
-                    style={[
-                      styles.typeOption,
-                      {
-                        backgroundColor: isSelected
-                          ? colors.backgroundSecondary
-                          : colors.card,
-                        borderColor: isSelected ? colors.accent : colors.border,
-                      },
-                    ]}
-                    onPress={() => setType(collabType.value)}
-                    activeOpacity={0.8}
-                  >
-                    <MaterialCommunityIcons
-                      name={collabType.icon as any}
-                      size={28}
-                      color={isSelected ? colors.accent : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.typeLabel,
-                        { color: isSelected ? colors.accent : colors.text },
-                      ]}
-                    >
-                      {collabType.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.typeDescription,
-                        { color: colors.textTertiary },
-                      ]}
-                    >
-                      {collabType.description}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Title Input */}
-          {renderInput(
-            "Title *",
-            title,
-            setTitle,
-            "e.g., Looking for a producer for my EP",
-            "title",
-          )}
-
-          {/* Description Input */}
-          {renderInput(
-            "Description",
-            description,
-            setDescription,
-            "Describe what you're looking for...",
-            "desc",
-            true,
-          )}
-
-          {/* Genre Dropdown */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>Genre</Text>
-            <TouchableOpacity
-              style={[
-                styles.dropdownButton,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: isGenreDropdownOpen
-                    ? colors.accent
-                    : colors.border,
-                  borderWidth: isGenreDropdownOpen ? 2 : 1,
-                },
-              ]}
-              onPress={toggleGenreDropdown}
-              activeOpacity={0.9}
-            >
-              <Text
-                style={[
-                  styles.dropdownText,
-                  { color: genre ? colors.text : colors.textTertiary },
-                ]}
-              >
-                {genre || "Select a genre"}
-              </Text>
-              <Ionicons
-                name={isGenreDropdownOpen ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-
-            {/* Dropdown Content */}
-            {isGenreDropdownOpen && (
+          {/* 1. TYPE SELECTION */}
+          <View style={styles.formSection}>
+            <View style={styles.inputGroup}>
               <View
-                style={[
-                  styles.dropdownList,
-                  { backgroundColor: colors.card, borderColor: colors.border },
-                ]}
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                }}
               >
-                {GENRE_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.dropdownItem,
-                      genre === option && {
-                        backgroundColor: colors.backgroundSecondary,
-                      },
-                    ]}
-                    onPress={() => {
-                      setGenre(option);
-                      toggleGenreDropdown();
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.dropdownItemText,
-                        {
-                          color: genre === option ? colors.accent : colors.text,
-                        },
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                    {genre === option && (
-                      <Ionicons
-                        name="checkmark"
-                        size={20}
-                        color={colors.accent}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
+                <Text style={styles.label}>COLLABORATION TYPE</Text>
+                <Text style={styles.subLabel}>Choose format</Text>
               </View>
-            )}
-          </View>
 
-          {/* Price / Min Bid */}
-          {type === "AUCTION"
-            ? renderInput(
-                "Minimum Bid ($) *",
-                minBid,
-                setMinBid,
-                "Enter minimum bid",
-                "minBid",
-                false,
-                "decimal-pad",
-              )
-            : renderInput(
-                "Price ($)",
-                price,
-                setPrice,
-                "Enter price (optional)",
-                "price",
-                false,
-                "decimal-pad",
+              <View style={styles.typeGrid}>
+                {COLLAB_TYPES.map((collabType) => {
+                  const isSelected = type === collabType.value;
+                  return (
+                    <TouchableOpacity
+                      key={collabType.value}
+                      style={[
+                        styles.typeCard,
+                        isSelected && styles.typeCardSelected,
+                      ]}
+                      onPress={() => setType(collabType.value)}
+                      activeOpacity={0.9}
+                    >
+                      <View style={styles.typeCardTop}>
+                        <MaterialCommunityIcons
+                          name={collabType.icon}
+                          size={28}
+                          color={isSelected ? COLORS.accent : COLORS.textGrey}
+                        />
+                        {isSelected && (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color={COLORS.accent}
+                          />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.typeLabel,
+                          isSelected && { color: COLORS.accent },
+                        ]}
+                      >
+                        {collabType.label}
+                      </Text>
+                      <Text style={styles.typeDesc}>
+                        {collabType.description}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* 2. TITLE INPUT */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>TITLE</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Looking for a producer for my EP"
+                placeholderTextColor={COLORS.textGrey}
+                value={title}
+                onChangeText={setTitle}
+                maxLength={80}
+              />
+            </View>
+
+            {/* 3. DESCRIPTION */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>DESCRIPTION</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Describe the vibe, requirements, and vision..."
+                placeholderTextColor={COLORS.textGrey}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+              />
+            </View>
+
+            {/* 4. GENRE DROPDOWN */}
+            <View style={[styles.inputGroup, { zIndex: 100 }]}>
+              <Text style={styles.label}>GENRE</Text>
+              <TouchableOpacity
+                style={[
+                  styles.input,
+                  styles.dropdownButton,
+                  isGenreDropdownOpen && {
+                    borderColor: COLORS.accent,
+                    backgroundColor: COLORS.cardDark,
+                  },
+                ]}
+                onPress={toggleGenreDropdown}
+                activeOpacity={0.9}
+              >
+                <Text
+                  style={[
+                    styles.inputText,
+                    !genre && { color: COLORS.textGrey },
+                  ]}
+                >
+                  {genre || "Select a genre"}
+                </Text>
+                <Ionicons
+                  name={isGenreDropdownOpen ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={isGenreDropdownOpen ? COLORS.accent : COLORS.textGrey}
+                />
+              </TouchableOpacity>
+
+              {isGenreDropdownOpen && (
+                <View style={styles.dropdownList}>
+                  {GENRE_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.dropdownItem,
+                        genre === option && styles.dropdownItemSelected,
+                      ]}
+                      onPress={() => {
+                        setGenre(option);
+                        toggleGenreDropdown();
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          genre === option && { color: COLORS.accent },
+                        ]}
+                      >
+                        {option}
+                      </Text>
+                      {genre === option && (
+                        <Ionicons
+                          name="checkmark"
+                          size={18}
+                          color={COLORS.accent}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
               )}
-
-          {/* Location */}
-          {renderInput(
-            "Location",
-            location,
-            setLocation,
-            "e.g., Los Angeles, CA or Remote",
-            "location",
-          )}
-
-          {/* Duration & Slots (Split Row) */}
-          <View style={styles.row}>
-            <View style={[styles.halfSection, { marginRight: Spacing.md }]}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Duration (hours)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor:
-                      focusedInput === "duration"
-                        ? colors.accent
-                        : colors.border,
-                    borderWidth: focusedInput === "duration" ? 2 : 1,
-                    color: colors.text,
-                  },
-                ]}
-                placeholder="e.g., 2"
-                placeholderTextColor={colors.textTertiary}
-                value={duration}
-                onChangeText={setDuration}
-                keyboardType="number-pad"
-                onFocus={() => setFocusedInput("duration")}
-                onBlur={() => setFocusedInput(null)}
-              />
             </View>
-            <View style={styles.halfSection}>
-              <Text style={[styles.label, { color: colors.text }]}>Slots</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor:
-                      focusedInput === "slots" ? colors.accent : colors.border,
-                    borderWidth: focusedInput === "slots" ? 2 : 1,
-                    color: colors.text,
-                  },
-                ]}
-                placeholder="e.g., 3"
-                placeholderTextColor={colors.textTertiary}
-                value={slots}
-                onChangeText={setSlots}
-                keyboardType="number-pad"
-                onFocus={() => setFocusedInput("slots")}
-                onBlur={() => setFocusedInput(null)}
-              />
+
+            {/* 5. DYNAMIC FIELDS (Price/Bid/Location) */}
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 12 }]}>
+                <Text style={styles.label}>
+                  {type === "AUCTION" ? "MIN BID ($)" : "BUDGET ($)"}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={type === "AUCTION" ? "50" : "Optional"}
+                  placeholderTextColor={COLORS.textGrey}
+                  value={type === "AUCTION" ? minBid : price}
+                  onChangeText={type === "AUCTION" ? setMinBid : setPrice}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+
+              <View style={[styles.inputGroup, { flex: 1 }]}>
+                <Text style={styles.label}>LOCATION</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Remote / City"
+                  placeholderTextColor={COLORS.textGrey}
+                  value={location}
+                  onChangeText={setLocation}
+                />
+              </View>
+            </View>
+
+            {/* 6. DURATION & SLOTS */}
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 12 }]}>
+                <Text style={styles.label}>DURATION (HRS)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 4"
+                  placeholderTextColor={COLORS.textGrey}
+                  value={duration}
+                  onChangeText={setDuration}
+                  keyboardType="number-pad"
+                />
+              </View>
+
+              <View style={[styles.inputGroup, { flex: 1 }]}>
+                <Text style={styles.label}>OPEN SLOTS</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 2"
+                  placeholderTextColor={COLORS.textGrey}
+                  value={slots}
+                  onChangeText={setSlots}
+                  keyboardType="number-pad"
+                />
+              </View>
             </View>
           </View>
-
-          <View style={{ height: 120 }} />
         </ScrollView>
 
-        {/* Floating Action Footer */}
-        <View
-          style={[
-            styles.footer,
-            {
-              backgroundColor: colors.background,
-              borderTopColor: colors.border,
-            },
-          ]}
-        >
+        {/* FLOATING FOOTER */}
+        <View style={styles.footer}>
           <TouchableOpacity
             style={[
               styles.createButton,
-              { backgroundColor: colors.accent },
-              (!title.trim() || createCollaboration.isPending) &&
+              (!isFormValid || createCollaboration.isPending) &&
                 styles.createButtonDisabled,
             ]}
             onPress={handleCreate}
-            disabled={!title.trim() || createCollaboration.isPending}
+            disabled={!isFormValid || createCollaboration.isPending}
             activeOpacity={0.8}
           >
             {createCollaboration.isPending ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={isFormValid ? "#000" : "#fff"} />
             ) : (
-              <>
-                <Text style={styles.createButtonText}>
-                  Create Collaboration
-                </Text>
-                {/* <Ionicons name="arrow-forward" size={20} color="#fff" /> */}
-              </>
+              <Text
+                style={[
+                  styles.createButtonText,
+                  !isFormValid && styles.createButtonTextDisabled,
+                ]}
+              >
+                CREATE COLLAB
+              </Text>
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -495,163 +439,199 @@ export default function CreateCollaborationModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.background,
   },
+  // HEADER
   header: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === "android" ? 40 : 20,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  headerTitle: {
+    fontSize: 16,
+    color: COLORS.pureWhite,
+    fontFamily: "Manrope_800ExtraBold",
+    letterSpacing: 1,
   },
   closeButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
+    backgroundColor: COLORS.cardBlack,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  headerTitle: {
-    fontSize: FontSizes.xl + 2, // Increased font
-    fontWeight: "700",
-  },
+
   content: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+
+  // FORM SECTION
+  formSection: {
+    padding: 20,
   },
-  section: {
-    marginTop: Spacing.xl, // Increased spacing between sections
-  },
-  halfSection: {
-    flex: 1,
-    marginTop: Spacing.xl,
+  inputGroup: {
+    marginBottom: 24,
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
   },
   label: {
-    fontSize: FontSizes.base, // Increased from sm
-    fontWeight: "600",
-    marginBottom: Spacing.sm + 2,
-    letterSpacing: 0.5,
+    fontSize: 12,
+    color: COLORS.textGrey,
+    fontFamily: "Manrope_800ExtraBold",
+    marginBottom: 10,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
+  subLabel: {
+    fontSize: 12,
+    color: COLORS.accent,
+    fontFamily: "Manrope_600SemiBold",
+  },
+
+  // INPUTS
   input: {
-    borderRadius: BorderRadius.lg, // Sleeker roundness
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontSize: FontSizes.lg, // Larger input text
-    height: 56, // Taller touch target
+    backgroundColor: COLORS.cardBlack,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    color: COLORS.pureWhite,
+    fontSize: 16,
+    fontFamily: "Manrope_600SemiBold",
+  },
+  inputText: {
+    fontSize: 16,
+    fontFamily: "Manrope_600SemiBold",
+    color: COLORS.pureWhite,
   },
   textArea: {
-    height: 140,
-    paddingTop: Spacing.md,
+    height: 120,
     textAlignVertical: "top",
+    paddingTop: 16,
   },
-  // Type Cards
+
+  // TYPE GRID
   typeGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: Spacing.md,
+    gap: 12,
+    marginTop: 8,
   },
-  typeOption: {
-    width: "48%",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1.5,
-    alignItems: "center",
-    // Shadow for depth
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  typeCard: {
+    width: "48%", // 2 columns
+    backgroundColor: COLORS.cardBlack,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    padding: 16,
+    minHeight: 120,
+    justifyContent: "space-between",
+  },
+  typeCardSelected: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accentDim,
+    borderWidth: 2,
+  },
+  typeCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
   },
   typeLabel: {
-    fontSize: FontSizes.base + 1,
-    fontWeight: "700",
-    marginTop: Spacing.sm,
+    fontSize: 14,
+    color: COLORS.pureWhite,
+    fontFamily: "Manrope_800ExtraBold",
+    marginBottom: 4,
+    textTransform: "uppercase",
   },
-  typeDescription: {
-    fontSize: FontSizes.sm,
-    marginTop: 4,
-    textAlign: "center",
-    lineHeight: 18,
+  typeDesc: {
+    fontSize: 12,
+    color: COLORS.textGrey,
+    fontFamily: "Manrope_500Medium",
+    lineHeight: 16,
   },
-  // Genre Dropdown Styles
+
+  // DROPDOWN
   dropdownButton: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.lg,
-    height: 56,
-  },
-  dropdownText: {
-    fontSize: FontSizes.lg,
+    alignItems: "center",
   },
   dropdownList: {
-    marginTop: Spacing.xs,
-    borderRadius: BorderRadius.lg,
+    marginTop: 8,
+    backgroundColor: COLORS.cardBlack,
+    borderRadius: 16,
     borderWidth: 1,
+    borderColor: COLORS.border,
     overflow: "hidden",
   },
   dropdownItem: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(150,150,150,0.1)",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  dropdownItemSelected: {
+    backgroundColor: COLORS.accentDim,
   },
   dropdownItemText: {
-    fontSize: FontSizes.base,
-    fontWeight: "500",
+    fontSize: 15,
+    color: COLORS.pureWhite,
+    fontFamily: "Manrope_500Medium",
   },
-  // Footer
+
+  // FOOTER
   footer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    padding: Spacing.lg,
-    paddingBottom: Platform.OS === "ios" ? 40 : Spacing.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    // Add shadow to footer upwards
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 10,
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
   createButton: {
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: COLORS.accent,
+    height: 56,
+    borderRadius: 28,
     justifyContent: "center",
-    paddingVertical: 18, // Taller button
-    borderRadius: BorderRadius.xl,
-    gap: Spacing.sm,
-    shadowColor: "#000",
+    alignItems: "center",
+    shadowColor: COLORS.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
   createButtonDisabled: {
-    opacity: 0.6,
+    backgroundColor: COLORS.disabled,
+    opacity: 1,
     shadowOpacity: 0,
-    elevation: 0,
   },
   createButtonText: {
-    color: "#ffffff",
-    fontSize: FontSizes.lg,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+    color: "#000000",
+    fontSize: 16,
+    fontFamily: "Manrope_800ExtraBold",
+    letterSpacing: 1,
+  },
+  createButtonTextDisabled: {
+    color: "#888888",
   },
 });

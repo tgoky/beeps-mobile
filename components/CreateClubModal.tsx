@@ -1,15 +1,11 @@
-import {
-  Colors,
-  Spacing
-} from "@/constants/theme";
-import { useTheme } from "@/contexts/ThemeContext";
 import { useCreateClub } from "@/hooks/useClubs";
 import { ClubType } from "@/types/database";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -27,13 +23,31 @@ interface CreateClubModalProps {
   userId: string;
 }
 
-// Club types mapped to roles
+const { width } = Dimensions.get("window");
+
+// 🎨 THEME COLORS
+const COLORS = {
+  background: "#000000",
+  cardBlack: "#0A0A0A",
+  cardDark: "#151515",
+  pureWhite: "#FFFFFF",
+  offWhite: "#F5F5F5",
+  textGrey: "#888888",
+  border: "#222222",
+  accent: "#f59e0b",
+  accentDim: "rgba(245, 158, 11, 0.15)",
+  red: "#D50000",
+  disabled: "#333333", // New distinct disabled color
+};
+
+// Club types mapped with specific background patterns
 const CLUB_TYPES: {
   value: ClubType;
   label: string;
   emoji: string;
   grantsRole: string;
   description: string;
+  patternIcon: any;
 }[] = [
   {
     value: "RECORDING",
@@ -41,6 +55,7 @@ const CLUB_TYPES: {
     emoji: "🎙️",
     grantsRole: "ARTIST",
     description: "Recording sessions & vocals",
+    patternIcon: "waveform",
   },
   {
     value: "PRODUCTION",
@@ -48,6 +63,7 @@ const CLUB_TYPES: {
     emoji: "🎚️",
     grantsRole: "PRODUCER",
     description: "Mixing & mastering",
+    patternIcon: "tune",
   },
   {
     value: "RENTAL",
@@ -55,6 +71,7 @@ const CLUB_TYPES: {
     emoji: "🏠",
     grantsRole: "STUDIO_OWNER",
     description: "Studio space rental",
+    patternIcon: "domain",
   },
   {
     value: "MANAGEMENT",
@@ -62,6 +79,7 @@ const CLUB_TYPES: {
     emoji: "🧑‍💼",
     grantsRole: "OTHER",
     description: "Artist & business management",
+    patternIcon: "briefcase-outline",
   },
   {
     value: "DISTRIBUTION",
@@ -69,6 +87,7 @@ const CLUB_TYPES: {
     emoji: "📣",
     grantsRole: "OTHER",
     description: "Promotion & publicity",
+    patternIcon: "bullhorn-outline",
   },
   {
     value: "CREATIVE",
@@ -76,6 +95,7 @@ const CLUB_TYPES: {
     emoji: "🎨",
     grantsRole: "LYRICIST",
     description: "Artistic direction",
+    patternIcon: "palette-outline",
   },
 ];
 
@@ -90,6 +110,8 @@ const ICON_OPTIONS = [
   "🥁",
   "🎻",
   "🎤",
+  "💿",
+  "📻",
 ];
 
 export default function CreateClubModal({
@@ -97,8 +119,6 @@ export default function CreateClubModal({
   onClose,
   userId,
 }: CreateClubModalProps) {
-  const { effectiveTheme } = useTheme();
-  const colors = Colors[effectiveTheme];
   const createClub = useCreateClub();
 
   const [name, setName] = useState("");
@@ -145,7 +165,7 @@ export default function CreateClubModal({
   };
 
   const selectedClubType = CLUB_TYPES.find((t) => t.value === selectedType);
-  const isDark = effectiveTheme === "dark";
+  const isFormValid = name.trim().length > 0;
 
   return (
     <Modal
@@ -155,138 +175,113 @@ export default function CreateClubModal({
       onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={[styles.container, { backgroundColor: colors.background }]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
       >
         {/* Header */}
-        <View
-          style={[
-            styles.header,
-            { borderBottomColor: isDark ? colors.border : "transparent" },
-          ]}
-        >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>CREATE NEW CLUB</Text>
           <TouchableOpacity
             onPress={handleClose}
-            style={[
-              styles.closeButton,
-              {
-                backgroundColor: isDark
-                  ? colors.card
-                  : colors.backgroundSecondary,
-              },
-            ]}
+            style={styles.closeButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="close" size={22} color={colors.text} />
+            <Ionicons name="close" size={24} color={COLORS.pureWhite} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            New Club
-          </Text>
-          <View style={{ width: 44 }} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Hero Preview Section */}
-          <View style={styles.previewSection}>
-            <View
-              style={[
-                styles.previewCard,
-                {
-                  backgroundColor: colors.card,
-                  shadowColor: "#000",
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Text style={styles.previewIcon}>{selectedIcon}</Text>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={{ paddingBottom: 150 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 1. HERO PREVIEW CARD */}
+          <View style={styles.previewContainer}>
+            <View style={styles.previewCard}>
+              <View style={styles.cardPatternContainer}>
+                <MaterialCommunityIcons
+                  name={selectedClubType?.patternIcon || "waveform"}
+                  size={180}
+                  color="rgba(255,255,255,0.03)"
+                />
+              </View>
+
+              <View style={styles.previewIconCircle}>
+                <Text style={styles.previewIcon}>{selectedIcon}</Text>
+              </View>
+
               <Text
                 style={[
                   styles.previewName,
-                  { color: name ? colors.text : colors.textTertiary },
+                  !name && { color: COLORS.textGrey, opacity: 0.5 },
                 ]}
+                numberOfLines={1}
               >
-                {name || "Club Name"}
+                {name || "CLUB NAME"}
               </Text>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: colors.backgroundSecondary },
-                ]}
-              >
-                <Text
-                  style={[styles.badgeText, { color: colors.textSecondary }]}
-                >
-                  {selectedClubType?.label}
+
+              <View style={styles.previewBadge}>
+                <Text style={styles.previewBadgeText}>
+                  {selectedClubType?.label.toUpperCase()}
                 </Text>
               </View>
             </View>
           </View>
 
-          {/* Form Container */}
+          {/* 2. FORM SECTION */}
           <View style={styles.formSection}>
             {/* Name Input */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Club Name
-              </Text>
+              <Text style={styles.label}>CLUB NAME</Text>
               <TextInput
-                style={[
-                  styles.inputLarge,
-                  {
-                    backgroundColor: colors.card,
-                    color: colors.text,
-                    borderColor: name ? colors.accent : colors.border,
-                  },
-                ]}
+                style={styles.input}
                 placeholder="Ex. Metro Studios"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={COLORS.textGrey}
                 value={name}
                 onChangeText={setName}
-                maxLength={50}
+                maxLength={30}
               />
             </View>
 
             {/* Icon Selection */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Choose Icon
-              </Text>
+              <Text style={styles.label}>CHOOSE ICON</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.iconScroll}
               >
-                {ICON_OPTIONS.map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    style={[
-                      styles.iconCircle,
-                      {
-                        backgroundColor: colors.card,
-                        borderColor: colors.border,
-                      },
-                      selectedIcon === emoji && {
-                        borderColor: colors.accent,
-                        backgroundColor: colors.backgroundSecondary,
-                        transform: [{ scale: 1.1 }],
-                      },
-                    ]}
-                    onPress={() => setSelectedIcon(emoji)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.iconEmoji}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
+                {ICON_OPTIONS.map((emoji) => {
+                  const isSelected = selectedIcon === emoji;
+                  return (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={[
+                        styles.iconCircle,
+                        isSelected && styles.iconCircleSelected,
+                      ]}
+                      onPress={() => setSelectedIcon(emoji)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.iconEmoji}>{emoji}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
 
-            {/* Club Type */}
+            {/* Club Type Grid */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Category
-              </Text>
-              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>
-                Determines your community role
-              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                }}
+              >
+                <Text style={styles.label}>CATEGORY</Text>
+                <Text style={styles.subLabel}>Determines your role</Text>
+              </View>
 
               <View style={styles.typeGrid}>
                 {CLUB_TYPES.map((type) => {
@@ -296,38 +291,31 @@ export default function CreateClubModal({
                       key={type.value}
                       style={[
                         styles.typeCard,
-                        {
-                          backgroundColor: colors.card,
-                          borderColor: isSelected
-                            ? colors.accent
-                            : colors.border,
-                        },
-                        isSelected && {
-                          backgroundColor: isDark ? colors.card : "#F0F9FF",
-                        }, // Subtle tint on light mode
+                        isSelected && styles.typeCardSelected,
                       ]}
                       onPress={() => setSelectedType(type.value)}
                       activeOpacity={0.9}
                     >
-                      <View style={styles.typeHeader}>
+                      <View style={styles.typeCardTop}>
                         <Text style={styles.typeEmoji}>{type.emoji}</Text>
                         {isSelected && (
                           <Ionicons
                             name="checkmark-circle"
                             size={20}
-                            color={colors.accent}
+                            color={COLORS.accent}
                           />
                         )}
                       </View>
-                      <Text style={[styles.typeLabel, { color: colors.text }]}>
-                        {type.label}
-                      </Text>
+
                       <Text
                         style={[
-                          styles.typeDesc,
-                          { color: colors.textSecondary },
+                          styles.typeLabel,
+                          isSelected && { color: COLORS.accent },
                         ]}
                       >
+                        {type.label}
+                      </Text>
+                      <Text style={styles.typeDesc} numberOfLines={2}>
                         {type.description}
                       </Text>
                     </TouchableOpacity>
@@ -338,21 +326,11 @@ export default function CreateClubModal({
 
             {/* Description */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Description
-              </Text>
+              <Text style={styles.label}>DESCRIPTION</Text>
               <TextInput
-                style={[
-                  styles.inputLarge,
-                  styles.textArea,
-                  {
-                    backgroundColor: colors.card,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                placeholder="Briefly describe what you do..."
-                placeholderTextColor={colors.textTertiary}
+                style={[styles.input, styles.textArea]}
+                placeholder="Briefly describe what your club does..."
+                placeholderTextColor={COLORS.textGrey}
                 value={description}
                 onChangeText={setDescription}
                 multiline
@@ -361,37 +339,31 @@ export default function CreateClubModal({
               />
             </View>
           </View>
-
-          {/* Bottom Spacer */}
-          <View style={{ height: 120 }} />
         </ScrollView>
 
-        {/* Floating Footer */}
-        <View
-          style={[
-            styles.footer,
-            {
-              backgroundColor: colors.background,
-              borderTopColor: colors.border,
-              shadowColor: "#000",
-            },
-          ]}
-        >
+        {/* 3. FLOATING FOOTER */}
+        <View style={styles.footer}>
           <TouchableOpacity
             style={[
               styles.createButton,
-              { backgroundColor: colors.accent },
-              (!name.trim() || createClub.isPending) &&
+              (!isFormValid || createClub.isPending) &&
                 styles.createButtonDisabled,
             ]}
             onPress={handleCreate}
-            disabled={!name.trim() || createClub.isPending}
+            disabled={!isFormValid || createClub.isPending}
             activeOpacity={0.8}
           >
             {createClub.isPending ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={isFormValid ? "#000" : "#fff"} />
             ) : (
-              <Text style={styles.createButtonText}>Create Club</Text>
+              <Text
+                style={[
+                  styles.createButtonText,
+                  !isFormValid && styles.createButtonTextDisabled,
+                ]}
+              >
+                CREATE CLUB
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -403,113 +375,165 @@ export default function CreateClubModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.background,
   },
+  // HEADER
   header: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === "android" ? 40 : 20,
-    paddingBottom: Spacing.md,
-    height: 90,
-  },
-  closeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22, // Circle
-    justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   headerTitle: {
-    fontSize: 20, // Larger title
-    fontWeight: "800", // Extra bold
-    letterSpacing: 0.5,
+    fontSize: 16,
+    color: COLORS.pureWhite,
+    fontFamily: "Manrope_800ExtraBold",
+    letterSpacing: 1,
   },
-  content: {
-    flex: 1,
-  },
-  previewSection: {
-    alignItems: "center",
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-  },
-  previewCard: {
-    width: "100%",
-    paddingVertical: 30,
-    borderRadius: 24, // Softer corners
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.cardBlack,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    // Premium Shadow
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 6,
+    borderColor: COLORS.border,
+  },
+
+  content: {
+    flex: 1,
+  },
+
+  // HERO PREVIEW CARD
+  previewContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  previewCard: {
+    backgroundColor: "#343029",
+    borderRadius: 24,
+    paddingVertical: 40,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    position: "relative",
+    overflow: "hidden",
+  },
+  cardPatternContainer: {
+    position: "absolute",
+    right: -40,
+    bottom: -40,
+    transform: [{ rotate: "-15deg" }],
+    opacity: 0.8,
+  },
+  previewIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   previewIcon: {
-    fontSize: 64, // Huge icon
-    marginBottom: Spacing.sm,
+    fontSize: 40,
   },
   previewName: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 26,
+    color: COLORS.pureWhite,
+    fontFamily: "Manrope_800ExtraBold",
+    marginBottom: 16,
+    textTransform: "uppercase",
     textAlign: "center",
-    marginBottom: Spacing.sm,
+    paddingHorizontal: 20,
+    letterSpacing: -0.5,
   },
-  badge: {
+  previewBadge: {
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 100,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  badgeText: {
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
+  previewBadgeText: {
+    color: "#000",
+    fontSize: 12,
+    fontFamily: "Manrope_800ExtraBold",
+    letterSpacing: 0.5,
   },
+
+  // FORM
   formSection: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 20,
   },
   inputGroup: {
-    marginBottom: 28, // More spacing between sections
+    marginBottom: 32,
   },
   label: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 8,
+    fontSize: 12,
+    color: COLORS.textGrey,
+    fontFamily: "Manrope_800ExtraBold",
+    marginBottom: 12,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
   subLabel: {
-    fontSize: 14,
-    marginBottom: 12,
-    marginTop: -4,
+    fontSize: 12,
+    color: COLORS.accent,
+    fontFamily: "Manrope_600SemiBold",
   },
-  inputLarge: {
-    borderWidth: 1.5, // Thicker border
+  input: {
+    backgroundColor: COLORS.cardBlack,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 16, // Taller input
-    fontSize: 17,
+    paddingVertical: 18,
+    color: COLORS.pureWhite,
+    fontSize: 16,
+    fontFamily: "Manrope_600SemiBold",
   },
   textArea: {
     height: 100,
-    paddingTop: 16,
     textAlignVertical: "top",
+    paddingTop: 16,
   },
+
+  // ICON SCROLL
   iconScroll: {
     gap: 12,
-    paddingVertical: 4, // Allow space for shadow/transform
-    paddingHorizontal: 2,
+    paddingRight: 20,
   },
   iconCircle: {
-    width: 64, // Larger
+    width: 64,
     height: 64,
-    borderRadius: 32, // Perfect circle
+    borderRadius: 32,
+    backgroundColor: COLORS.cardBlack,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1.5,
+  },
+  iconCircleSelected: {
+    backgroundColor: COLORS.accentDim,
+    borderColor: COLORS.accent,
+    borderWidth: 2,
   },
   iconEmoji: {
     fontSize: 30,
   },
+
+  // TYPE GRID
   typeGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -517,62 +541,83 @@ const styles = StyleSheet.create({
   },
   typeCard: {
     width: "48%",
+    backgroundColor: COLORS.cardBlack,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
     padding: 16,
-    borderRadius: 20,
-    borderWidth: 2,
     minHeight: 140,
     justifyContent: "space-between",
   },
-  typeHeader: {
+  typeCardSelected: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accentDim,
+    borderWidth: 2,
+  },
+  typeCardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   typeEmoji: {
-    fontSize: 32,
+    fontSize: 28,
   },
   typeLabel: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 14,
+    color: COLORS.pureWhite,
+    fontFamily: "Manrope_800ExtraBold",
     marginBottom: 4,
+    textTransform: "uppercase",
   },
   typeDesc: {
-    fontSize: 13,
+    fontSize: 12,
+    color: COLORS.textGrey,
+    fontFamily: "Manrope_500Medium",
     lineHeight: 18,
   },
+
+  // FOOTER
   footer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 20,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20, // Safe area
+    backgroundColor: COLORS.background, // Ensure this isn't transparent
     borderTopWidth: 1,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 10,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    // Add extra padding for iOS home indicator
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
   createButton: {
-    height: 56, // Standard mobile button height
-    borderRadius: 28, // Pill shape
+    backgroundColor: COLORS.accent,
+    height: 56,
+    borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: COLORS.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
+  // FIXED: DISABLED BUTTON STYLE IS NOW VISIBLE
   createButtonDisabled: {
-    opacity: 0.5,
+    backgroundColor: COLORS.disabled, // Visible Dark Grey (#333)
+    borderWidth: 0,
+    opacity: 1, // Full opacity so it doesn't vanish
     shadowOpacity: 0,
   },
   createButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
+    color: "#000000",
+    fontSize: 16,
+    fontFamily: "Manrope_800ExtraBold",
+    letterSpacing: 1,
+  },
+  // FIXED: DISABLED TEXT COLOR
+  createButtonTextDisabled: {
+    color: "#888888", // Grey text for disabled state
   },
 });

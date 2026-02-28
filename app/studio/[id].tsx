@@ -1,6 +1,14 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateBooking, useStudioBookings } from "@/hooks/useBookings";
 import { supabase } from "@/lib/supabase";
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/manrope";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -21,25 +29,25 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 // --- Constants for the Premium Dark Look ---
 const DARK_THEME = {
   bg: "#000000",
-  surface: "#111111",
-  surfaceHighlight: "#1A1A1A",
+  surface: "#0A0A0A", // Card Black
+  surfaceHighlight: "#151515", // Slightly lighter for inputs
   text: "#FFFFFF",
-  textDim: "rgba(255, 255, 255, 0.6)",
-  textDark: "rgba(255, 255, 255, 0.3)",
-  accent: "#6C63FF",
-  border: "rgba(255, 255, 255, 0.1)",
+  textDim: "#888888",
+  textDark: "#444444",
+  accent: "#f59e0b", // Amber
+  border: "#222222",
   success: "#00E096",
   error: "#FF453A",
 };
 
 const { width } = Dimensions.get("window");
-const IMG_HEIGHT = 350;
+const IMG_HEIGHT = 400; // Taller hero image for impact
 
 type TabType = "details" | "equipment" | "reviews";
 
@@ -48,10 +56,17 @@ export default function StudioDetailScreen() {
   const router = useRouter();
   const { user } = useAuth();
 
+  // Load Fonts
+  let [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
+
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const iconScale = useRef(new Animated.Value(0)).current;
-
-  const colors = DARK_THEME;
 
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
 
@@ -289,7 +304,7 @@ export default function StudioDetailScreen() {
         </Animated.View>
       </View>
 
-      <Text style={styles.successTitle}>Request Sent!</Text>
+      <Text style={styles.successTitle}>REQUEST SENT!</Text>
       <Text style={styles.successMessage}>
         Your booking request has been sent to the studio owner. You will be
         notified once they accept.
@@ -309,7 +324,7 @@ export default function StudioDetailScreen() {
           });
         }}
       >
-        <Text style={styles.successButtonText}>View My Bookings</Text>
+        <Text style={styles.successButtonText}>VIEW MY BOOKINGS</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -319,14 +334,14 @@ export default function StudioDetailScreen() {
           setBookingSuccess(false);
         }}
       >
-        <Text style={styles.closeSuccessText}>Close</Text>
+        <Text style={styles.closeSuccessText}>CLOSE</Text>
       </TouchableOpacity>
     </View>
   );
 
   // --- Rendering ---
 
-  if (isLoading || !studio) {
+  if (isLoading || !studio || !fontsLoaded) {
     return (
       <View
         style={[
@@ -335,7 +350,7 @@ export default function StudioDetailScreen() {
         ]}
       >
         <StatusBar barStyle="light-content" />
-        <ActivityIndicator size="large" color={colors.accent} />
+        <ActivityIndicator size="large" color={DARK_THEME.accent} />
       </View>
     );
   }
@@ -386,12 +401,12 @@ export default function StudioDetailScreen() {
               </SafeAreaView>
 
               <View style={styles.heroContent}>
-                {/* --- IMPROVED SLEEK RATING BADGE --- */}
+                {/* Rating Badge */}
                 <View style={styles.sleekRatingPill}>
-                  <Ionicons name="star" size={14} color="#FFD700" />
+                  <Ionicons name="star" size={12} color={DARK_THEME.accent} />
                   <Text style={styles.ratingText}>
                     {studio.rating.toFixed(1)}{" "}
-                    <Text style={{ color: colors.textDim }}>
+                    <Text style={{ color: DARK_THEME.textDim }}>
                       ({studio.reviewsCount})
                     </Text>
                   </Text>
@@ -403,7 +418,7 @@ export default function StudioDetailScreen() {
                   <Ionicons
                     name="location-outline"
                     size={16}
-                    color={colors.textDim}
+                    color={DARK_THEME.textDim}
                   />
                   <Text style={styles.locationText}>
                     {[studio.city, studio.state].filter(Boolean).join(", ") ||
@@ -422,7 +437,7 @@ export default function StudioDetailScreen() {
               <TouchableOpacity
                 key={tab}
                 onPress={() => setActiveTab(tab)}
-                style={[styles.tab, activeTab === tab && styles.tabActive]}
+                style={styles.tab}
               >
                 <Text
                   style={[
@@ -430,7 +445,7 @@ export default function StudioDetailScreen() {
                     activeTab === tab && styles.tabTextActive,
                   ]}
                 >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {tab.toUpperCase()}
                 </Text>
                 {activeTab === tab && <View style={styles.activeIndicator} />}
               </TouchableOpacity>
@@ -448,16 +463,16 @@ export default function StudioDetailScreen() {
                   <Text style={styles.priceUnit}>/hr</Text>
                 </Text>
                 <View style={styles.tag}>
-                  <Text style={styles.tagText}>Instant Book</Text>
+                  <Text style={styles.tagText}>INSTANT BOOK</Text>
                 </View>
               </View>
 
-              <Text style={styles.sectionHeader}>About</Text>
+              <Text style={styles.sectionHeader}>ABOUT</Text>
               <Text style={styles.descriptionText}>
                 {studio.description || "No description provided."}
               </Text>
 
-              <Text style={styles.sectionHeader}>Amenities</Text>
+              <Text style={styles.sectionHeader}>AMENITIES</Text>
               <View style={styles.gridContainer}>
                 {amenities.map((item, index) => (
                   <View key={index} style={styles.amenityItem}>
@@ -465,7 +480,7 @@ export default function StudioDetailScreen() {
                       <MaterialCommunityIcons
                         name={item.icon as any}
                         size={20}
-                        color={colors.text}
+                        color={DARK_THEME.text}
                       />
                     </View>
                     <Text style={styles.amenityText}>{item.label}</Text>
@@ -473,7 +488,7 @@ export default function StudioDetailScreen() {
                 ))}
               </View>
 
-              <Text style={styles.sectionHeader}>Hosted By</Text>
+              <Text style={styles.sectionHeader}>HOSTED BY</Text>
               <View style={styles.ownerCard}>
                 <View style={styles.ownerAvatar}>
                   {studio.owner.avatar ? (
@@ -499,7 +514,7 @@ export default function StudioDetailScreen() {
 
           {activeTab === "equipment" && (
             <View style={styles.sectionFade}>
-              <Text style={styles.sectionHeader}>Gear List</Text>
+              <Text style={styles.sectionHeader}>GEAR LIST</Text>
               {studio.equipment && studio.equipment.length > 0 ? (
                 studio.equipment.map((item, i) => (
                   <View key={i} style={styles.equipmentRow}>
@@ -515,7 +530,7 @@ export default function StudioDetailScreen() {
 
           {activeTab === "reviews" && (
             <View style={styles.sectionFade}>
-              <Text style={styles.sectionHeader}>Reviews</Text>
+              <Text style={styles.sectionHeader}>REVIEWS</Text>
               <Text style={styles.emptyText}>No reviews yet.</Text>
             </View>
           )}
@@ -537,7 +552,11 @@ export default function StudioDetailScreen() {
             onPress={handleChat}
             activeOpacity={0.7}
           >
-            <Ionicons name="chatbubble-ellipses" size={22} color="#FFF" />
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={24}
+              color="#FFF"
+            />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -545,8 +564,8 @@ export default function StudioDetailScreen() {
             onPress={() => setBookingModalVisible(true)}
             activeOpacity={0.8}
           >
-            <Text style={styles.primaryButtonText}>Book Studio</Text>
-            <Ionicons name="calendar" size={20} color="#000" />
+            <Text style={styles.primaryButtonText}>BOOK STUDIO</Text>
+            <Ionicons name="arrow-forward" size={20} color="#000" />
           </TouchableOpacity>
         </View>
       </View>
@@ -567,14 +586,14 @@ export default function StudioDetailScreen() {
             ) : (
               <>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Request Booking</Text>
+                  <Text style={styles.modalTitle}>REQUEST BOOKING</Text>
                   <TouchableOpacity
                     onPress={() => setBookingModalVisible(false)}
                   >
                     <Ionicons
                       name="close-circle"
-                      size={30}
-                      color={colors.textDim}
+                      size={28}
+                      color={DARK_THEME.textDim}
                     />
                   </TouchableOpacity>
                 </View>
@@ -590,7 +609,7 @@ export default function StudioDetailScreen() {
                         <Ionicons
                           name="chevron-back"
                           size={20}
-                          color={colors.text}
+                          color={DARK_THEME.text}
                         />
                       </TouchableOpacity>
                       <Text style={styles.calendarMonthTitle}>
@@ -603,7 +622,7 @@ export default function StudioDetailScreen() {
                         <Ionicons
                           name="chevron-forward"
                           size={20}
-                          color={colors.text}
+                          color={DARK_THEME.text}
                         />
                       </TouchableOpacity>
                     </View>
@@ -664,7 +683,7 @@ export default function StudioDetailScreen() {
                   </View>
 
                   {/* Time Slots (Centered) */}
-                  <Text style={styles.inputLabel}>Start Time</Text>
+                  <Text style={styles.inputLabel}>START TIME</Text>
                   <View style={styles.wrapGrid}>
                     {timeSlots.map((time) => {
                       const isAvailable = isTimeSlotAvailable(time);
@@ -695,7 +714,7 @@ export default function StudioDetailScreen() {
                   </View>
 
                   {/* Duration (Includes 1 Hour) */}
-                  <Text style={styles.inputLabel}>Duration</Text>
+                  <Text style={styles.inputLabel}>DURATION</Text>
                   <View style={styles.durationRow}>
                     {[1, 2, 4, 8].map((hrs) => (
                       <TouchableOpacity
@@ -712,7 +731,7 @@ export default function StudioDetailScreen() {
                             sessionLength === hrs && styles.textSelected,
                           ]}
                         >
-                          {hrs}h
+                          {hrs}H
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -734,7 +753,7 @@ export default function StudioDetailScreen() {
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.receiptRow}>
-                      <Text style={styles.totalLabel}>Total</Text>
+                      <Text style={styles.totalLabel}>TOTAL</Text>
                       <Text style={styles.totalValue}>
                         ${calculateTotal().toFixed(2)}
                       </Text>
@@ -747,7 +766,7 @@ export default function StudioDetailScreen() {
                       style={styles.negotiateButton}
                       onPress={handleNegotiate}
                     >
-                      <Text style={styles.negotiateButtonText}>Negotiate</Text>
+                      <Text style={styles.negotiateButtonText}>NEGOTIATE</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -763,7 +782,7 @@ export default function StudioDetailScreen() {
                       {createBooking.isPending ? (
                         <ActivityIndicator color="#000" />
                       ) : (
-                        <Text style={styles.confirmButtonText}>Confirm</Text>
+                        <Text style={styles.confirmButtonText}>CONFIRM</Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -807,9 +826,9 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "android" ? 40 : 0,
   },
   roundButtonBlur: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
@@ -820,34 +839,33 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   heroTitle: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 36,
+    fontFamily: "Manrope_800ExtraBold",
     color: "#FFF",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
     marginBottom: 8,
     textShadowColor: "rgba(0,0,0,0.5)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
 
-  // --- UPDATED SLEEK RATING PILL ---
+  // RATING PILL
   sleekRatingPill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.15)", // Glassy
+    backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 100,
     alignSelf: "flex-start",
-    marginBottom: 10,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
-    backdropFilter: "blur(10px)",
   },
   ratingText: {
     color: "#FFF",
     fontSize: 13,
-    fontWeight: "bold",
+    fontFamily: "Manrope_700Bold",
     marginLeft: 6,
   },
 
@@ -856,35 +874,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   locationText: {
-    color: DARK_THEME.textDim,
-    fontSize: 14,
-    marginLeft: 4,
+    color: "#CCC",
+    fontSize: 15,
+    fontFamily: "Manrope_500Medium",
+    marginLeft: 6,
   },
 
   // Tabs
   stickyTabs: {
     backgroundColor: DARK_THEME.bg,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: DARK_THEME.surfaceHighlight,
+    borderBottomColor: DARK_THEME.surface,
   },
   tabContainer: {
     flexDirection: "row",
     marginHorizontal: 20,
+    gap: 30,
   },
   tab: {
-    marginRight: 24,
-    paddingVertical: 10,
+    paddingVertical: 8,
     position: "relative",
   },
   tabActive: {},
   tabText: {
     color: DARK_THEME.textDim,
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: "Manrope_600SemiBold",
+    letterSpacing: 0.5,
   },
   tabTextActive: {
     color: "#FFF",
+    fontFamily: "Manrope_800ExtraBold",
   },
   activeIndicator: {
     position: "absolute",
@@ -893,9 +914,6 @@ const styles = StyleSheet.create({
     right: 0,
     height: 2,
     backgroundColor: DARK_THEME.accent,
-    shadowColor: DARK_THEME.accent,
-    shadowOpacity: 0.8,
-    shadowRadius: 5,
   },
 
   // Body
@@ -915,45 +933,48 @@ const styles = StyleSheet.create({
   priceValue: {
     color: "#FFF",
     fontSize: 28,
-    fontWeight: "700",
+    fontFamily: "Manrope_800ExtraBold",
   },
   priceUnit: {
-    fontSize: 14,
+    fontSize: 16,
     color: DARK_THEME.textDim,
-    fontWeight: "400",
+    fontFamily: "Manrope_500Medium",
   },
   tag: {
-    backgroundColor: "#1E1E1E",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: DARK_THEME.surfaceHighlight,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 100,
     borderWidth: 1,
     borderColor: DARK_THEME.border,
   },
   tagText: {
     color: DARK_THEME.accent,
-    fontSize: 12,
-    fontWeight: "bold",
+    fontSize: 11,
+    fontFamily: "Manrope_700Bold",
+    letterSpacing: 0.5,
   },
   sectionHeader: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: "Manrope_800ExtraBold",
     color: "#FFF",
     marginBottom: 16,
     marginTop: 8,
+    letterSpacing: 0.5,
   },
   descriptionText: {
-    color: DARK_THEME.textDim,
+    color: "#CCC",
     lineHeight: 24,
     fontSize: 15,
-    marginBottom: 24,
+    fontFamily: "Manrope_500Medium",
+    marginBottom: 30,
   },
 
   // Amenities
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginBottom: 24,
+    marginBottom: 30,
   },
   amenityItem: {
     width: "33.33%",
@@ -961,17 +982,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: DARK_THEME.surfaceHighlight,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: DARK_THEME.border,
   },
   amenityText: {
     color: DARK_THEME.textDim,
     fontSize: 12,
+    fontFamily: "Manrope_500Medium",
   },
 
   // Owner
@@ -985,10 +1009,10 @@ const styles = StyleSheet.create({
     borderColor: DARK_THEME.border,
   },
   ownerAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#333",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#222",
     marginRight: 16,
     overflow: "hidden",
     justifyContent: "center",
@@ -997,16 +1021,18 @@ const styles = StyleSheet.create({
   avatarInitials: {
     color: "#FFF",
     fontSize: 20,
-    fontWeight: "bold",
+    fontFamily: "Manrope_700Bold",
   },
   ownerName: {
     color: "#FFF",
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: "Manrope_700Bold",
   },
   ownerRole: {
     color: DARK_THEME.textDim,
-    fontSize: 12,
+    fontSize: 13,
+    fontFamily: "Manrope_500Medium",
+    marginTop: 2,
   },
 
   // Equipment
@@ -1015,22 +1041,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
     backgroundColor: DARK_THEME.surface,
-    padding: 12,
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DARK_THEME.border,
   },
   bulletPoint: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: DARK_THEME.accent,
-    marginRight: 12,
+    marginRight: 14,
   },
   equipmentText: {
     color: "#FFF",
     fontSize: 14,
+    fontFamily: "Manrope_500Medium",
   },
   emptyText: {
     color: DARK_THEME.textDark,
+    fontFamily: "Manrope_500Medium",
     fontStyle: "italic",
   },
 
@@ -1054,42 +1084,47 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 16,
   },
   chatButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: DARK_THEME.surface,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    borderColor: DARK_THEME.border,
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: "#FFF",
+    backgroundColor: DARK_THEME.accent,
     height: 56,
     borderRadius: 28,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 10,
+    shadowColor: DARK_THEME.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
   primaryButtonText: {
     color: "#000",
-    fontWeight: "700",
+    fontFamily: "Manrope_800ExtraBold",
     fontSize: 16,
+    letterSpacing: 0.5,
   },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0,0,0,0.8)",
     justifyContent: "flex-end",
   },
   modalContainer: {
-    backgroundColor: "#111",
+    backgroundColor: "#0A0A0A", // Slightly lighter than pure black
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     height: "90%",
@@ -1116,24 +1151,25 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontFamily: "Manrope_800ExtraBold",
     color: "#FFF",
+    letterSpacing: -0.5,
   },
   inputLabel: {
     color: DARK_THEME.textDim,
     fontSize: 12,
+    fontFamily: "Manrope_700Bold",
     textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 12,
-    fontWeight: "600",
     marginTop: 20,
   },
 
   // Calendar Styles
   calendarContainer: {
     backgroundColor: DARK_THEME.surfaceHighlight,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
     borderColor: DARK_THEME.border,
@@ -1147,7 +1183,7 @@ const styles = StyleSheet.create({
   calendarMonthTitle: {
     color: "#FFF",
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: "Manrope_700Bold",
   },
   calendarArrow: {
     padding: 8,
@@ -1166,7 +1202,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: DARK_THEME.textDim,
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "Manrope_600SemiBold",
   },
   calendarGrid: {
     flexDirection: "row",
@@ -1178,7 +1214,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 4,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   dayCellToday: {
     borderWidth: 1,
@@ -1191,38 +1227,39 @@ const styles = StyleSheet.create({
   dayText: {
     color: "#FFF",
     fontSize: 14,
+    fontFamily: "Manrope_500Medium",
   },
   dayTextDisabled: {
     color: DARK_THEME.textDark,
   },
   dayTextSelected: {
-    color: "#FFF",
-    fontWeight: "bold",
+    color: "#000",
+    fontFamily: "Manrope_800ExtraBold",
   },
   selectedDateText: {
     color: DARK_THEME.accent,
-    fontSize: 12,
+    fontSize: 13,
     marginTop: 12,
     textAlign: "center",
-    fontWeight: "600",
+    fontFamily: "Manrope_600SemiBold",
   },
 
   // Time & Duration
   wrapGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "center",
+    justifyContent: "space-between", // Better spacing
     gap: 10,
     marginBottom: 10,
   },
   timeChip: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 12,
     backgroundColor: DARK_THEME.surfaceHighlight,
     borderWidth: 1,
     borderColor: DARK_THEME.border,
-    minWidth: "28%",
+    width: "30%", // 3 columns
     alignItems: "center",
   },
   timeChipDisabled: {
@@ -1234,14 +1271,15 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: "#FFF",
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 13,
+    fontFamily: "Manrope_600SemiBold",
   },
   timeTextDisabled: {
     textDecorationLine: "line-through",
   },
   textSelected: {
     color: "#000",
+    fontFamily: "Manrope_700Bold",
   },
   durationRow: {
     flexDirection: "row",
@@ -1263,7 +1301,7 @@ const styles = StyleSheet.create({
   },
   durationText: {
     color: "#FFF",
-    fontWeight: "600",
+    fontFamily: "Manrope_600SemiBold",
   },
   receiptContainer: {
     backgroundColor: DARK_THEME.surfaceHighlight,
@@ -1281,10 +1319,12 @@ const styles = StyleSheet.create({
   receiptLabel: {
     color: DARK_THEME.textDim,
     fontSize: 14,
+    fontFamily: "Manrope_500Medium",
   },
   receiptValue: {
     color: "#FFF",
     fontSize: 14,
+    fontFamily: "Manrope_600SemiBold",
   },
   divider: {
     height: 1,
@@ -1294,12 +1334,12 @@ const styles = StyleSheet.create({
   totalLabel: {
     color: "#FFF",
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: "Manrope_700Bold",
   },
   totalValue: {
     color: DARK_THEME.accent,
     fontSize: 20,
-    fontWeight: "bold",
+    fontFamily: "Manrope_800ExtraBold",
   },
 
   // --- SPLIT ACTION BUTTONS ---
@@ -1314,12 +1354,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: DARK_THEME.border,
   },
   negotiateButtonText: {
     color: "#FFF",
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: "Manrope_700Bold",
   },
   confirmButton: {
     flex: 1,
@@ -1333,9 +1373,9 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
   },
   confirmButtonText: {
-    color: "#FFF",
+    color: "#000",
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: "Manrope_800ExtraBold",
   },
 
   // SUCCESS VIEW STYLES
@@ -1359,7 +1399,7 @@ const styles = StyleSheet.create({
   },
   successTitle: {
     fontSize: 28,
-    fontWeight: "bold",
+    fontFamily: "Manrope_800ExtraBold",
     color: "#FFF",
     marginBottom: 12,
     textAlign: "center",
@@ -1370,6 +1410,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 40,
     lineHeight: 24,
+    fontFamily: "Manrope_500Medium",
   },
   successButton: {
     backgroundColor: DARK_THEME.accent,
@@ -1384,9 +1425,9 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
   },
   successButtonText: {
-    color: "#FFF",
+    color: "#000",
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: "Manrope_800ExtraBold",
   },
   closeSuccessButton: {
     paddingVertical: 12,
@@ -1394,6 +1435,6 @@ const styles = StyleSheet.create({
   closeSuccessText: {
     color: DARK_THEME.textDim,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope_600SemiBold",
   },
 });

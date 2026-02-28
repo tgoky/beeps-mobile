@@ -1,4 +1,3 @@
-import { Colors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -12,6 +11,14 @@ import {
   useServiceRequests,
   useUpdateServiceRequestStatus,
 } from "@/hooks/useProducers";
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/manrope";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -38,6 +45,21 @@ dayjs.extend(relativeTime);
 
 const { width } = Dimensions.get("window");
 
+// 🎨 THEME COLORS
+const COLORS = {
+  background: "#000000",
+  cardBlack: "#0A0A0A",
+  cardDark: "#151515",
+  pureWhite: "#FFFFFF",
+  offWhite: "#F5F5F5",
+  textGrey: "#888888",
+  border: "#222222",
+  accent: "#f59e0b",
+  accentDim: "rgba(245, 158, 11, 0.15)",
+  red: "#D50000",
+  green: "#00C853",
+};
+
 type MainViewMode = "service_requests" | "bookings";
 type ServiceRequestViewMode = "sent" | "received";
 type BookingViewMode = "my_bookings" | "studio_bookings";
@@ -45,56 +67,49 @@ type FilterType = "all" | "pending" | "upcoming" | "past";
 
 const STATUS_CONFIG: Record<
   string,
-  { color: string; bg: string; label: string; icon: any; gradient: string[] }
+  { color: string; bg: string; label: string; icon: any }
 > = {
   PENDING: {
     color: "#FBBF24",
     bg: "rgba(251, 191, 36, 0.15)",
     label: "Pending",
     icon: "time-outline",
-    gradient: ["#FBBF24", "#F59E0B"],
   },
   CONFIRMED: {
     color: "#34D399",
     bg: "rgba(52, 211, 153, 0.15)",
     label: "Confirmed",
     icon: "checkmark-circle-outline",
-    gradient: ["#34D399", "#10B981"],
   },
   CANCELLED: {
     color: "#F87171",
     bg: "rgba(248, 113, 113, 0.15)",
     label: "Cancelled",
     icon: "close-circle-outline",
-    gradient: ["#F87171", "#EF4444"],
   },
   COMPLETED: {
     color: "#9CA3AF",
     bg: "rgba(156, 163, 175, 0.15)",
     label: "Completed",
     icon: "flag-outline",
-    gradient: ["#9CA3AF", "#6B7280"],
   },
   ACCEPTED: {
     color: "#34D399",
     bg: "rgba(52, 211, 153, 0.15)",
     label: "Accepted",
     icon: "checkmark-done-outline",
-    gradient: ["#34D399", "#10B981"],
   },
   REJECTED: {
     color: "#F87171",
     bg: "rgba(248, 113, 113, 0.15)",
     label: "Rejected",
     icon: "ban-outline",
-    gradient: ["#F87171", "#EF4444"],
   },
   IN_PROGRESS: {
     color: "#60A5FA",
     bg: "rgba(96, 165, 250, 0.15)",
     label: "In Progress",
     icon: "construct-outline",
-    gradient: ["#60A5FA", "#3B82F6"],
   },
 };
 
@@ -102,10 +117,16 @@ export default function BookingsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { effectiveTheme } = useTheme();
-  const colors = Colors[effectiveTheme];
-  const isDark = effectiveTheme === "dark";
 
-  // Get navigation params
+  // Load Fonts
+  let [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
+
   const params = useLocalSearchParams<{
     initialView?: string;
     initialBookingView?: string;
@@ -126,6 +147,7 @@ export default function BookingsScreen() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [responseMessage, setResponseMessage] = useState("");
 
+  // Data Hooks
   const {
     data: myBookings = [],
     isLoading: myBookingsLoading,
@@ -142,6 +164,7 @@ export default function BookingsScreen() {
     refetch: refetchRequests,
   } = useServiceRequests(user?.id);
 
+  // Mutations
   const cancelBooking = useCancelBooking();
   const confirmBooking = useConfirmBooking();
   const rejectBooking = useRejectBooking();
@@ -161,6 +184,7 @@ export default function BookingsScreen() {
     setRefreshing(false);
   };
 
+  // --- HANDLERS (Same logic, cleaner UI calls) ---
   const handleAcceptRequest = (request: any) => {
     setSelectedRequest(request);
     setShowResponseModal(true);
@@ -235,7 +259,7 @@ export default function BookingsScreen() {
   const handleConfirmBooking = (id: string) => confirmBooking.mutate(id);
   const handleRejectBooking = (id: string) => rejectBooking.mutate(id);
 
-  // Filtering
+  // --- FILTERING ---
   const filteredServiceRequests = serviceRequests.filter((request) => {
     const isReceived = request.producerId === user?.id;
     if (serviceRequestView === "sent" && isReceived) return false;
@@ -280,10 +304,12 @@ export default function BookingsScreen() {
           styles.statusBadge,
           {
             backgroundColor: config.bg,
+            borderColor: config.color,
+            borderWidth: 1,
           },
         ]}
       >
-        <Ionicons name={config.icon} size={12} color={config.color} />
+        <Ionicons name={config.icon} size={10} color={config.color} />
         <Text style={[styles.statusText, { color: config.color }]}>
           {config.label}
         </Text>
@@ -291,86 +317,68 @@ export default function BookingsScreen() {
     );
   };
 
+  if (!fontsLoaded) return null;
+
   return (
-    <View style={[styles.container, { backgroundColor: "#000000" }]}>
-      <SafeAreaView style={{ backgroundColor: "#000000" }}>
+    <View style={styles.container}>
+      <SafeAreaView style={{ backgroundColor: COLORS.background }}>
         <View style={styles.headerContainer}>
           <View>
-            <Text style={[styles.screenTitle, { color: "#FFFFFF" }]}>
-              Activity
-            </Text>
+            <Text style={styles.screenTitle}>ACTIVITY</Text>
             {pendingCount > 0 && (
               <View style={styles.pendingBadge}>
-                <Text style={[styles.screenSubtitle, { color: "#9CA3AF" }]}>
-                  {pendingCount} pending {pendingCount === 1 ? "item" : "items"}
+                <Text style={styles.screenSubtitle}>
+                  {pendingCount} Pending{" "}
+                  {pendingCount === 1 ? "Action" : "Actions"}
                 </Text>
               </View>
             )}
           </View>
         </View>
 
-        <View style={styles.segmentedControlContainer}>
-          <View
-            style={[styles.segmentedControl, { backgroundColor: "#1A1A1A" }]}
-          >
+        {/* CUSTOM TOGGLE SWITCH */}
+        <View style={styles.toggleContainer}>
+          <View style={styles.toggleTrack}>
             <TouchableOpacity
               style={[
-                styles.segmentBtn,
-                mainView === "service_requests" && [
-                  styles.segmentBtnActive,
-                  { backgroundColor: "#2A2A2A" },
-                ],
+                styles.toggleBtn,
+                mainView === "service_requests" && styles.toggleBtnActive,
               ]}
               onPress={() => setMainView("service_requests")}
             >
-              <Ionicons
-                name="briefcase-outline"
-                size={16}
-                color={mainView === "service_requests" ? "#FFFFFF" : "#6B7280"}
-                style={{ marginRight: 6 }}
-              />
               <Text
                 style={[
-                  styles.segmentText,
-                  {
-                    color:
-                      mainView === "service_requests" ? "#FFFFFF" : "#6B7280",
+                  styles.toggleText,
+                  mainView === "service_requests" && {
+                    color: COLORS.background,
                   },
                 ]}
               >
-                Requests
+                REQUESTS
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
-                styles.segmentBtn,
-                mainView === "bookings" && [
-                  styles.segmentBtnActive,
-                  { backgroundColor: "#2A2A2A" },
-                ],
+                styles.toggleBtn,
+                mainView === "bookings" && styles.toggleBtnActive,
               ]}
               onPress={() => setMainView("bookings")}
             >
-              <Ionicons
-                name="calendar-outline"
-                size={16}
-                color={mainView === "bookings" ? "#FFFFFF" : "#6B7280"}
-                style={{ marginRight: 6 }}
-              />
               <Text
                 style={[
-                  styles.segmentText,
-                  { color: mainView === "bookings" ? "#FFFFFF" : "#6B7280" },
+                  styles.toggleText,
+                  mainView === "bookings" && { color: COLORS.background },
                 ]}
               >
-                Bookings
+                BOOKINGS
               </Text>
             </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
 
-      <View style={[styles.subHeader, { borderBottomColor: "#1F1F1F" }]}>
+      <View style={styles.subHeader}>
+        {/* SUB TABS */}
         <View style={styles.subTabsRow}>
           {mainView === "service_requests" ? (
             <>
@@ -379,27 +387,21 @@ export default function BookingsScreen() {
                   <TouchableOpacity
                     key={view}
                     onPress={() => setServiceRequestView(view)}
-                    style={styles.subTab}
+                    style={[
+                      styles.subTab,
+                      serviceRequestView === view && styles.subTabActive,
+                    ]}
                   >
                     <Text
                       style={[
                         styles.subTabText,
-                        {
-                          color:
-                            serviceRequestView === view ? "#FFFFFF" : "#4B5563",
+                        serviceRequestView === view && {
+                          color: COLORS.pureWhite,
                         },
                       ]}
                     >
-                      {view.charAt(0).toUpperCase() + view.slice(1)}
+                      {view.toUpperCase()}
                     </Text>
-                    {serviceRequestView === view && (
-                      <View
-                        style={[
-                          styles.activeIndicator,
-                          { backgroundColor: "#FFFFFF" },
-                        ]}
-                      />
-                    )}
                   </TouchableOpacity>
                 ),
               )}
@@ -407,46 +409,40 @@ export default function BookingsScreen() {
           ) : (
             <>
               {[
-                { key: "my_bookings" as BookingViewMode, label: "My Bookings" },
+                { key: "my_bookings" as BookingViewMode, label: "MY BOOKINGS" },
                 {
                   key: "studio_bookings" as BookingViewMode,
-                  label: "Studio Bookings",
+                  label: "STUDIO BOOKINGS",
                 },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.key}
                   onPress={() => setBookingView(item.key)}
-                  style={styles.subTab}
+                  style={[
+                    styles.subTab,
+                    bookingView === item.key && styles.subTabActive,
+                  ]}
                 >
                   <Text
                     style={[
                       styles.subTabText,
-                      {
-                        color: bookingView === item.key ? "#FFFFFF" : "#4B5563",
-                      },
+                      bookingView === item.key && { color: COLORS.pureWhite },
                     ]}
                   >
                     {item.label}
                   </Text>
-                  {bookingView === item.key && (
-                    <View
-                      style={[
-                        styles.activeIndicator,
-                        { backgroundColor: "#FFFFFF" },
-                      ]}
-                    />
-                  )}
                 </TouchableOpacity>
               ))}
             </>
           )}
         </View>
 
+        {/* FILTERS */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
-          style={{ marginTop: 16 }}
+          style={{ marginTop: 12 }}
         >
           {(
             (mainView === "service_requests"
@@ -459,14 +455,18 @@ export default function BookingsScreen() {
               style={[
                 styles.filterChip,
                 filter === f
-                  ? { backgroundColor: "#FFFFFF" }
-                  : { backgroundColor: "#1A1A1A" },
+                  ? { backgroundColor: COLORS.pureWhite }
+                  : {
+                      backgroundColor: COLORS.cardBlack,
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                    },
               ]}
             >
               <Text
                 style={[
                   styles.filterChipText,
-                  { color: filter === f ? "#000000" : "#9CA3AF" },
+                  { color: filter === f ? COLORS.background : COLORS.textGrey },
                 ]}
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -476,10 +476,10 @@ export default function BookingsScreen() {
         </ScrollView>
       </View>
 
-      <View style={{ flex: 1, backgroundColor: "#000000" }}>
+      <View style={{ flex: 1, backgroundColor: COLORS.background }}>
         {isLoading && !refreshing ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator color="#FFFFFF" size="large" />
+            <ActivityIndicator color={COLORS.accent} size="large" />
           </View>
         ) : (
           <ScrollView
@@ -488,29 +488,21 @@ export default function BookingsScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
-                tintColor="#FFFFFF"
-                progressBackgroundColor="#1A1A1A"
+                tintColor={COLORS.accent}
+                progressBackgroundColor={COLORS.cardBlack}
               />
             }
           >
+            {/* --- REQUESTS VIEW --- */}
             {mainView === "service_requests" &&
               (filteredServiceRequests.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <View
-                    style={[styles.emptyCircle, { backgroundColor: "#1A1A1A" }]}
-                  >
-                    <MaterialCommunityIcons
-                      name="briefcase-off-outline"
-                      size={40}
-                      color="#4B5563"
-                    />
-                  </View>
-                  <Text style={[styles.emptyTitle, { color: "#FFFFFF" }]}>
-                    No requests yet
-                  </Text>
-                  <Text style={[styles.emptyText, { color: "#6B7280" }]}>
-                    Service requests will appear here
-                  </Text>
+                  <MaterialCommunityIcons
+                    name="briefcase-off-outline"
+                    size={48}
+                    color={COLORS.cardDark}
+                  />
+                  <Text style={styles.emptyTitle}>No requests yet</Text>
                 </View>
               ) : (
                 filteredServiceRequests.map((req) => {
@@ -522,15 +514,8 @@ export default function BookingsScreen() {
                     isReceived && req.status === "IN_PROGRESS";
 
                   return (
-                    <View
-                      key={req.id}
-                      style={[styles.card, { backgroundColor: "#0A0A0A" }]}
-                    >
-                      <LinearGradient
-                        colors={["rgba(255,255,255,0.03)", "transparent"]}
-                        style={styles.cardGradient}
-                      />
-
+                    <View key={req.id} style={styles.card}>
+                      {/* Request Header */}
                       <View style={styles.cardHeader}>
                         <View style={styles.cardHeaderLeft}>
                           <LinearGradient
@@ -548,17 +533,10 @@ export default function BookingsScreen() {
                             </Text>
                           </LinearGradient>
                           <View>
-                            <Text
-                              style={[styles.cardTitle, { color: "#FFFFFF" }]}
-                            >
+                            <Text style={styles.cardTitle}>
                               {otherUser?.fullName || otherUser?.username}
                             </Text>
-                            <Text
-                              style={[
-                                styles.cardSubtitle,
-                                { color: "#6B7280" },
-                              ]}
-                            >
+                            <Text style={styles.cardSubtitle}>
                               @{otherUser?.username}
                             </Text>
                           </View>
@@ -566,104 +544,87 @@ export default function BookingsScreen() {
                         <StatusBadge status={req.status} />
                       </View>
 
+                      {/* Request Body */}
                       <View style={styles.cardBody}>
-                        <Text
-                          style={[styles.projectTitle, { color: "#FFFFFF" }]}
-                        >
+                        <Text style={styles.projectTitle}>
                           {req.projectTitle}
                         </Text>
                         {req.projectDescription && (
-                          <Text
-                            style={[styles.projectDesc, { color: "#9CA3AF" }]}
-                            numberOfLines={2}
-                          >
+                          <Text style={styles.projectDesc} numberOfLines={2}>
                             {req.projectDescription}
                           </Text>
                         )}
                         <View style={styles.metaRow}>
                           {req.budget && (
-                            <View
-                              style={[
-                                styles.metaPill,
-                                { backgroundColor: "#1A1A1A" },
-                              ]}
-                            >
+                            <View style={styles.metaPill}>
                               <Ionicons
                                 name="cash-outline"
-                                size={13}
-                                color="#34D399"
+                                size={12}
+                                color={COLORS.green}
                               />
                               <Text
-                                style={[styles.metaText, { color: "#34D399" }]}
+                                style={[
+                                  styles.metaText,
+                                  { color: COLORS.green },
+                                ]}
                               >
                                 ${req.budget}
                               </Text>
                             </View>
                           )}
-                          <View
-                            style={[
-                              styles.metaPill,
-                              { backgroundColor: "#1A1A1A" },
-                            ]}
-                          >
+                          <View style={styles.metaPill}>
                             <Ionicons
                               name="time-outline"
-                              size={13}
-                              color="#6B7280"
+                              size={12}
+                              color={COLORS.textGrey}
                             />
-                            <Text
-                              style={[styles.metaText, { color: "#9CA3AF" }]}
-                            >
+                            <Text style={styles.metaText}>
                               {dayjs(req.createdAt).fromNow()}
                             </Text>
                           </View>
                         </View>
                       </View>
 
+                      {/* Actions */}
                       {(canManage || canStart || canComplete) && (
-                        <View
-                          style={[
-                            styles.cardFooter,
-                            { borderTopColor: "#1F1F1F" },
-                          ]}
-                        >
+                        <View style={styles.cardFooter}>
                           {canManage && (
                             <>
                               <TouchableOpacity
                                 style={[
                                   styles.actionBtn,
-                                  { backgroundColor: "#FFFFFF", flex: 1 },
+                                  { backgroundColor: COLORS.pureWhite },
                                 ]}
                                 onPress={() => handleAcceptRequest(req)}
                               >
                                 <Ionicons
                                   name="checkmark"
                                   size={16}
-                                  color="#000000"
+                                  color={COLORS.background}
                                 />
                                 <Text
                                   style={[
                                     styles.actionBtnText,
-                                    { color: "#000000" },
+                                    { color: COLORS.background },
                                   ]}
                                 >
-                                  Accept
+                                  ACCEPT
                                 </Text>
                               </TouchableOpacity>
                               <TouchableOpacity
                                 style={[
                                   styles.actionBtnOutlined,
-                                  { borderColor: "#EF4444", flex: 1 },
+                                  { borderColor: COLORS.red },
                                 ]}
                                 onPress={() => handleRejectRequest(req)}
                               >
                                 <Text
                                   style={[
                                     styles.actionBtnText,
-                                    { color: "#EF4444" },
+                                    { color: COLORS.red },
                                   ]}
                                 >
-                                  Reject
+                                  REJECT
                                 </Text>
                               </TouchableOpacity>
                             </>
@@ -672,18 +633,17 @@ export default function BookingsScreen() {
                             <TouchableOpacity
                               style={[
                                 styles.actionBtn,
-                                { backgroundColor: "#3B82F6", flex: 1 },
+                                { backgroundColor: "#3B82F6" },
                               ]}
                               onPress={() => handleStartWork(req.id)}
                             >
-                              <Ionicons name="play" size={14} color="#FFFFFF" />
-                              <Text
-                                style={[
-                                  styles.actionBtnText,
-                                  { color: "#FFFFFF" },
-                                ]}
-                              >
-                                Start Work
+                              <Ionicons
+                                name="play"
+                                size={14}
+                                color={COLORS.pureWhite}
+                              />
+                              <Text style={styles.actionBtnText}>
+                                START WORK
                               </Text>
                             </TouchableOpacity>
                           )}
@@ -691,23 +651,16 @@ export default function BookingsScreen() {
                             <TouchableOpacity
                               style={[
                                 styles.actionBtn,
-                                { backgroundColor: "#10B981", flex: 1 },
+                                { backgroundColor: COLORS.green },
                               ]}
                               onPress={() => handleCompleteWork(req.id)}
                             >
                               <Ionicons
                                 name="checkmark-done"
                                 size={14}
-                                color="#FFFFFF"
+                                color={COLORS.pureWhite}
                               />
-                              <Text
-                                style={[
-                                  styles.actionBtnText,
-                                  { color: "#FFFFFF" },
-                                ]}
-                              >
-                                Complete
-                              </Text>
+                              <Text style={styles.actionBtnText}>COMPLETE</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -717,24 +670,16 @@ export default function BookingsScreen() {
                 })
               ))}
 
+            {/* --- BOOKINGS VIEW --- */}
             {mainView === "bookings" &&
               (filteredBookings.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <View
-                    style={[styles.emptyCircle, { backgroundColor: "#1A1A1A" }]}
-                  >
-                    <MaterialCommunityIcons
-                      name="calendar-remove-outline"
-                      size={40}
-                      color="#4B5563"
-                    />
-                  </View>
-                  <Text style={[styles.emptyTitle, { color: "#FFFFFF" }]}>
-                    No bookings yet
-                  </Text>
-                  <Text style={[styles.emptyText, { color: "#6B7280" }]}>
-                    Studio bookings will appear here
-                  </Text>
+                  <MaterialCommunityIcons
+                    name="calendar-remove-outline"
+                    size={48}
+                    color={COLORS.cardDark}
+                  />
+                  <Text style={styles.emptyTitle}>No bookings yet</Text>
                 </View>
               ) : (
                 filteredBookings.map((booking) => {
@@ -749,93 +694,67 @@ export default function BookingsScreen() {
                     isStudioBooking && booking.status === "PENDING";
 
                   return (
-                    <View
-                      key={booking.id}
-                      style={[styles.card, { backgroundColor: "#0A0A0A" }]}
-                    >
-                      <LinearGradient
-                        colors={["rgba(255,255,255,0.03)", "transparent"]}
-                        style={styles.cardGradient}
-                      />
-
+                    <View key={booking.id} style={styles.card}>
                       <View style={styles.bookingLayout}>
-                        <View
-                          style={[
-                            styles.dateBox,
-                            { backgroundColor: "#1A1A1A" },
-                          ]}
-                        >
-                          <Text
-                            style={[styles.dateMonth, { color: "#9CA3AF" }]}
-                          >
+                        {/* Date Leaf */}
+                        <View style={styles.dateBox}>
+                          <Text style={styles.dateMonth}>
                             {start.format("MMM")}
                           </Text>
-                          <Text style={[styles.dateDay, { color: "#FFFFFF" }]}>
+                          <Text style={styles.dateDay}>
                             {start.format("DD")}
                           </Text>
-                          <Text
-                            style={[styles.dateWeekday, { color: "#4B5563" }]}
-                          >
+                          <Text style={styles.dateWeekday}>
                             {start.format("ddd")}
                           </Text>
                         </View>
 
+                        {/* Booking Details */}
                         <View style={styles.bookingInfo}>
                           <View style={styles.bookingInfoHeader}>
                             <Text
-                              style={[
-                                styles.cardTitle,
-                                { color: "#FFFFFF", flex: 1 },
-                              ]}
+                              style={[styles.cardTitle, { flex: 1 }]}
                               numberOfLines={1}
                             >
                               {booking.studio.name}
                             </Text>
                             <StatusBadge status={booking.status} />
                           </View>
+
                           <View style={styles.bookingTimeMeta}>
                             <Ionicons
                               name="time-outline"
-                              size={13}
-                              color="#6B7280"
+                              size={14}
+                              color={COLORS.textGrey}
                             />
-                            <Text
-                              style={[styles.metaText, { color: "#9CA3AF" }]}
-                            >
+                            <Text style={styles.metaText}>
                               {start.format("h:mm A")} - {end.format("h:mm A")}{" "}
-                              ({duration}h)
+                              <Text style={{ color: COLORS.accent }}>
+                                ({duration}h)
+                              </Text>
                             </Text>
                           </View>
+
                           {isStudioBooking && (booking as any).client && (
-                            <Text
-                              style={[
-                                styles.metaText,
-                                { color: "#6B7280", marginTop: 4 },
-                              ]}
-                            >
+                            <Text style={[styles.metaText, { marginTop: 4 }]}>
                               Client: {(booking as any).client.fullName}
                             </Text>
                           )}
-                          <Text
-                            style={[styles.bookingPrice, { color: "#34D399" }]}
-                          >
+
+                          <Text style={styles.bookingPrice}>
                             ${booking.totalAmount.toFixed(2)}
                           </Text>
                         </View>
                       </View>
 
+                      {/* Actions */}
                       {(canCancel || canManage) && (
-                        <View
-                          style={[
-                            styles.cardFooter,
-                            { borderTopColor: "#1F1F1F" },
-                          ]}
-                        >
+                        <View style={styles.cardFooter}>
                           {canCancel && (
                             <TouchableOpacity
                               style={[
                                 styles.actionBtnOutlined,
-                                { borderColor: "#EF4444", flex: 1 },
+                                { borderColor: COLORS.red, flex: 1 },
                               ]}
                               onPress={() =>
                                 handleCancelBooking(
@@ -845,13 +764,12 @@ export default function BookingsScreen() {
                               }
                             >
                               <Text
-                                style={{
-                                  color: "#EF4444",
-                                  fontWeight: "600",
-                                  fontSize: 13,
-                                }}
+                                style={[
+                                  styles.actionBtnText,
+                                  { color: COLORS.red },
+                                ]}
                               >
-                                Cancel Booking
+                                CANCEL BOOKING
                               </Text>
                             </TouchableOpacity>
                           )}
@@ -862,35 +780,36 @@ export default function BookingsScreen() {
                               <TouchableOpacity
                                 style={[
                                   styles.actionBtn,
-                                  { backgroundColor: "#FFFFFF", flex: 1 },
+                                  {
+                                    backgroundColor: COLORS.pureWhite,
+                                    flex: 1,
+                                  },
                                 ]}
                                 onPress={() => handleConfirmBooking(booking.id)}
                               >
                                 <Text
-                                  style={{
-                                    color: "#000000",
-                                    fontWeight: "600",
-                                    fontSize: 13,
-                                  }}
+                                  style={[
+                                    styles.actionBtnText,
+                                    { color: COLORS.background },
+                                  ]}
                                 >
-                                  Confirm
+                                  CONFIRM
                                 </Text>
                               </TouchableOpacity>
                               <TouchableOpacity
                                 style={[
                                   styles.actionBtnOutlined,
-                                  { borderColor: "#EF4444", flex: 1 },
+                                  { borderColor: COLORS.red, flex: 1 },
                                 ]}
                                 onPress={() => handleRejectBooking(booking.id)}
                               >
                                 <Text
-                                  style={{
-                                    color: "#EF4444",
-                                    fontWeight: "600",
-                                    fontSize: 13,
-                                  }}
+                                  style={[
+                                    styles.actionBtnText,
+                                    { color: COLORS.red },
+                                  ]}
                                 >
-                                  Reject
+                                  REJECT
                                 </Text>
                               </TouchableOpacity>
                             </View>
@@ -906,6 +825,7 @@ export default function BookingsScreen() {
         )}
       </View>
 
+      {/* RESPONSE MODAL */}
       <Modal
         visible={showResponseModal}
         animationType="slide"
@@ -913,52 +833,39 @@ export default function BookingsScreen() {
         transparent={true}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: "#0A0A0A" }]}>
-            <LinearGradient
-              colors={["rgba(255,255,255,0.05)", "transparent"]}
-              style={styles.modalGradient}
-            />
-
-            <View
-              style={[styles.modalHeader, { borderBottomColor: "#1F1F1F" }]}
-            >
-              <Text style={[styles.modalTitle, { color: "#FFFFFF" }]}>
-                Accept Request
-              </Text>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>ACCEPT REQUEST</Text>
               <TouchableOpacity
                 onPress={() => setShowResponseModal(false)}
                 style={styles.modalCloseBtn}
               >
-                <Ionicons name="close" size={24} color="#9CA3AF" />
+                <Ionicons name="close" size={24} color={COLORS.pureWhite} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalContent}>
-              <Text style={[styles.modalLabel, { color: "#9CA3AF" }]}>
-                Message to client (Optional)
-              </Text>
-
+              <Text style={styles.modalLabel}>Message (Optional)</Text>
               <TextInput
-                style={[
-                  styles.modalInput,
-                  { backgroundColor: "#1A1A1A", color: "#FFFFFF" },
-                ]}
+                style={styles.modalInput}
                 multiline
                 numberOfLines={4}
                 value={responseMessage}
                 onChangeText={setResponseMessage}
                 placeholder="E.g., I'm excited to start working on your project..."
-                placeholderTextColor="#4B5563"
+                placeholderTextColor={COLORS.textGrey}
               />
 
               <TouchableOpacity
-                style={[styles.modalSubmitBtn, { backgroundColor: "#FFFFFF" }]}
+                style={styles.modalSubmitBtn}
                 onPress={handleSubmitResponse}
               >
-                <Ionicons name="checkmark" size={18} color="#000000" />
-                <Text style={[styles.modalSubmitText, { color: "#000000" }]}>
-                  Confirm Acceptance
-                </Text>
+                <Ionicons
+                  name="checkmark"
+                  size={18}
+                  color={COLORS.background}
+                />
+                <Text style={styles.modalSubmitText}>CONFIRM</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -969,15 +876,18 @@ export default function BookingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+
+  // HEADER
   headerContainer: {
     paddingHorizontal: 20,
     paddingTop: Platform.OS === "android" ? 40 : 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   screenTitle: {
-    fontSize: 34,
-    fontWeight: "800",
+    fontSize: 28,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
     letterSpacing: -0.5,
   },
   pendingBadge: {
@@ -985,309 +895,290 @@ const styles = StyleSheet.create({
   },
   screenSubtitle: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.accent,
   },
 
-  segmentedControlContainer: {
+  // TOGGLE
+  toggleContainer: {
     paddingHorizontal: 20,
     marginBottom: 16,
   },
-  segmentedControl: {
+  toggleTrack: {
     flexDirection: "row",
+    backgroundColor: COLORS.cardBlack,
     borderRadius: 16,
     padding: 4,
-    height: 52,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  segmentBtn: {
+  toggleBtn: {
     flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
+    paddingVertical: 12,
     alignItems: "center",
     borderRadius: 12,
   },
-  segmentBtnActive: {
-    shadowColor: "#FFFFFF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  toggleBtnActive: {
+    backgroundColor: COLORS.pureWhite,
   },
-  segmentText: {
-    fontSize: 15,
-    fontWeight: "600",
+  toggleText: {
+    fontSize: 12,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.textGrey,
+    letterSpacing: 1,
   },
 
+  // SUB HEADER
   subHeader: {
     borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
     paddingBottom: 16,
   },
   subTabsRow: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    gap: 32,
+    gap: 24,
   },
   subTab: {
-    paddingVertical: 8,
-    position: "relative",
+    paddingBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  subTabActive: {
+    borderBottomColor: COLORS.accent,
   },
   subTabText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  activeIndicator: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    borderRadius: 2,
+    fontSize: 14,
+    fontFamily: "Manrope_700Bold",
+    color: COLORS.textGrey,
+    letterSpacing: 0.5,
   },
   filterScroll: {
     paddingHorizontal: 20,
-    gap: 10,
+    gap: 8,
   },
   filterChip: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 100,
+    borderRadius: 12,
   },
   filterChipText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontFamily: "Manrope_700Bold",
   },
 
+  // CONTENT
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
   listContent: {
-    padding: 16,
+    padding: 20,
     gap: 16,
   },
-
   emptyState: {
     alignItems: "center",
-    marginTop: 100,
+    marginTop: 80,
     gap: 12,
   },
-  emptyCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: -0.3,
-  },
-  emptyText: {
-    fontSize: 15,
+    fontSize: 16,
+    fontFamily: "Manrope_600SemiBold",
+    color: COLORS.textGrey,
   },
 
+  // CARD STYLES
   card: {
-    borderRadius: 24,
-    overflow: "hidden",
+    backgroundColor: COLORS.cardBlack,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#1F1F1F",
-  },
-  cardGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 100,
+    borderColor: COLORS.border,
+    overflow: "hidden",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   cardHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    flex: 1,
   },
   avatarGradient: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
   },
   avatarInitial: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: -0.3,
+    fontFamily: "Manrope_700Bold",
+    color: COLORS.pureWhite,
   },
   cardSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 12,
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.textGrey,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 100,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     gap: 4,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontFamily: "Manrope_800ExtraBold",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   cardBody: {
     padding: 16,
-    paddingTop: 0,
   },
   projectTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
     marginBottom: 6,
-    letterSpacing: -0.3,
   },
   projectDesc: {
     fontSize: 14,
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.textGrey,
     lineHeight: 20,
     marginBottom: 16,
   },
   metaRow: {
     flexDirection: "row",
     gap: 10,
-    flexWrap: "wrap",
   },
   metaPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 100,
+    borderRadius: 8,
+    backgroundColor: COLORS.cardDark,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   metaText: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 12,
+    fontFamily: "Manrope_600SemiBold",
+    color: COLORS.textGrey,
   },
 
+  // BOOKING SPECIFIC
   bookingLayout: {
     flexDirection: "row",
   },
   dateBox: {
-    width: 80,
+    width: 70,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 16,
-    margin: 16,
-    marginRight: 0,
-    borderRadius: 16,
+    backgroundColor: COLORS.cardDark,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
+    paddingVertical: 20,
   },
   dateMonth: {
     fontSize: 12,
+    fontFamily: "Manrope_700Bold",
+    color: COLORS.accent,
     textTransform: "uppercase",
-    fontWeight: "700",
-    letterSpacing: 0.5,
   },
   dateDay: {
-    fontSize: 28,
-    fontWeight: "800",
-    lineHeight: 34,
-    letterSpacing: -0.5,
+    fontSize: 24,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
+    marginVertical: 2,
   },
   dateWeekday: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.textGrey,
   },
   bookingInfo: {
     flex: 1,
     padding: 16,
-    paddingLeft: 12,
   },
   bookingInfoHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
   bookingTimeMeta: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   bookingPrice: {
-    fontSize: 18,
-    fontWeight: "800",
-    marginTop: 8,
-    letterSpacing: -0.3,
+    fontSize: 16,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
   },
 
+  // FOOTER ACTIONS
   cardFooter: {
     flexDirection: "row",
     padding: 16,
     gap: 12,
     borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.cardDark,
   },
   actionBtn: {
     flexDirection: "row",
+    flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
   },
   actionBtnOutlined: {
+    flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
+    borderWidth: 1,
     backgroundColor: "transparent",
   },
   actionBtnText: {
-    fontWeight: "700",
-    fontSize: 14,
+    fontFamily: "Manrope_800ExtraBold",
+    fontSize: 12,
+    letterSpacing: 0.5,
+    color: COLORS.pureWhite,
   },
 
+  // MODAL
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
     justifyContent: "flex-end",
   },
   modalContainer: {
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    overflow: "hidden",
-  },
-  modalGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 100,
+    backgroundColor: COLORS.cardBlack,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   modalHeader: {
     flexDirection: "row",
@@ -1295,53 +1186,52 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    letterSpacing: -0.3,
+    fontSize: 18,
+    fontFamily: "Manrope_800ExtraBold",
+    color: COLORS.pureWhite,
+    letterSpacing: 1,
   },
   modalCloseBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#1A1A1A",
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 4,
   },
   modalContent: {
     padding: 20,
+    paddingBottom: 40,
   },
   modalLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 10,
+    fontSize: 14,
+    fontFamily: "Manrope_600SemiBold",
+    color: COLORS.textGrey,
+    marginBottom: 12,
   },
   modalInput: {
-    borderRadius: 20,
+    backgroundColor: COLORS.cardDark,
+    borderRadius: 16,
     padding: 16,
     fontSize: 16,
-    height: 140,
+    fontFamily: "Manrope_500Medium",
+    color: COLORS.pureWhite,
+    height: 120,
     textAlignVertical: "top",
     borderWidth: 1,
-    borderColor: "#2A2A2A",
+    borderColor: COLORS.border,
   },
   modalSubmitBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 16,
-    borderRadius: 20,
+    borderRadius: 16,
     marginTop: 20,
     gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 5,
+    backgroundColor: COLORS.pureWhite,
   },
   modalSubmitText: {
-    fontWeight: "700",
+    fontFamily: "Manrope_800ExtraBold",
     fontSize: 16,
+    color: COLORS.background,
   },
 });

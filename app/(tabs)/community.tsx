@@ -1,15 +1,12 @@
 import CreateClubModal from "@/components/CreateClubModal";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/contexts/AuthContext";
-import { useClubs, useJoinClub, useMyClubs } from "@/hooks/useClubs";
-import { useUserRoles } from "@/hooks/useCommunities";
-import { UserRole } from "@/types/database";
+import { useClubs, useMyClubs } from "@/hooks/useClubs";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Dimensions,
   RefreshControl,
   SafeAreaView,
@@ -19,91 +16,63 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
+// 1. IMPORT MANROPE
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/manrope";
+
 const { width } = Dimensions.get("window");
-// Calculate grid item width: (Screen Width - Padding - Gap) / 3
 const GAP = 12;
 const PADDING = 20;
 const GRID_ITEM_WIDTH = (width - PADDING * 2 - GAP * 2) / 3;
 
-// 🎨 BLACK THEME with Brand Accent #f59e0b
 const COLORS = {
-  background: "#000000", // Pure Black background
-  cardBlack: "#0A0A0A", // Slightly lighter black for cards
-  pureWhite: "#FFFFFF", // White text
-  offWhite: "#F5F5F5", // Off white for secondary text
-  textGrey: "#888888", // Grey text
-  lightGrey: "#1A1A1A", // Dark grey for borders
-  border: "#222222", // Border color
-  // Brand accent
-  accent: "#f59e0b", // Amber/Orange brand color
-  // Accents matching the "Bill Payments" icons (keeping original colors)
-  green: "#00C853", // Glo/Electricity
-  red: "#D50000", // Airtel
-  yellow: "#FFD600", // MTN
-  blue: "#2962FF", // Button Blue
-  orange: "#FF6D00",
-  // New specific blue for the screenshot design
+  background: "#000000",
+  cardBlack: "#0A0A0A",
+  pureWhite: "#FFFFFF",
+  offWhite: "#F5F5F5",
+  textGrey: "#888888",
+  lightGrey: "#1A1A1A",
+  border: "#222222",
+  accent: "#f59e0b",
   badgeBlue: "#2563eb",
-};
-
-// Map Roles to simple icon colors (keeping original colors)
-const ROLE_CONFIG: Record<
-  UserRole,
-  { name: string; displayName: string; icon: string; color: string }
-> = {
-  ARTIST: {
-    name: "Artist",
-    displayName: "Artist",
-    icon: "microphone",
-    color: COLORS.red,
-  },
-  PRODUCER: {
-    name: "Producer",
-    displayName: "Producer",
-    icon: "fader",
-    color: COLORS.blue,
-  },
-  STUDIO_OWNER: {
-    name: "Studio",
-    displayName: "Studio",
-    icon: "domain",
-    color: COLORS.green,
-  },
-  GEAR_SELLER: {
-    name: "Gear",
-    displayName: "Gear",
-    icon: "guitar-pick",
-    color: COLORS.orange,
-  },
-  LYRICIST: {
-    name: "Writer",
-    displayName: "Writer",
-    icon: "pencil",
-    color: COLORS.yellow,
-  },
 };
 
 export default function CommunityScreen() {
   const { user } = useAuth();
   const router = useRouter();
 
+  // 2. LOAD FONTS
+  let [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
+
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [scrollY] = useState(new Animated.Value(0));
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Data Hooks
   const {
     data: clubs,
     isLoading: clubsLoading,
     refetch: refetchClubs,
   } = useClubs();
   const { data: myClubs, refetch: refetchMyClubs } = useMyClubs(user?.id);
-  const { data: userRoles } = useUserRoles(user?.id);
-  const joinClub = useJoinClub();
+
+  if (!fontsLoaded) {
+    return <View style={{ flex: 1, backgroundColor: COLORS.background }} />;
+  }
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -111,12 +80,10 @@ export default function CommunityScreen() {
     setRefreshing(false);
   };
 
-  // Filter clubs based on search query
   const filteredClubs = clubs?.filter((club) =>
     club.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // 1. HEADER SECTION - Updated with Search Bar
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       <View style={styles.searchSection}>
@@ -146,7 +113,6 @@ export default function CommunityScreen() {
     </View>
   );
 
-  // 2. CARD SECTION - Updated with Pattern Backgrounds
   const renderHeroSection = () => (
     <View style={styles.heroContainer}>
       <View style={styles.blackCard}>
@@ -172,50 +138,43 @@ export default function CommunityScreen() {
           />
         </View>
 
-        {/* REPLACED SECTION: New Badge Design with Patterns */}
         <View style={styles.badgeRow}>
-          {/* Artists Community Badge */}
           <TouchableOpacity
             style={styles.blueBadge}
             onPress={() => router.push(`/community/artist`)}
           >
-            {/* Cool Pattern: Sound Wave - VISIBILITY INCREASED */}
             <View style={styles.patternContainer}>
               <MaterialCommunityIcons
                 name="waveform"
                 size={90}
-                color="rgba(255,255,255,0.2)" // Increased opacity
+                color="rgba(255,255,255,0.2)"
               />
             </View>
-            <Text style={styles.blueBadgeText}>Artists{"\n"}Community</Text>
+            <Text style={styles.blueBadgeText}>ARTISTS{"\n"}COMMUNITY</Text>
           </TouchableOpacity>
 
-          {/* Producers Community Badge */}
           <TouchableOpacity
             style={styles.blueBadge}
             onPress={() => router.push(`/community/producer`)}
           >
-            {/* Cool Pattern: Sliders/Lines - VISIBILITY INCREASED */}
             <View
               style={[styles.patternContainer, { right: -10, bottom: -20 }]}
             >
               <MaterialCommunityIcons
                 name="tune"
                 size={90}
-                color="rgba(255,255,255,0.2)" // Increased opacity
+                color="rgba(255,255,255,0.2)"
               />
             </View>
-            <Text style={styles.blueBadgeText}>Producers{"\n"}Community</Text>
+            <Text style={styles.blueBadgeText}>PRODUCERS{"\n"}COMMUNITY</Text>
           </TouchableOpacity>
         </View>
       </View>
     </View>
   );
 
-  // 3. PROMO BANNER (Updated with brand accent + Pattern)
   const renderPromoBanner = () => (
     <View style={styles.promoContainer}>
-      {/* ADDED: Background Pattern for Promo */}
       <View style={styles.promoPatternContainer}>
         <MaterialCommunityIcons
           name="playlist-music"
@@ -226,26 +185,24 @@ export default function CommunityScreen() {
 
       <View style={styles.promoContent}>
         <Text style={[styles.promoLabel, { color: "#000000" }]}>
-          join clubs & communities
+          JOIN CLUBS & COMMUNITIES
         </Text>
         <Text style={styles.promoTitle}>
-          Get creative and join{"\n"}create your magic!
+          GET CREATIVE{"\n"}CREATE YOUR MAGIC!
         </Text>
 
         <TouchableOpacity
           style={[styles.promoButton, { backgroundColor: COLORS.accent }]}
           onPress={() => setCreateModalVisible(true)}
         >
-          <Text style={styles.promoButtonText}>Create Club</Text>
+          <Text style={styles.promoButtonText}>JOIN CLUB</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Visual Badge */}
       <View style={[styles.promoBadge, { backgroundColor: COLORS.accent }]}>
-        <Text style={styles.promoBadgeText}>New</Text>
+        <Text style={styles.promoBadgeText}>NEW</Text>
       </View>
 
-      {/* Decorative Circle */}
       <View style={styles.promoDecoration}>
         <MaterialCommunityIcons
           name="party-popper"
@@ -256,24 +213,16 @@ export default function CommunityScreen() {
     </View>
   );
 
-  // 4. MY CLUBS SECTION - Updated with "See More" Logic
   const renderMyClubsSection = () => {
     if (clubsLoading) return null;
-
     const myClubsList = myClubs || [];
     if (myClubsList.length === 0) return null;
 
-    // Logic: If user has > 6 clubs, show 5 clubs + 1 "See More" card.
-    // If user has <= 6 clubs, show all of them.
     const DISPLAY_LIMIT = 6;
     const shouldTruncate = myClubsList.length > DISPLAY_LIMIT;
-
-    // We display 5 real clubs if truncating (to make room for the 6th "See More" card),
-    // otherwise we display all of them.
     const clubsToDisplay = shouldTruncate
       ? myClubsList.slice(0, 5)
       : myClubsList;
-
     const remainingCount = myClubsList.length - 5;
 
     return (
@@ -289,12 +238,15 @@ export default function CommunityScreen() {
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
             My Clubs
           </Text>
-          {/* Optional text link if preferred over card */}
           {shouldTruncate && (
             <Text
-              style={{ color: COLORS.accent, fontSize: 12, fontWeight: "700" }}
+              style={{
+                color: COLORS.accent,
+                fontSize: 12,
+                fontFamily: "Manrope_700Bold",
+              }}
             >
-              See All
+              SEE ALL
             </Text>
           )}
         </View>
@@ -307,26 +259,22 @@ export default function CommunityScreen() {
               onPress={() => router.push(`/club/${club.id}`)}
               activeOpacity={0.7}
             >
-              {/* Icon */}
               <View style={styles.gridIconContainer}>
                 <Text style={{ fontSize: 24 }}>{club.icon || "🎸"}</Text>
               </View>
-
-              {/* Text */}
               <Text style={styles.gridLabel} numberOfLines={1}>
                 {club.name}
               </Text>
             </TouchableOpacity>
           ))}
 
-          {/* SEE MORE CARD: Only renders if shouldTruncate is true */}
           {shouldTruncate && (
             <TouchableOpacity
               style={[
                 styles.gridItem,
                 { backgroundColor: "#222", borderColor: COLORS.accent },
               ]}
-              onPress={() => router.push("/my-clubs")} // Example route
+              onPress={() => router.push("/my-clubs")}
               activeOpacity={0.7}
             >
               <View
@@ -339,7 +287,7 @@ export default function CommunityScreen() {
                   style={{
                     fontSize: 18,
                     color: COLORS.accent,
-                    fontWeight: "800",
+                    fontFamily: "Manrope_800ExtraBold",
                   }}
                 >
                   +{remainingCount}
@@ -355,13 +303,11 @@ export default function CommunityScreen() {
     );
   };
 
-  // 5. EXPLORE CLUBS SECTION
   const renderExploreClubsSection = () => {
     if (clubsLoading)
       return (
         <ActivityIndicator color={COLORS.accent} style={{ marginTop: 20 }} />
       );
-
     const displayClubs = filteredClubs || [];
 
     return (
@@ -369,7 +315,6 @@ export default function CommunityScreen() {
         <Text style={styles.sectionTitle}>
           Explore Clubs or Join Communities
         </Text>
-
         {displayClubs.length === 0 && searchQuery.length > 0 ? (
           <View style={styles.noResultsContainer}>
             <Text style={styles.noResultsText}>
@@ -385,17 +330,12 @@ export default function CommunityScreen() {
                 onPress={() => router.push(`/club/${club.id}`)}
                 activeOpacity={0.7}
               >
-                {/* Icon */}
                 <View style={styles.gridIconContainer}>
                   <Text style={{ fontSize: 24 }}>{club.icon || "🎸"}</Text>
                 </View>
-
-                {/* Text */}
                 <Text style={styles.gridLabel} numberOfLines={1}>
                   {club.name}
                 </Text>
-
-                {/* Optional "New" or "Hot" Badge */}
                 {club.memberCount > 50 && (
                   <View
                     style={[
@@ -403,13 +343,11 @@ export default function CommunityScreen() {
                       { backgroundColor: COLORS.accent },
                     ]}
                   >
-                    <Text style={styles.gridBadgeText}>Hot</Text>
+                    <Text style={styles.gridBadgeText}>HOT</Text>
                   </View>
                 )}
               </TouchableOpacity>
             ))}
-
-            {/* "See More" placeholder item */}
             <TouchableOpacity style={styles.gridItem}>
               <View
                 style={[styles.gridIconContainer, { backgroundColor: "#222" }]}
@@ -427,10 +365,8 @@ export default function CommunityScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
-
       <SafeAreaView style={{ flex: 1 }}>
         {renderHeader()}
-
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
@@ -448,8 +384,6 @@ export default function CommunityScreen() {
           {renderMyClubsSection()}
           {renderExploreClubsSection()}
         </ScrollView>
-
-        {/* Floating Action Button */}
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: COLORS.accent }]}
           onPress={() => setCreateModalVisible(true)}
@@ -458,7 +392,6 @@ export default function CommunityScreen() {
           <Feather name="plus" size={28} color={COLORS.pureWhite} />
         </TouchableOpacity>
       </SafeAreaView>
-
       {user && (
         <CreateClubModal
           visible={createModalVisible}
@@ -475,8 +408,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-
-  // Header
   headerContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -504,12 +435,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     paddingHorizontal: 8,
     height: "100%",
+    fontFamily: "Manrope_500Medium",
   },
   clearButton: {
     marginRight: 12,
   },
-
-  // Black Card (Hero)
   heroContainer: {
     paddingHorizontal: 20,
     marginTop: 10,
@@ -531,9 +461,10 @@ const styles = StyleSheet.create({
   },
   blackCardLabel: {
     color: COLORS.textGrey,
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+    fontSize: 11,
+    letterSpacing: 1,
+    fontFamily: "Manrope_800ExtraBold",
+    textTransform: "uppercase",
   },
   historyPill: {
     flexDirection: "row",
@@ -546,13 +477,13 @@ const styles = StyleSheet.create({
   },
   historyText: {
     fontSize: 10,
-    fontWeight: "700",
     color: COLORS.black,
+    fontFamily: "Manrope_800ExtraBold",
   },
   welcomeText: {
     color: COLORS.offWhite,
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: "Manrope_600SemiBold",
   },
   balanceRow: {
     flexDirection: "row",
@@ -563,17 +494,15 @@ const styles = StyleSheet.create({
   currencySymbol: {
     color: COLORS.offWhite,
     fontSize: 20,
-    fontWeight: "600",
     marginRight: 8,
+    fontFamily: "Manrope_600SemiBold",
   },
   balanceAmount: {
     color: COLORS.pureWhite,
     fontSize: 32,
-    fontWeight: "800",
     letterSpacing: -1,
+    fontFamily: "Manrope_800ExtraBold",
   },
-
-  // NEW STYLES FOR SCREENSHOT LOOKING BUTTONS WITH PATTERNS
   badgeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -582,15 +511,15 @@ const styles = StyleSheet.create({
   },
   blueBadge: {
     flex: 1,
-    backgroundColor: COLORS.badgeBlue, // The blue from screenshot
+    backgroundColor: COLORS.badgeBlue,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: "#000000",
     paddingVertical: 16,
     paddingHorizontal: 16,
-    justifyContent: "center", // Text centered vertically
+    justifyContent: "center",
     minHeight: 90,
-    overflow: "hidden", // Clips the large pattern icons
+    overflow: "hidden",
     position: "relative",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -601,19 +530,17 @@ const styles = StyleSheet.create({
   blueBadgeText: {
     color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: "800",
     lineHeight: 22,
-    zIndex: 2, // Ensures text is above the pattern
+    zIndex: 2,
+    fontFamily: "Manrope_800ExtraBold",
+    textTransform: "uppercase",
   },
   patternContainer: {
     position: "absolute",
     right: -15,
     bottom: -15,
-    // Removed Opacity container, used Color Alpha instead
     transform: [{ rotate: "-15deg" }],
   },
-
-  // Promo Banner
   promoContainer: {
     marginHorizontal: 20,
     marginTop: 24,
@@ -645,27 +572,30 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   promoLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 4,
+    fontSize: 11,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    fontFamily: "Manrope_800ExtraBold",
   },
   promoTitle: {
     fontSize: 18,
-    fontWeight: "800",
     color: COLORS.offWhite,
     lineHeight: 22,
     marginBottom: 12,
+    textTransform: "uppercase",
+    fontFamily: "Manrope_800ExtraBold",
   },
   promoButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
     alignSelf: "flex-start",
   },
   promoButtonText: {
     color: COLORS.pureWhite,
-    fontWeight: "700",
     fontSize: 12,
+    fontFamily: "Manrope_800ExtraBold",
+    textTransform: "uppercase",
   },
   promoDecoration: {
     width: 80,
@@ -688,19 +618,19 @@ const styles = StyleSheet.create({
   promoBadgeText: {
     color: COLORS.pureWhite,
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: "Manrope_800ExtraBold",
+    textTransform: "uppercase",
   },
-
-  // Grid Section
   sectionContainer: {
     paddingHorizontal: 20,
     marginTop: 30,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "800",
     color: COLORS.offWhite,
     marginBottom: 16,
+    fontFamily: "Manrope_800ExtraBold",
+    textTransform: "uppercase",
   },
   gridContainer: {
     flexDirection: "row",
@@ -728,10 +658,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   gridLabel: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 11,
     color: COLORS.offWhite,
     textAlign: "center",
+    fontFamily: "Manrope_600SemiBold",
   },
   gridBadge: {
     position: "absolute",
@@ -744,7 +674,7 @@ const styles = StyleSheet.create({
   gridBadgeText: {
     fontSize: 8,
     color: COLORS.pureWhite,
-    fontWeight: "700",
+    fontFamily: "Manrope_800ExtraBold",
   },
   noResultsContainer: {
     paddingVertical: 40,
@@ -754,8 +684,8 @@ const styles = StyleSheet.create({
     color: COLORS.textGrey,
     fontSize: 14,
     textAlign: "center",
+    fontFamily: "Manrope_500Medium",
   },
-
   fab: {
     position: "absolute",
     bottom: 24,
