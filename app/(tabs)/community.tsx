@@ -11,10 +11,12 @@ import {
   useFonts,
 } from "@expo-google-fonts/manrope";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   Modal,
   Platform,
@@ -56,6 +58,130 @@ const COLORS = {
   red: "#D50000",
 };
 
+// --- ANIMATION COMPONENTS ---
+
+// 1. Staggered Entrance (Slide Up + Fade)
+const FadeInUp = ({
+  delay = 0,
+  children,
+  style,
+}: {
+  delay?: number;
+  children: React.ReactNode;
+  style?: any;
+}) => {
+  const anim = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 600,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[style, { opacity: anim, transform: [{ translateY }] }]}
+    >
+      {children}
+    </Animated.View>
+  );
+};
+
+// 2. Tactile Button (Squish Effect on Press)
+const BouncyCard = ({ onPress, style, children, delay = 0 }: any) => {
+  const scale = useRef(new Animated.Value(0)).current; // Start at 0 for entrance
+  const pressScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Entrance Animation
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 6,
+      tension: 40,
+      delay,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const handlePressIn = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.spring(pressScale, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(pressScale, {
+      toValue: 1,
+      friction: 3,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+    if (onPress) onPress();
+  };
+
+  return (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={{ flex: 1 }}
+    >
+      <Animated.View
+        style={[
+          style,
+          { transform: [{ scale: Animated.multiply(scale, pressScale) }] },
+        ]}
+      >
+        {children}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
+// 3. Attention Pulse (Breathing Effect)
+const PulseBadge = ({ children, style }: any) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.delay(500),
+      ]),
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View style={[style, { transform: [{ scale }] }]}>
+      {children}
+    </Animated.View>
+  );
+};
+
 // --- TERMS MODAL COMPONENT ---
 const CommunityTermsModal = ({
   visible,
@@ -74,11 +200,10 @@ const CommunityTermsModal = ({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet" // Native iOS sheet look
+      presentationStyle="pageSheet"
       onRequestClose={onClose}
-      transparent={Platform.OS === "android"} // Transparent on Android to avoid white background
+      transparent={Platform.OS === "android"}
     >
-      {/* Wrapper to ensure black background on Android/Cross-platform */}
       <View style={styles.modalWrapper}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
@@ -100,7 +225,6 @@ const CommunityTermsModal = ({
                   color={COLORS.accent}
                 />
               </View>
-              {/* DYNAMIC WELCOME TEXT */}
               <Text style={styles.welcomeTextModal}>
                 Welcome to the {communityName} Community
               </Text>
@@ -110,34 +234,41 @@ const CommunityTermsModal = ({
               </Text>
             </View>
 
-            {/* RULES LIST */}
+            {/* ANIMATED RULES LIST */}
             <View style={styles.rulesContainer}>
-              <RuleItem
-                icon="hand-shake"
-                title="Respect Everyone"
-                desc="Harassment, hate speech, and bullying will result in an immediate ban. Be cool."
-              />
-              <RuleItem
-                icon="copyright"
-                title="Respect Copyright"
-                desc="Only upload beats, lyrics, and content you own or have rights to. No stealing flows."
-              />
-              <RuleItem
-                icon="message-alert"
-                title="No Spamming"
-                desc="Don't spam collaborations or self-promo in inappropriate channels."
-              />
-              <RuleItem
-                icon="account-check"
-                title="Authenticity"
-                desc="Be yourself. Impersonating other artists or producers is not allowed."
-              />
+              <FadeInUp delay={100}>
+                <RuleItem
+                  icon="hand-shake"
+                  title="Respect Everyone"
+                  desc="Harassment, hate speech, and bullying will result in an immediate ban. Be cool."
+                />
+              </FadeInUp>
+              <FadeInUp delay={200}>
+                <RuleItem
+                  icon="copyright"
+                  title="Respect Copyright"
+                  desc="Only upload beats, lyrics, and content you own or have rights to. No stealing flows."
+                />
+              </FadeInUp>
+              <FadeInUp delay={300}>
+                <RuleItem
+                  icon="message-alert"
+                  title="No Spamming"
+                  desc="Don't spam collaborations or self-promo in inappropriate channels."
+                />
+              </FadeInUp>
+              <FadeInUp delay={400}>
+                <RuleItem
+                  icon="account-check"
+                  title="Authenticity"
+                  desc="Be yourself. Impersonating other artists or producers is not allowed."
+                />
+              </FadeInUp>
             </View>
 
             <View style={{ height: 40 }} />
           </ScrollView>
 
-          {/* FOOTER ACTIONS */}
           <View style={styles.modalFooter}>
             <Text style={styles.legalFinePrint}>
               By clicking "I Agree", you acknowledge that you have read and
@@ -204,7 +335,6 @@ export default function CommunityScreen() {
   const [selectedCommunityType, setSelectedCommunityType] = useState<
     "artist" | "producer"
   >("artist");
-  // In a real app, this would come from the User Profile DB
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
 
   const {
@@ -228,7 +358,6 @@ export default function CommunityScreen() {
     club.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // LOGIC TO HANDLE COMMUNITY CLICK
   const handleCommunityPress = (type: "artist" | "producer", route: string) => {
     setSelectedCommunityType(type);
     if (hasAcceptedTerms) {
@@ -278,104 +407,124 @@ export default function CommunityScreen() {
 
   const renderHeroSection = () => (
     <View style={styles.heroContainer}>
-      <View style={styles.blackCard}>
-        <View style={styles.blackCardTop}>
-          <Text style={styles.blackCardLabel}>COMMUNITY STATUS</Text>
-          <View style={styles.historyPill}>
-            <Text style={styles.historyText}>Clubs Created</Text>
-            <Ionicons name="chevron-down" size={12} color={COLORS.cardBlack} />
+      {/* 1. Stats Card - Slide Up */}
+      <FadeInUp delay={0}>
+        <View style={styles.blackCard}>
+          <View style={styles.blackCardTop}>
+            <Text style={styles.blackCardLabel}>COMMUNITY STATUS</Text>
+            <View style={styles.historyPill}>
+              <Text style={styles.historyText}>Clubs Created</Text>
+              <Ionicons
+                name="chevron-down"
+                size={12}
+                color={COLORS.cardBlack}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.welcomeText}>
+            Hello, {user?.fullName?.split(" ")[0]}
+          </Text>
+          <View style={styles.balanceRow}>
+            <Text style={styles.currencySymbol}>Active in</Text>
+            <Text style={styles.balanceAmount}>{myClubs?.length || 0}</Text>
+            <Ionicons
+              name="eye"
+              size={20}
+              color="#666"
+              style={{ marginLeft: 10 }}
+            />
+          </View>
+
+          {/* 2. Community Buttons INSIDE THE CARD */}
+          <View style={styles.badgeRow}>
+            <BouncyCard
+              delay={150}
+              style={styles.blueBadge}
+              onPress={() =>
+                handleCommunityPress("artist", "/community/artist")
+              }
+            >
+              <View style={styles.patternContainer}>
+                <MaterialCommunityIcons
+                  name="waveform"
+                  size={90}
+                  color="rgba(255,255,255,0.2)"
+                />
+              </View>
+              <Text style={styles.blueBadgeText}>ARTISTS{"\n"}COMMUNITY</Text>
+            </BouncyCard>
+
+            <View style={{ width: 12 }} />
+
+            <BouncyCard
+              delay={250}
+              style={styles.blueBadge}
+              onPress={() =>
+                handleCommunityPress("producer", "/community/producer")
+              }
+            >
+              <View
+                style={[styles.patternContainer, { right: -10, bottom: -20 }]}
+              >
+                <MaterialCommunityIcons
+                  name="tune"
+                  size={90}
+                  color="rgba(255,255,255,0.2)"
+                />
+              </View>
+              <Text style={styles.blueBadgeText}>PRODUCERS{"\n"}COMMUNITY</Text>
+            </BouncyCard>
           </View>
         </View>
-
-        <Text style={styles.welcomeText}>
-          Hello, {user?.fullName?.split(" ")[0]}
-        </Text>
-        <View style={styles.balanceRow}>
-          <Text style={styles.currencySymbol}>Active in</Text>
-          <Text style={styles.balanceAmount}>{myClubs?.length || 0}</Text>
-          <Ionicons
-            name="eye"
-            size={20}
-            color="#666"
-            style={{ marginLeft: 10 }}
-          />
-        </View>
-
-        <View style={styles.badgeRow}>
-          <TouchableOpacity
-            style={styles.blueBadge}
-            onPress={() => handleCommunityPress("artist", "/community/artist")}
-          >
-            <View style={styles.patternContainer}>
-              <MaterialCommunityIcons
-                name="waveform"
-                size={90}
-                color="rgba(255,255,255,0.2)"
-              />
-            </View>
-            <Text style={styles.blueBadgeText}>ARTISTS{"\n"}COMMUNITY</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.blueBadge}
-            onPress={() =>
-              handleCommunityPress("producer", "/community/producer")
-            }
-          >
-            <View
-              style={[styles.patternContainer, { right: -10, bottom: -20 }]}
-            >
-              <MaterialCommunityIcons
-                name="tune"
-                size={90}
-                color="rgba(255,255,255,0.2)"
-              />
-            </View>
-            <Text style={styles.blueBadgeText}>PRODUCERS{"\n"}COMMUNITY</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      </FadeInUp>
     </View>
   );
 
   const renderPromoBanner = () => (
-    <View style={styles.promoContainer}>
-      <View style={styles.promoPatternContainer}>
-        <MaterialCommunityIcons
-          name="playlist-music"
-          size={120}
-          color="rgba(0,0,0,0.06)"
-        />
-      </View>
+    <FadeInUp delay={350}>
+      <View style={styles.promoContainer}>
+        <View style={styles.promoPatternContainer}>
+          <MaterialCommunityIcons
+            name="playlist-music"
+            size={120}
+            color="rgba(0,0,0,0.06)"
+          />
+        </View>
 
-      <View style={styles.promoContent}>
-        <Text style={[styles.promoLabel, { color: "#000000" }]}>
-          JOIN CLUBS & COMMUNITIES
-        </Text>
-        <Text style={styles.promoTitle}>
-          GET CREATIVE{"\n"}CREATE YOUR MAGIC!
-        </Text>
+        <View style={styles.promoContent}>
+          <Text style={[styles.promoLabel, { color: "#000000" }]}>
+            JOIN CLUBS & COMMUNITIES
+          </Text>
+          <Text style={styles.promoTitle}>
+            GET CREATIVE{"\n"}CREATE YOUR MAGIC!
+          </Text>
 
-        <TouchableOpacity
-          style={[styles.promoButton, { backgroundColor: COLORS.accent }]}
-          onPress={() => setCreateModalVisible(true)}
+          <TouchableOpacity
+            style={[styles.promoButton, { backgroundColor: COLORS.accent }]}
+            onPress={() => setCreateModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.promoButtonText}>JOIN CLUB</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* PULSING ATTENTION BADGE */}
+        <PulseBadge
+          style={[styles.promoBadge, { backgroundColor: COLORS.accent }]}
         >
-          <Text style={styles.promoButtonText}>JOIN CLUB</Text>
-        </TouchableOpacity>
-      </View>
+          <Text style={styles.promoBadgeText}>NEW</Text>
+        </PulseBadge>
 
-      <View style={[styles.promoBadge, { backgroundColor: COLORS.accent }]}>
-        <Text style={styles.promoBadgeText}>NEW</Text>
+        <View style={styles.promoDecoration}>
+          <MaterialCommunityIcons
+            name="party-popper"
+            size={40}
+            color={COLORS.accent}
+          />
+        </View>
       </View>
-
-      <View style={styles.promoDecoration}>
-        <MaterialCommunityIcons
-          name="party-popper"
-          size={40}
-          color={COLORS.accent}
-        />
-      </View>
-    </View>
+    </FadeInUp>
   );
 
   const renderMyClubsSection = () => {
@@ -392,76 +541,81 @@ export default function CommunityScreen() {
 
     return (
       <View style={styles.sectionContainer}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
-          }}
-        >
-          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
-            My Clubs
-          </Text>
-          {shouldTruncate && (
-            <Text
-              style={{
-                color: COLORS.accent,
-                fontSize: 12,
-                fontFamily: "Manrope_700Bold",
-              }}
-            >
-              SEE ALL
+        <FadeInUp delay={400}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 16,
+            }}
+          >
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
+              My Clubs
             </Text>
-          )}
-        </View>
+            {shouldTruncate && (
+              <Text
+                style={{
+                  color: COLORS.accent,
+                  fontSize: 12,
+                  fontFamily: "Manrope_700Bold",
+                }}
+              >
+                SEE ALL
+              </Text>
+            )}
+          </View>
+        </FadeInUp>
 
         <View style={styles.gridContainer}>
-          {clubsToDisplay.map((club) => (
-            <TouchableOpacity
-              key={club.id}
-              style={styles.gridItem}
-              onPress={() => router.push(`/club/${club.id}`)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.gridIconContainer}>
-                <Text style={{ fontSize: 24 }}>{club.icon || "🎸"}</Text>
-              </View>
-              <Text style={styles.gridLabel} numberOfLines={1}>
-                {club.name}
-              </Text>
-            </TouchableOpacity>
+          {clubsToDisplay.map((club, index) => (
+            <FadeInUp key={club.id} delay={450 + index * 50}>
+              <TouchableOpacity
+                style={styles.gridItem}
+                onPress={() => router.push(`/club/${club.id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.gridIconContainer}>
+                  <Text style={{ fontSize: 24 }}>{club.icon || "🎸"}</Text>
+                </View>
+                <Text style={styles.gridLabel} numberOfLines={1}>
+                  {club.name}
+                </Text>
+              </TouchableOpacity>
+            </FadeInUp>
           ))}
 
           {shouldTruncate && (
-            <TouchableOpacity
-              style={[
-                styles.gridItem,
-                { backgroundColor: "#222", borderColor: COLORS.accent },
-              ]}
-              onPress={() => router.push("/my-clubs")}
-              activeOpacity={0.7}
-            >
-              <View
+            <FadeInUp delay={450 + clubsToDisplay.length * 50}>
+              <TouchableOpacity
                 style={[
-                  styles.gridIconContainer,
-                  { backgroundColor: "transparent" },
+                  styles.gridItem,
+                  { backgroundColor: "#222", borderColor: COLORS.accent },
                 ]}
+                onPress={() => router.push("/my-clubs")}
+                activeOpacity={0.7}
               >
-                <Text
-                  style={{
-                    fontSize: 18,
-                    color: COLORS.accent,
-                    fontFamily: "Manrope_800ExtraBold",
-                  }}
+                <View
+                  style={[
+                    styles.gridIconContainer,
+                    { backgroundColor: "transparent" },
+                  ]}
                 >
-                  +{remainingCount}
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      color: COLORS.accent,
+                      fontFamily: "Manrope_800ExtraBold",
+                    }}
+                  >
+                    +{remainingCount}
+                  </Text>
+                </View>
+                <Text style={[styles.gridLabel, { color: COLORS.accent }]}>
+                  See More
                 </Text>
-              </View>
-              <Text style={[styles.gridLabel, { color: COLORS.accent }]}>
-                See More
-              </Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </FadeInUp>
           )}
         </View>
       </View>
@@ -477,9 +631,12 @@ export default function CommunityScreen() {
 
     return (
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>
-          Explore Clubs or Join Communities
-        </Text>
+        <FadeInUp delay={500}>
+          <Text style={styles.sectionTitle}>
+            Explore Clubs or Join Communities
+          </Text>
+        </FadeInUp>
+
         {displayClubs.length === 0 && searchQuery.length > 0 ? (
           <View style={styles.noResultsContainer}>
             <Text style={styles.noResultsText}>
@@ -488,39 +645,45 @@ export default function CommunityScreen() {
           </View>
         ) : (
           <View style={styles.gridContainer}>
-            {displayClubs.map((club) => (
-              <TouchableOpacity
-                key={club.id}
-                style={styles.gridItem}
-                onPress={() => router.push(`/club/${club.id}`)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.gridIconContainer}>
-                  <Text style={{ fontSize: 24 }}>{club.icon || "🎸"}</Text>
-                </View>
-                <Text style={styles.gridLabel} numberOfLines={1}>
-                  {club.name}
-                </Text>
-                {club.memberCount > 50 && (
-                  <View
-                    style={[
-                      styles.gridBadge,
-                      { backgroundColor: COLORS.accent },
-                    ]}
-                  >
-                    <Text style={styles.gridBadgeText}>HOT</Text>
+            {displayClubs.map((club, index) => (
+              <FadeInUp key={club.id} delay={550 + index * 50}>
+                <TouchableOpacity
+                  style={styles.gridItem}
+                  onPress={() => router.push(`/club/${club.id}`)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.gridIconContainer}>
+                    <Text style={{ fontSize: 24 }}>{club.icon || "🎸"}</Text>
                   </View>
-                )}
-              </TouchableOpacity>
+                  <Text style={styles.gridLabel} numberOfLines={1}>
+                    {club.name}
+                  </Text>
+                  {club.memberCount > 50 && (
+                    <View
+                      style={[
+                        styles.gridBadge,
+                        { backgroundColor: COLORS.accent },
+                      ]}
+                    >
+                      <Text style={styles.gridBadgeText}>HOT</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </FadeInUp>
             ))}
-            <TouchableOpacity style={styles.gridItem}>
-              <View
-                style={[styles.gridIconContainer, { backgroundColor: "#222" }]}
-              >
-                <Ionicons name="grid" size={20} color={COLORS.accent} />
-              </View>
-              <Text style={styles.gridLabel}>All Clubs</Text>
-            </TouchableOpacity>
+            <FadeInUp delay={550 + displayClubs.length * 50}>
+              <TouchableOpacity style={styles.gridItem}>
+                <View
+                  style={[
+                    styles.gridIconContainer,
+                    { backgroundColor: "#222" },
+                  ]}
+                >
+                  <Ionicons name="grid" size={20} color={COLORS.accent} />
+                </View>
+                <Text style={styles.gridLabel}>All Clubs</Text>
+              </TouchableOpacity>
+            </FadeInUp>
           </View>
         )}
       </View>
@@ -566,7 +729,6 @@ export default function CommunityScreen() {
         />
       )}
 
-      {/* TERMS AND CONDITIONS MODAL */}
       <CommunityTermsModal
         visible={termsVisible}
         onClose={() => setTermsVisible(false)}
@@ -680,7 +842,6 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 12,
     marginTop: 5,
   },
   blueBadge: {
@@ -875,20 +1036,15 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
-
-  // --- MODAL STYLES (Fixed to eliminate white area) ---
   modalWrapper: {
     flex: 1,
-    backgroundColor: Platform.OS === "android" ? "rgba(0,0,0,0.8)" : undefined, // Dim background on Android
-    justifyContent: "flex-end", // Aligns modal to bottom on Android (optional) or fills screen
+    backgroundColor: Platform.OS === "android" ? "rgba(0,0,0,0.8)" : undefined,
+    justifyContent: "flex-end",
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: COLORS.background, // Black background!
-    // No marginTop to avoid white gaps
-
+    backgroundColor: COLORS.background,
     overflow: "hidden",
-    // For Android, if we want it to look like a sheet:
     marginTop: Platform.OS === "android" ? 50 : 0,
   },
   modalHeader: {
@@ -976,7 +1132,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     paddingBottom: Platform.OS === "ios" ? 40 : 20,
-    backgroundColor: COLORS.background, // Ensure footer is black
+    backgroundColor: COLORS.background,
   },
   legalFinePrint: {
     fontSize: 11,
@@ -1003,7 +1159,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   acceptButton: {
-    flex: 2, // Bigger
+    flex: 2,
     paddingVertical: 16,
     alignItems: "center",
     borderRadius: 12,

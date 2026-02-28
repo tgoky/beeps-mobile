@@ -28,6 +28,7 @@ import {
   PanResponder,
   Platform,
   SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -96,6 +97,40 @@ const getDistance = (
   return (R * c).toFixed(1);
 };
 
+// --- HELPER COMPONENT: STAGGERED FADE IN ---
+const FadeInItem = ({
+  index,
+  children,
+}: {
+  index: number;
+  children: React.ReactNode;
+}) => {
+  const anim = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 300,
+        delay: index * 50, // Stagger effect: items load 50ms apart
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity: anim, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
+};
+
 export default function HomeScreen() {
   const { user } = useAuth();
   const { effectiveTheme } = useTheme();
@@ -144,11 +179,38 @@ export default function HomeScreen() {
   const [requestServiceProducer, setRequestServiceProducer] =
     useState<any>(null);
 
-  // Animation
+  // Animation Values
   const animatedTop = useRef(
     new Animated.Value(height - COLLAPSED_HEIGHT),
   ).current;
   const lastGestureDy = useRef(0);
+  const searchFocusAnim = useRef(new Animated.Value(0)).current;
+
+  // --- ANIMATION INTERPOLATIONS ---
+
+  // 1. Floating UI Opacity/Translation (fades out as sheet goes up)
+  const uiOpacity = animatedTop.interpolate({
+    inputRange: [height - EXPANDED_HEIGHT, height - COLLAPSED_HEIGHT],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+
+  const uiTranslateY = animatedTop.interpolate({
+    inputRange: [height - EXPANDED_HEIGHT, height - COLLAPSED_HEIGHT],
+    outputRange: [-50, 0],
+    extrapolate: "clamp",
+  });
+
+  // 2. Search Bar Focus Styles
+  const searchBorderColor = searchFocusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["transparent", theme.accent],
+  });
+
+  const searchBgColor = searchFocusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [theme.input, isDark ? "#1A1A1A" : "#FFF"],
+  });
 
   // --- SAFE GPS LOADING ---
   useEffect(() => {
@@ -368,7 +430,31 @@ export default function HomeScreen() {
     }
   };
 
-  const renderVerticalItem = ({ item }: { item: any }) => {
+  // --- SEARCH BAR ANIMATION HANDLERS ---
+  const handleSearchFocus = () => {
+    snapTo(true);
+    Animated.timing(searchFocusAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const handleSearchBlur = () => {
+    Animated.timing(searchFocusAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const renderVerticalItem = ({
+    item,
+    index,
+  }: {
+    item: any;
+    index: number;
+  }) => {
     const title = activeTab === "studios" ? item.name : item.user?.fullName;
     const subtitle =
       activeTab === "studios"
@@ -403,55 +489,57 @@ export default function HomeScreen() {
         : null;
 
     return (
-      <TouchableOpacity
-        style={[styles.vCard, { borderBottomColor: theme.border }]}
-        onPress={() => {
-          if (activeTab === "producers")
-            setRequestServiceProducer({ id: item.userId, name: title });
-          else
-            router.push(
-              activeTab === "studios"
-                ? `/studio/${item.id}`
-                : `/profile/${item.userId || item.user?.id}`,
-            );
-        }}
-      >
-        <Image
-          source={{ uri: img || "https://via.placeholder.com/150" }}
-          style={styles.vImage}
-          contentFit="cover"
-        />
-        <View style={styles.vMain}>
-          <View style={styles.vHeader}>
-            <Text
-              style={[styles.vTitle, { color: theme.text }]}
-              numberOfLines={1}
-            >
-              {title}
-            </Text>
-            <Text style={[styles.vPrice, { color: theme.text }]}>
-              ${rate}
-              <Text style={styles.vUnit}>{rateDisplay}</Text>
-            </Text>
-          </View>
-          <Text style={styles.vSub}>
-            {subtitle} {dist ? `• ${dist}km` : ""}
-          </Text>
-          <View style={styles.vFooter}>
-            <View style={styles.vRating}>
-              <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={[styles.vRatingText, { color: theme.text }]}>
-                {rating?.toFixed(1) || "New"}
+      <FadeInItem index={index}>
+        <TouchableOpacity
+          style={[styles.vCard, { borderBottomColor: theme.border }]}
+          onPress={() => {
+            if (activeTab === "producers")
+              setRequestServiceProducer({ id: item.userId, name: title });
+            else
+              router.push(
+                activeTab === "studios"
+                  ? `/studio/${item.id}`
+                  : `/profile/${item.userId || item.user?.id}`,
+              );
+          }}
+        >
+          <Image
+            source={{ uri: img || "https://via.placeholder.com/150" }}
+            style={styles.vImage}
+            contentFit="cover"
+          />
+          <View style={styles.vMain}>
+            <View style={styles.vHeader}>
+              <Text
+                style={[styles.vTitle, { color: theme.text }]}
+                numberOfLines={1}
+              >
+                {title}
+              </Text>
+              <Text style={[styles.vPrice, { color: theme.text }]}>
+                ${rate}
+                <Text style={styles.vUnit}>{rateDisplay}</Text>
               </Text>
             </View>
-            {activeTab === "studios" && (
-              <Text style={[styles.vStatus, { color: "#4CD964" }]}>
-                Open Now
-              </Text>
-            )}
+            <Text style={styles.vSub}>
+              {subtitle} {dist ? `• ${dist}km` : ""}
+            </Text>
+            <View style={styles.vFooter}>
+              <View style={styles.vRating}>
+                <Ionicons name="star" size={14} color="#FFD700" />
+                <Text style={[styles.vRatingText, { color: theme.text }]}>
+                  {rating?.toFixed(1) || "New"}
+                </Text>
+              </View>
+              {activeTab === "studios" && (
+                <Text style={[styles.vStatus, { color: "#4CD964" }]}>
+                  Open Now
+                </Text>
+              )}
+            </View>
           </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </FadeInItem>
     );
   };
 
@@ -483,7 +571,13 @@ export default function HomeScreen() {
 
       {/* FLOATING UI LAYER */}
       <SafeAreaView style={styles.overlayUI} pointerEvents="box-none">
-        <View style={styles.topActions}>
+        {/* Top Actions: Animate opacity/translation based on sheet */}
+        <Animated.View
+          style={[
+            styles.topActions,
+            { opacity: uiOpacity, transform: [{ translateY: uiTranslateY }] },
+          ]}
+        >
           <TouchableOpacity
             style={[styles.circleBtn, { backgroundColor: theme.card }]}
             onPress={() => router.push("/profile/settings")}
@@ -493,15 +587,20 @@ export default function HomeScreen() {
           <View style={[styles.circleBtn, { backgroundColor: theme.card }]}>
             <NotificationBell size={22} color={theme.text} />
           </View>
-        </View>
-        {!isExpanded && (
+        </Animated.View>
+
+        {/* Recenter Button: Fade out when sheet expands */}
+        <Animated.View
+          style={{ opacity: uiOpacity }}
+          pointerEvents={isExpanded ? "none" : "auto"}
+        >
           <TouchableOpacity
             style={[styles.recenterBtn, { backgroundColor: theme.card }]}
             onPress={handleRecenter}
           >
             <Ionicons name="navigate" size={20} color={theme.text} />
           </TouchableOpacity>
-        )}
+        </Animated.View>
       </SafeAreaView>
 
       {/* BOTTOM SHEET */}
@@ -521,7 +620,17 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.sheetHeader}>
-            <View style={[styles.searchRow, { backgroundColor: theme.input }]}>
+            {/* SEARCH ROW: ANIMATED FOCUS */}
+            <Animated.View
+              style={[
+                styles.searchRow,
+                {
+                  backgroundColor: searchBgColor,
+                  borderWidth: 1,
+                  borderColor: searchBorderColor,
+                },
+              ]}
+            >
               <Ionicons
                 name="search"
                 size={18}
@@ -537,7 +646,8 @@ export default function HomeScreen() {
                   setSearchQuery(text);
                   updateSearchSuggestions(text);
                 }}
-                onFocus={() => snapTo(true)}
+                onFocus={handleSearchFocus}
+                onBlur={handleSearchBlur}
               />
               <TouchableOpacity
                 onPress={toggleFilters}
@@ -549,7 +659,7 @@ export default function HomeScreen() {
                   color={showFilters ? theme.accent : theme.text}
                 />
               </TouchableOpacity>
-            </View>
+            </Animated.View>
 
             {/* Search Suggestions */}
             {searchSuggestions.length > 0 && (
