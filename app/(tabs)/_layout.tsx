@@ -2,80 +2,106 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import Animated, {
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
 
-// 1. Enhanced Icon Component with "Pill" Background
-const TabIcon = ({
+// Define the palette based on your screenshots
+const COLORS = {
+  barBackground: "#000000", // The warm beige/off-white background
+  activeBackground: "#434040", // Sharp Black for the active button
+  activeText: "#FFFFFF",
+  inactiveText: "#9b9b9b",
+  inactiveIcon: "#1A1A1A",
+};
+
+/**
+ * 1. Custom Tab Item Component
+ * Renders both the Icon AND the Label inside a single animated container.
+ */
+const CustomTabItem = ({
   name,
+  label,
   focused,
 }: {
   name: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
   focused: boolean;
 }) => {
-  // Shared values for animation
-  const scale = useSharedValue(0);
-  const colorProgress = useSharedValue(0);
+  // Animation Values
+  const animation = useSharedValue(0);
 
   React.useEffect(() => {
-    // Animate the scale of the pill (0 -> 1)
-    scale.value = withSpring(focused ? 1 : 0, {
-      damping: 15,
-      stiffness: 150,
-    });
-    // Animate the color transition wrapper
-    colorProgress.value = withTiming(focused ? 1 : 0, { duration: 200 });
+    // 0 = Inactive, 1 = Active
+    animation.value = withTiming(focused ? 1 : 0, { duration: 200 });
   }, [focused]);
 
-  // Style for the background Pill
-  const pillStyle = useAnimatedStyle(() => {
+  // 1. Background Animation (Transparent -> Black)
+  const containerStyle = useAnimatedStyle(() => {
+    const backgroundColor = interpolateColor(
+      animation.value,
+      [0, 1],
+      ["transparent", COLORS.activeBackground],
+    );
     return {
-      transform: [{ scale: scale.value }],
-      opacity: scale.value, // Fade in as it grows
+      backgroundColor,
     };
   });
 
-  // Style for the Icon (Optional: animate color if you want)
-  // In this design, we keep the icon white, but the pill gives it contrast
+  // 2. Text/Icon Color Animation (Black -> White)
+  const textStyle = useAnimatedStyle(() => {
+    const color = interpolateColor(
+      animation.value,
+      [0, 1],
+      [COLORS.inactiveText, COLORS.activeText],
+    );
+    return { color };
+  });
+
+  // Helper to apply animated color to Ionicons
+  const AnimatedIcon = Animated.createAnimatedComponent(Ionicons);
 
   return (
-    <Animated.View
-      style={{
-        alignItems: "center",
-        justifyContent: "center",
-        width: 50,
-        height: 50,
-      }}
-    >
-      {/* THE PILL BACKGROUND */}
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
       <Animated.View
         style={[
-          pillStyle,
+          containerStyle,
           {
-            position: "absolute",
-            width: 48, // Width of the pill
-            height: 32, // Height of the pill
-            borderRadius: 20, // Fully rounded corners
-            backgroundColor: "#222222", // A lighter gray to stand out on Black
-            zIndex: -1, // Ensure it sits BEHIND the icon
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 8,
+            paddingHorizontal: 12, // Wider padding for that "button" look
+            borderRadius: 12, // Distinct rectangular rounded corners
+            width: 70, // Fixed width to prevent jumping
+            height: 60,
           },
         ]}
-      />
-
-      {/* THE ICON */}
-      <Ionicons
-        // Switch between Outline and Filled
-        name={focused ? (name as any).replace("-outline", "") : name}
-        // Force White when focused, Gray when inactive
-        color={focused ? "#FFFFFF" : "#666666"}
-        size={24}
-      />
-    </Animated.View>
+      >
+        <AnimatedIcon
+          name={focused ? (name as any).replace("-outline", "") : name}
+          size={22}
+          style={textStyle} // Animates the icon color
+        />
+        <Animated.Text
+          style={[
+            textStyle,
+            {
+              fontSize: 10,
+              fontWeight: "600",
+              marginTop: 4,
+              textAlign: "center",
+            },
+          ]}
+        >
+          {label}
+        </Animated.Text>
+      </Animated.View>
+    </View>
   );
 };
 
@@ -84,27 +110,21 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false,
-        // We handle colors manually in the icon now, but these are fallbacks
-        tabBarActiveTintColor: "#FFFFFF",
-        tabBarInactiveTintColor: "#666666",
-
+        tabBarShowLabel: false, // We hide system labels to use our custom ones
         tabBarStyle: {
-          backgroundColor: "#000000", // Pure Black
-          borderTopWidth: 0, // Removed border for a cleaner "floating" look
+          backgroundColor: COLORS.barBackground,
+          borderTopWidth: 0, // Clean look
           elevation: 0,
-          height: Platform.OS === "ios" ? 85 : 60,
+          height: Platform.OS === "ios" ? 95 : 80, // Taller bar to accommodate the buttons
           paddingTop: 10,
         },
-        tabBarBackground: undefined, // No blur
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Explore",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="compass-outline" focused={focused} />
+            <CustomTabItem name="home-outline" label="Home" focused={focused} />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -112,9 +132,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="hub"
         options={{
-          title: "Hub",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="musical-notes-outline" focused={focused} />
+            <CustomTabItem name="grid-outline" label="Hub" focused={focused} />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -122,9 +141,12 @@ export default function TabLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          title: "Community",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="people-outline" focused={focused} />
+            <CustomTabItem
+              name="people-outline"
+              label="Clubs"
+              focused={focused}
+            />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -132,9 +154,12 @@ export default function TabLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: "Activity",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="calendar-outline" focused={focused} />
+            <CustomTabItem
+              name="calendar-outline"
+              label="Bookings"
+              focused={focused}
+            />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -142,9 +167,12 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="person-outline" focused={focused} />
+            <CustomTabItem
+              name="person-outline"
+              label="Profile"
+              focused={focused}
+            />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}

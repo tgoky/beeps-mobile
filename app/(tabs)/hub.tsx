@@ -26,7 +26,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 dayjs.extend(relativeTime);
@@ -105,33 +105,33 @@ export default function HubScreen() {
   // 2. CIRCULAR TABS (Matches "Recently Visited" style)
   const renderCircularTabs = () => {
     const tabs = [
-      { key: "beats", label: "Beats", icon: "music", color: "#F43F5E" }, // Redish
+      { key: "beats", label: "Beats", icon: "music", color: "#443e3f" }, // Redish
       {
         key: "collabs",
         label: "Collabs",
         icon: "account-group",
-        color: "#8B5CF6",
+        color: "#443e3f",
       }, // Purple
       {
         key: "equipment",
         label: "Gear",
         icon: "microphone-variant",
-        color: "#F59E0B",
+        color: "#443e3f",
       }, // Orange/Yellow
       {
         key: "deals",
         label: "Deals",
         icon: "lightning-bolt",
-        color: "#10B981",
+        color: "#443e3f",
       }, // Green
-      { key: "bids", label: "Bids", icon: "gavel", color: "#3B82F6" }, // Blue
+      { key: "bids", label: "Bids", icon: "gavel", color: "#443e3f" }, // Blue
     ];
 
     return (
       <View style={styles.navSection}>
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+        {/* <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
           CATEGORIES
-        </Text>
+        </Text> */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -367,12 +367,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 1,
     marginBottom: 12,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 32, // Increased from Spacing.lg to push it away from the edge
     textTransform: "uppercase",
   },
   circularTabContainer: {
-    paddingHorizontal: Spacing.lg,
-    gap: 20,
+    paddingHorizontal: 20,
+
+    gap: 12,
+
+    flexGrow: 1,
+    justifyContent: "center",
   },
   circularTabItem: {
     alignItems: "center",
@@ -391,7 +395,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   circleLabel: {
-    fontSize: 12,
+    fontSize: 13,
     textAlign: "center",
   },
 

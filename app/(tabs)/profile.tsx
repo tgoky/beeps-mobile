@@ -31,6 +31,13 @@ const { width } = Dimensions.get("window");
 
 type ProfileTab = "beats" | "equipment" | "collabs" | "clubs";
 
+// --- NEW COMPONENT: Section Divider ---
+const SectionDivider = ({ theme }: { theme: any }) => (
+  <View style={styles.dividerContainer}>
+    <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+  </View>
+);
+
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
 
@@ -215,9 +222,9 @@ export default function ProfileScreen() {
       </View>
 
       <SafeAreaView style={styles.safeArea}>
-        {/* Top Navigation - Share moved to right side */}
+        {/* Top Navigation */}
         <View style={styles.topBar}>
-          <View style={styles.topBarLeft}>{/* Empty view for balance */}</View>
+          <View style={styles.topBarLeft} />
           <View style={styles.topBarRight}>
             <TouchableOpacity
               onPress={handleShareProfile}
@@ -239,9 +246,8 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
         >
-          {/* Identity Section with Edit Button */}
+          {/* --- SECTION 1: IDENTITY --- */}
           <View style={styles.headerSection}>
-            {/* Avatar */}
             <View style={styles.avatarWrapper}>
               <View
                 style={[
@@ -257,7 +263,6 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* Name and Role with Edit Button - Larger Fonts */}
             <View style={styles.nameContainer}>
               <View style={styles.nameRow}>
                 <Text style={[styles.fullName, { color: theme.text }]}>
@@ -269,7 +274,7 @@ export default function ProfileScreen() {
                 >
                   <Ionicons
                     name="create-outline"
-                    size={18}
+                    size={16}
                     color={theme.textDim}
                   />
                 </TouchableOpacity>
@@ -289,7 +294,7 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Stats - Larger Fonts */}
+          {/* Stats */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: theme.text }]}>
@@ -317,35 +322,22 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Bio - Larger Font */}
+          {/* Bio */}
           {profile?.bio && (
             <Text style={[styles.bioText, { color: theme.textDim }]}>
               {profile.bio}
             </Text>
           )}
 
-          {/* Dashboard Grid */}
+          {/* --- DIVIDER 1: Separating Identity from Utility --- */}
+          <SectionDivider theme={theme} />
+
+          {/* --- SECTION 2: UTILITY (Wallet/Manager) --- */}
           <View style={styles.dashboardGrid}>
-            {/* <DashboardButton
-              title="Bookings"
-              subtitle="Manage schedule"
-              icon="calendar"
-              color={theme.primary}
-              onPress={() => router.push("/(tabs)/bookings")}
-              theme={theme}
-            /> */}
-            {/* <DashboardButton
-              title="Requests"
-              subtitle="View offers"
-              icon="briefcase"
-              color={theme.primary}
-              onPress={() => router.push("/service-requests")}
-              theme={theme}
-            /> */}
             <DashboardButton
               title="Wallet"
               subtitle="Transactions"
-              icon="receipt"
+              icon="wallet-outline" // Changed to outline for cleaner look
               color={theme.primary}
               onPress={() => router.push("/transactions")}
               theme={theme}
@@ -353,14 +345,17 @@ export default function ProfileScreen() {
             <DashboardButton
               title="Studio"
               subtitle="Manager"
-              icon="options"
+              icon="options-outline"
               color={theme.primary}
               onPress={() => router.push("/(tabs)/debug-studios")}
               theme={theme}
             />
           </View>
 
-          {/* Clean Tab Bar - Larger Fonts */}
+          {/* --- DIVIDER 2: Separating Utility from Content --- */}
+          <SectionDivider theme={theme} />
+
+          {/* --- SECTION 3: CONTENT (Tabs & Grid) --- */}
           <View style={styles.tabsContainer}>
             <ScrollView
               horizontal
@@ -484,9 +479,9 @@ const DashboardButton = ({
     <View
       style={[styles.iconBox, { backgroundColor: "rgba(255,255,255,0.05)" }]}
     >
-      <Ionicons name={icon} size={20} color={color} />
+      <Ionicons name={icon} size={22} color={color} />
     </View>
-    <View>
+    <View style={{ flex: 1 }}>
       <Text style={[styles.dashboardLabel, { color: theme.text }]}>
         {title}
       </Text>
@@ -501,6 +496,18 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
 
+  // --- NEW STYLES: Divider ---
+  dividerContainer: {
+    alignItems: "center",
+    marginVertical: 20, // Generous spacing
+    paddingHorizontal: 20,
+  },
+  dividerLine: {
+    width: "100%", // Full width minus padding
+    height: 1,
+    opacity: 0.5, // Subtle look
+  },
+
   // Spotlight
   spotlightContainer: {
     position: "absolute",
@@ -512,7 +519,7 @@ const styles = StyleSheet.create({
   },
   spotlightGradient: { width: "100%", height: "100%", opacity: 0.6 },
 
-  // Clean Top Bar - Share on right
+  // Top Bar
   topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -535,7 +542,7 @@ const styles = StyleSheet.create({
   headerSection: {
     alignItems: "center",
     marginTop: 8,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   avatarWrapper: {
     marginBottom: 16,
@@ -547,11 +554,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 10,
   },
   avatarImage: {
     width: 92,
@@ -560,7 +562,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#222",
   },
 
-  // Name Container with Inline Edit - Larger Fonts
+  // Name
   nameContainer: {
     alignItems: "center",
     gap: 6,
@@ -586,12 +588,12 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Stats - Larger Fonts
+  // Stats
   statsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 20, // Slightly reduced to bring Bio closer
     paddingHorizontal: 20,
   },
   statItem: { alignItems: "center", minWidth: 90 },
@@ -615,30 +617,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     paddingHorizontal: 40,
-    marginBottom: 30,
+    marginBottom: 10, // Reduced because Divider adds margin
   },
 
   // Dashboard Grid
   dashboardGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 12,
     paddingHorizontal: 20,
-    marginBottom: 30,
+    // No marginBottom here because Divider handles it
   },
   dashboardCard: {
-    width: (width - 40 - 12) / 2,
-    padding: 14,
+    flex: 1, // Make them expand to fill space
+    padding: 16,
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderWidth: 3,
+    borderWidth: 1,
     overflow: "hidden",
   },
   iconBox: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
@@ -646,10 +647,10 @@ const styles = StyleSheet.create({
   dashboardLabel: { fontSize: 15, fontWeight: "700" },
   dashboardSubLabel: { fontSize: 12 },
 
-  // Clean Tabs - Larger Fonts
+  // Tabs
   tabsContainer: {
-    marginBottom: 20,
     paddingHorizontal: 20,
+    marginBottom: 20,
   },
   tabsScrollContent: {
     gap: 32,
@@ -687,5 +688,5 @@ const styles = StyleSheet.create({
   gridTitle: { fontSize: 14, fontWeight: "700", marginBottom: 4 },
   gridSubtitle: { fontSize: 12 },
 
-  signOutBtn: { alignSelf: "center", marginTop: 30, padding: 10 },
+  signOutBtn: { alignSelf: "center", marginTop: 40, padding: 10 },
 });

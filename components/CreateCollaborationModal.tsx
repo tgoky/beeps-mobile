@@ -1,9 +1,4 @@
-import {
-  BorderRadius,
-  Colors,
-  FontSizes,
-  Spacing
-} from "@/constants/theme";
+import { BorderRadius, Colors, FontSizes, Spacing } from "@/constants/theme";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useCreateCollaboration } from "@/hooks/useCollaborations";
 import { CollaborationType } from "@/types/database";
@@ -21,7 +16,7 @@ import {
   TextInput,
   TouchableOpacity,
   UIManager,
-  View
+  View,
 } from "react-native";
 
 // Enable LayoutAnimation for Android
@@ -487,7 +482,7 @@ export default function CreateCollaborationModal({
                 <Text style={styles.createButtonText}>
                   Create Collaboration
                 </Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" />
+                {/* <Ionicons name="arrow-forward" size={20} color="#fff" /> */}
               </>
             )}
           </TouchableOpacity>
@@ -654,7 +649,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   createButtonText: {
-    color: "#fff",
+    color: "#ffffff",
     fontSize: FontSizes.lg,
     fontWeight: "700",
     letterSpacing: 0.5,
