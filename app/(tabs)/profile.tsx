@@ -17,7 +17,6 @@ import {
 } from "@expo-google-fonts/manrope";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -36,35 +35,38 @@ import {
 
 const { width } = Dimensions.get("window");
 const GAP = 12;
+// Adjust item width based on new padding
 const ITEM_WIDTH = (width - 40 - GAP) / 2;
 
 type ProfileTab = "beats" | "equipment" | "collabs" | "clubs";
 
-// 🎨 THEME COLORS
+// 🎨 UPDATED THEME COLORS
 const COLORS = {
-  background: "#000000",
-  cardBlack: "#0A0A0A",
-  cardDark: "#151515",
+  mainBackground: "#000000",
+
+  // Section Backgrounds
+  sectionTop: "#111111", // Dark Grey for Identity
+  sectionMiddle: "#000000", // Pure black for Utility area
+  sectionBottom: "#080808", // Slightly lighter for content grid
+
+  // Components
+  cardBlack: "#1A1A1A",
   pureWhite: "#FFFFFF",
-  offWhite: "#F5F5F5",
   textGrey: "#888888",
   border: "#222222",
   accent: "#f59e0b",
-  accentDim: "rgba(245, 158, 11, 0.15)",
+
+  // Button Colors
+  walletBg: "#064e3b", // Deep Emerald Green
+  walletBorder: "#10b981", // Bright Green Border
+  studioBg: "#1e3a8a", // Deep Blue
+  studioBorder: "#3b82f6", // Bright Blue Border
   red: "#D50000",
 };
-
-// --- COMPONENT: Section Divider ---
-const SectionDivider = () => (
-  <View style={styles.dividerContainer}>
-    <View style={styles.dividerLine} />
-  </View>
-);
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
 
-  // Load Fonts
   let [fontsLoaded] = useFonts({
     Manrope_400Regular,
     Manrope_500Medium,
@@ -85,7 +87,6 @@ export default function ProfileScreen() {
     useUserCollaborations(user?.id);
   const { data: clubs, isLoading: clubsLoading } = useMyClubs(user?.id);
 
-  // RBAC
   const isProducer =
     profile?.primaryRole === "PRODUCER" ||
     !!profile?.producerProfile ||
@@ -113,9 +114,7 @@ export default function ProfileScreen() {
   const handleShareProfile = async () => {
     try {
       await Share.share({
-        message: `Check out ${
-          profile?.fullName || user?.fullName
-        }'s profile on BeatConnect!`,
+        message: `Check out ${profile?.fullName || user?.fullName}'s profile on BeatConnect!`,
         url: `https://beatconnect.app/user/${user?.id}`,
       });
     } catch (error) {
@@ -232,25 +231,15 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-
-      {/* Atmospheric Glow */}
-      <View style={styles.spotlightContainer}>
-        <LinearGradient
-          colors={["rgba(245, 158, 11, 0.15)", "transparent"]}
-          style={styles.spotlightGradient}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
-      </View>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.sectionTop} />
 
       <SafeAreaView style={styles.safeArea}>
-        {/* Top Navigation */}
+        {/* Top Navigation - Placed inside SafeArea */}
         <View style={styles.topBar}>
           <TouchableOpacity style={styles.iconBtn} onPress={handleShareProfile}>
             <Ionicons
               name="share-social-outline"
-              size={22}
+              size={20}
               color={COLORS.pureWhite}
             />
           </TouchableOpacity>
@@ -262,7 +251,7 @@ export default function ProfileScreen() {
             >
               <Ionicons
                 name="settings-outline"
-                size={22}
+                size={20}
                 color={COLORS.pureWhite}
               />
             </TouchableOpacity>
@@ -273,25 +262,26 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
         >
-          {/* --- SECTION 1: IDENTITY & STATS BACKGROUND PATTERNS --- */}
-          <View style={styles.headerBackgroundContainer}>
-            {/* Pattern 1: Spectrum Lines (Left) - INCREASED OPACITY */}
-            <MaterialCommunityIcons
-              name="graphic-eq"
-              size={180}
-              color="rgba(255,255,255,0.12)" // Much brighter
-              style={styles.patternLeft}
-            />
+          {/* ================================================== */}
+          {/* ZONE 1: TOP SECTION (Identity, Stats, Bio) */}
+          {/* ================================================== */}
+          <View style={styles.topSectionContainer}>
+            {/* Background Patterns */}
+            <View style={styles.patternContainer}>
+              <MaterialCommunityIcons
+                name="human"
+                size={180}
+                color="rgba(255,255,255,0.03)"
+                style={styles.patternLeft}
+              />
+              <MaterialCommunityIcons
+                name="human"
+                size={180}
+                color="rgba(245, 158, 11, 0.05)"
+                style={styles.patternRight}
+              />
+            </View>
 
-            {/* Pattern 2: Tune/Sliders (Right) - CHANGED FROM STAR to LINES */}
-            <MaterialCommunityIcons
-              name="tune"
-              size={160}
-              color="rgba(245, 158, 11, 0.15)" // Brighter Amber
-              style={styles.patternRight}
-            />
-
-            {/* Content */}
             <View style={styles.headerSection}>
               <View style={styles.avatarWrapper}>
                 <View style={styles.avatarRing}>
@@ -338,18 +328,14 @@ export default function ProfileScreen() {
                 </Text>
                 <Text style={styles.statLabel}>COLLABS</Text>
               </View>
-
               <View style={styles.statDivider} />
-
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
                   {profile?.studioCount || 0}
                 </Text>
                 <Text style={styles.statLabel}>STUDIOS</Text>
               </View>
-
               <View style={styles.statDivider} />
-
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{profile?.clubCount || 0}</Text>
                 <Text style={styles.statLabel}>CLUBS</Text>
@@ -364,227 +350,196 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          <SectionDivider />
-
-          {/* --- SECTION 2: UTILITY (Wallet/Manager) --- */}
-          <View style={styles.dashboardGrid}>
-            <DashboardButton
-              title="WALLET"
-              subtitle="Transactions"
-              icon="wallet-outline"
-              onPress={() => router.push("/transactions")}
-            />
-            <DashboardButton
-              title="STUDIO"
-              subtitle="Manager"
-              icon="options-outline"
-              onPress={() => router.push("/(tabs)/debug-studios")}
-            />
+          {/* ================================================== */}
+          {/* ZONE 2: MIDDLE SECTION (Utility Buttons) */}
+          {/* ================================================== */}
+          <View style={styles.middleSectionContainer}>
+            <Text style={styles.sectionHeader}>Studio Manager</Text>
+            <View style={styles.dashboardGrid}>
+              <DashboardButton
+                title="WALLET"
+                subtitle="Transaction"
+                icon="wallet"
+                bgColor={COLORS.walletBg}
+                borderColor={COLORS.walletBorder}
+                iconColor="#FFF"
+                onPress={() => router.push("/transactions")}
+              />
+              <DashboardButton
+                title="STUDIO"
+                subtitle="Manager"
+                icon="equalizer"
+                bgColor={COLORS.studioBg}
+                borderColor={COLORS.studioBorder}
+                iconColor="#FFF"
+                onPress={() => router.push("/(tabs)/debug-studios")}
+              />
+            </View>
           </View>
 
-          <SectionDivider />
-
-          {/* --- SECTION 3: CONTENT TABS --- */}
-          <View style={styles.tabsContainer}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tabsScrollContent}
-            >
-              {isProducer && (
-                <TouchableOpacity
-                  onPress={() => setActiveTab("beats")}
-                  style={[
-                    styles.tabButton,
-                    activeTab === "beats" && styles.tabButtonActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.tabText,
-                      activeTab === "beats" && { color: COLORS.accent },
-                    ]}
-                  >
-                    BEATS
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                onPress={() => setActiveTab("collabs")}
-                style={[
-                  styles.tabButton,
-                  activeTab === "collabs" && styles.tabButtonActive,
-                ]}
+          {/* ================================================== */}
+          {/* ZONE 3: BOTTOM SECTION (Content Tabs) */}
+          {/* ================================================== */}
+          <View style={styles.bottomSectionContainer}>
+            <View style={styles.tabsContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabsScrollContent}
               >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === "collabs" && { color: COLORS.accent },
-                  ]}
-                >
-                  COLLABS
-                </Text>
-              </TouchableOpacity>
+                {isProducer && (
+                  <TabButton
+                    label="BEATS"
+                    isActive={activeTab === "beats"}
+                    onPress={() => setActiveTab("beats")}
+                  />
+                )}
+                <TabButton
+                  label="COLLABS"
+                  isActive={activeTab === "collabs"}
+                  onPress={() => setActiveTab("collabs")}
+                />
+                <TabButton
+                  label="GEAR"
+                  isActive={activeTab === "equipment"}
+                  onPress={() => setActiveTab("equipment")}
+                />
+                <TabButton
+                  label="CLUBS"
+                  isActive={activeTab === "clubs"}
+                  onPress={() => setActiveTab("clubs")}
+                />
+              </ScrollView>
+            </View>
 
-              <TouchableOpacity
-                onPress={() => setActiveTab("equipment")}
-                style={[
-                  styles.tabButton,
-                  activeTab === "equipment" && styles.tabButtonActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === "equipment" && { color: COLORS.accent },
-                  ]}
-                >
-                  GEAR
-                </Text>
-              </TouchableOpacity>
+            {/* Content Area */}
+            <View style={styles.contentArea}>{renderContent()}</View>
 
-              <TouchableOpacity
-                onPress={() => setActiveTab("clubs")}
-                style={[
-                  styles.tabButton,
-                  activeTab === "clubs" && styles.tabButtonActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === "clubs" && { color: COLORS.accent },
-                  ]}
-                >
-                  CLUBS
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
+            <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
+              <Text style={styles.signOutText}>SIGN OUT</Text>
+            </TouchableOpacity>
           </View>
-
-          {/* Content Area */}
-          <View style={styles.contentArea}>{renderContent()}</View>
-
-          <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
-            <Text style={styles.signOutText}>SIGN OUT</Text>
-          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
     </View>
   );
 }
 
-// Reusable Dashboard Button
-const DashboardButton = ({ title, subtitle, icon, onPress }: any) => (
+// --- HELPER COMPONENTS ---
+
+const TabButton = ({ label, isActive, onPress }: any) => (
   <TouchableOpacity
-    style={styles.dashboardCard}
-    activeOpacity={0.7}
+    onPress={onPress}
+    style={[styles.tabButton, isActive && styles.tabButtonActive]}
+  >
+    <Text style={[styles.tabText, isActive && { color: COLORS.pureWhite }]}>
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
+
+const DashboardButton = ({
+  title,
+  subtitle,
+  icon,
+  onPress,
+  bgColor,
+  borderColor,
+  iconColor,
+}: any) => (
+  <TouchableOpacity
+    style={[
+      styles.dashboardCard,
+      { backgroundColor: bgColor, borderColor: borderColor },
+    ]}
+    activeOpacity={0.8}
     onPress={onPress}
   >
-    <View style={styles.iconBox}>
-      <Ionicons name={icon} size={24} color={COLORS.accent} />
+    <View style={[styles.iconBox, { backgroundColor: "rgba(0,0,0,0.2)" }]}>
+      <MaterialCommunityIcons name={icon} size={24} color={iconColor} />
     </View>
-    <View>
+    <View style={{ flex: 1 }}>
       <Text style={styles.dashboardLabel}>{title}</Text>
       <Text style={styles.dashboardSubLabel}>{subtitle}</Text>
     </View>
     <View style={styles.arrowBox}>
-      <Ionicons name="arrow-forward" size={14} color={COLORS.textGrey} />
+      {/* Subtle circular arrow bg */}
+      <View
+        style={{
+          backgroundColor: "rgba(255,255,255,0.1)",
+          borderRadius: 12,
+          padding: 4,
+        }}
+      >
+        <Ionicons name="arrow-forward" size={14} color="#FFF" />
+      </View>
     </View>
   </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.mainBackground },
   safeArea: { flex: 1 },
 
-  // DIVIDER
-  dividerContainer: {
-    alignItems: "center",
-    marginVertical: 24,
-    paddingHorizontal: 20,
-  },
-  dividerLine: {
-    width: "100%",
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-
-  // SPOTLIGHT
-  spotlightContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 400,
-    overflow: "hidden",
-  },
-  spotlightGradient: { width: "100%", height: "100%", opacity: 0.8 },
-
-  // TOP BAR
+  // --- TOP BAR ---
   topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 10,
-    marginBottom: 10,
+    paddingVertical: 10,
+    backgroundColor: COLORS.sectionTop, // Blend with top section
+    zIndex: 10,
   },
-  topBarRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  topBarRight: { flexDirection: "row", alignItems: "center" },
   iconBtn: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: COLORS.cardBlack,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
 
-  // HEADER CONTAINER
-  headerBackgroundContainer: {
-    position: "relative",
+  // --- ZONE 1: TOP SECTION ---
+  topSectionContainer: {
+    backgroundColor: COLORS.sectionTop,
+    paddingBottom: 30,
+    marginBottom: 0,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     overflow: "hidden",
-    paddingBottom: 10,
+    position: "relative",
   },
-
-  // PATTERNS
+  patternContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
   patternLeft: {
     position: "absolute",
     top: 40,
     left: -40,
-    opacity: 0.8, // Increased for visibility
     transform: [{ rotate: "90deg" }],
   },
   patternRight: {
     position: "absolute",
-    top: 20,
-    right: -40,
-    opacity: 0.9, // Increased for visibility
+    top: 50,
+    right: -50,
     transform: [{ rotate: "-15deg" }],
   },
-
-  // HEADER SECTION
   headerSection: {
     alignItems: "center",
     marginTop: 10,
-    marginBottom: 24,
+    marginBottom: 20,
+    zIndex: 1,
   },
-  avatarWrapper: {
-    marginBottom: 16,
-    position: "relative",
-  },
+  avatarWrapper: { marginBottom: 16, position: "relative" },
   avatarRing: {
     width: 110,
     height: 110,
     borderRadius: 55,
     borderWidth: 2,
-    borderColor: COLORS.border,
+    borderColor: "rgba(255,255,255,0.1)",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: COLORS.cardBlack,
+    backgroundColor: "#000",
   },
   avatarImage: {
     width: 100,
@@ -602,19 +557,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: COLORS.background,
+    borderWidth: 3,
+    borderColor: COLORS.sectionTop,
   },
-
-  // NAME
-  nameContainer: {
-    alignItems: "center",
-    gap: 4,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  nameContainer: { alignItems: "center", gap: 4 },
+  nameRow: { flexDirection: "row", alignItems: "center" },
   fullName: {
     fontSize: 24,
     fontFamily: "Manrope_800ExtraBold",
@@ -622,18 +569,19 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   roleText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Manrope_500Medium",
     color: COLORS.textGrey,
+    letterSpacing: 0.5,
   },
 
-  // STATS
   statsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 20,
     paddingHorizontal: 20,
+    zIndex: 1,
   },
   statItem: { alignItems: "center", minWidth: 80 },
   statValue: {
@@ -642,7 +590,7 @@ const styles = StyleSheet.create({
     color: COLORS.pureWhite,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: "Manrope_700Bold",
     color: COLORS.textGrey,
     textTransform: "uppercase",
@@ -651,114 +599,112 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: COLORS.border,
+    height: 25,
+    backgroundColor: "rgba(255,255,255,0.1)",
     marginHorizontal: 15,
   },
-
   bioText: {
     textAlign: "center",
     fontSize: 14,
     fontFamily: "Manrope_500Medium",
-    color: "#CCC",
+    color: "#DDD",
     lineHeight: 22,
     paddingHorizontal: 40,
-    marginBottom: 10,
+    zIndex: 1,
   },
 
-  // DASHBOARD GRID
-  dashboardGrid: {
-    flexDirection: "row",
-    gap: 12,
+  // --- ZONE 2: MIDDLE SECTION ---
+  middleSectionContainer: {
+    backgroundColor: COLORS.sectionMiddle,
+    paddingVertical: 24,
     paddingHorizontal: 20,
   },
+  sectionHeader: {
+    color: COLORS.textGrey,
+    fontFamily: "Manrope_800ExtraBold",
+    fontSize: 11,
+    textTransform: "uppercase",
+    marginBottom: 12,
+    letterSpacing: 1,
+  },
+  dashboardGrid: { flexDirection: "row", gap: 12 },
   dashboardCard: {
     flex: 1,
     padding: 16,
-    borderRadius: 20,
-    backgroundColor: COLORS.cardBlack,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: COLORS.border,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 4,
   },
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.cardDark,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   dashboardLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Manrope_800ExtraBold",
-    color: COLORS.pureWhite,
+    color: "#FFF",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
   dashboardSubLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Manrope_500Medium",
-    color: COLORS.textGrey,
+    color: "rgba(255,255,255,0.7)",
   },
-  arrowBox: {
-    marginLeft: "auto",
-  },
+  arrowBox: { marginLeft: "auto" },
 
-  // TABS
-  tabsContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+  // --- ZONE 3: BOTTOM SECTION ---
+  bottomSectionContainer: {
+    flex: 1,
+    backgroundColor: COLORS.sectionBottom,
+    marginTop: 0,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 24,
+    minHeight: 500, // Ensure it fills screen
   },
-  tabsScrollContent: {
-    gap: 30,
-  },
+  tabsContainer: { paddingHorizontal: 20, marginBottom: 20 },
+  tabsScrollContent: { gap: 10 },
   tabButton: {
     paddingVertical: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   tabButtonActive: {
-    borderBottomColor: COLORS.accent,
+    backgroundColor: COLORS.cardBlack,
+    borderColor: COLORS.border,
   },
   tabText: {
-    fontSize: 14,
-    fontFamily: "Manrope_800ExtraBold",
+    fontSize: 13,
+    fontFamily: "Manrope_700Bold",
     color: COLORS.textGrey,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
 
-  // CONTENT AREA
-  contentArea: {
-    paddingHorizontal: 20,
-    minHeight: 200,
-  },
-  loadingContainer: {
-    padding: 40,
-    alignItems: "center",
-  },
-  emptyTabState: {
-    padding: 40,
-    alignItems: "center",
-    gap: 12,
-    opacity: 0.7,
-  },
+  contentArea: { paddingHorizontal: 20 },
+  loadingContainer: { padding: 40, alignItems: "center" },
+  emptyTabState: { padding: 40, alignItems: "center", gap: 12, opacity: 0.7 },
   emptyTabText: {
     fontSize: 14,
     fontFamily: "Manrope_600SemiBold",
     color: COLORS.textGrey,
   },
 
-  // GRID ITEMS
-  gridContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: GAP,
-  },
+  // Grid
+  gridContainer: { flexDirection: "row", flexWrap: "wrap", gap: GAP },
   gridItem: {
     width: ITEM_WIDTH,
     borderRadius: 16,
@@ -770,10 +716,9 @@ const styles = StyleSheet.create({
   },
   gridImagePlaceholder: {
     height: ITEM_WIDTH,
-    backgroundColor: COLORS.cardDark,
+    backgroundColor: "#222",
     justifyContent: "center",
     alignItems: "center",
-    position: "relative",
   },
   gridImage: { width: "100%", height: "100%" },
   priceTag: {
@@ -803,15 +748,17 @@ const styles = StyleSheet.create({
     color: COLORS.textGrey,
   },
 
-  // SIGN OUT
+  // Sign Out
   signOutBtn: {
     alignSelf: "center",
     marginTop: 40,
+    marginBottom: 40,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.red,
+    backgroundColor: "rgba(213, 0, 0, 0.05)",
   },
   signOutText: {
     color: COLORS.red,

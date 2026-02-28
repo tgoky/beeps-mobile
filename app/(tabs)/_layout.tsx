@@ -1,27 +1,38 @@
+import {
+  Manrope_600SemiBold,
+  Manrope_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/manrope";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import { Platform, View } from "react-native";
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
+  withSpring,
 } from "react-native-reanimated";
 
-// Define the palette based on your screenshots
+// 🎨 THEME COLORS
 const COLORS = {
-  barBackground: "#000000", // The warm beige/off-white background
-  activeBackground: "#434040", // Sharp Black for the active button
-  activeText: "#FFFFFF",
-  inactiveText: "#9b9b9b",
-  inactiveIcon: "#1A1A1A",
+  background: "#000000", // Deep Black
+  border: "#222222", // Subtle border
+
+  // Active State
+  activeBg: "#1A1A1A", // Lighter black pill
+  activeIcon: "#747373", // Brand Amber
+  activeText: "#FFFFFF", // White text
+
+  // Inactive State
+  inactiveText: "#666666",
+  inactiveIcon: "#666666",
 };
 
 /**
  * 1. Custom Tab Item Component
- * Renders both the Icon AND the Label inside a single animated container.
+ * Renders an animated pill with Manrope font and Brand colors.
  */
 const CustomTabItem = ({
   name,
@@ -32,27 +43,39 @@ const CustomTabItem = ({
   label: string;
   focused: boolean;
 }) => {
-  // Animation Values
   const animation = useSharedValue(0);
 
-  React.useEffect(() => {
-    // 0 = Inactive, 1 = Active
-    animation.value = withTiming(focused ? 1 : 0, { duration: 200 });
+  useEffect(() => {
+    // Spring animation for a snappier feel
+    animation.value = withSpring(focused ? 1 : 0, {
+      damping: 15,
+      stiffness: 150,
+    });
   }, [focused]);
 
-  // 1. Background Animation (Transparent -> Black)
+  // 1. Background Animation (Transparent -> Dark Grey Pill)
   const containerStyle = useAnimatedStyle(() => {
     const backgroundColor = interpolateColor(
       animation.value,
       [0, 1],
-      ["transparent", COLORS.activeBackground],
+      ["transparent", COLORS.activeBg],
     );
-    return {
-      backgroundColor,
-    };
+    return { backgroundColor };
   });
 
-  // 2. Text/Icon Color Animation (Black -> White)
+  // 2. Icon Color Animation (Grey -> Amber)
+  const iconStyle = useAnimatedStyle(() => {
+    const color = interpolateColor(
+      animation.value,
+      [0, 1],
+      [COLORS.inactiveIcon, COLORS.activeIcon],
+    );
+    // Slight scale up on focus
+    const scale = 1 + animation.value * 0.1;
+    return { color, transform: [{ scale }] };
+  });
+
+  // 3. Text Color Animation (Grey -> White)
   const textStyle = useAnimatedStyle(() => {
     const color = interpolateColor(
       animation.value,
@@ -62,7 +85,6 @@ const CustomTabItem = ({
     return { color };
   });
 
-  // Helper to apply animated color to Ionicons
   const AnimatedIcon = Animated.createAnimatedComponent(Ionicons);
 
   return (
@@ -74,27 +96,27 @@ const CustomTabItem = ({
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            paddingVertical: 8,
-            paddingHorizontal: 12, // Wider padding for that "button" look
-            borderRadius: 12, // Distinct rectangular rounded corners
-            width: 70, // Fixed width to prevent jumping
-            height: 60,
+            paddingVertical: 6,
+            width: 64,
+            height: 56,
+            borderRadius: 16, // Soft squircle
           },
         ]}
       >
         <AnimatedIcon
           name={focused ? (name as any).replace("-outline", "") : name}
-          size={22}
-          style={textStyle} // Animates the icon color
+          size={24}
+          style={iconStyle}
         />
         <Animated.Text
           style={[
             textStyle,
             {
               fontSize: 10,
-              fontWeight: "600",
+              fontFamily: "Manrope_800ExtraBold", // Brand Font
               marginTop: 4,
               textAlign: "center",
+              letterSpacing: 0.5,
             },
           ]}
         >
@@ -106,17 +128,27 @@ const CustomTabItem = ({
 };
 
 export default function TabLayout() {
+  const [fontsLoaded] = useFonts({
+    Manrope_600SemiBold,
+    Manrope_800ExtraBold,
+  });
+
+  if (!fontsLoaded) return null;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false, // We hide system labels to use our custom ones
+        tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: COLORS.barBackground,
-          borderTopWidth: 0, // Clean look
+          backgroundColor: COLORS.background,
+          borderTopWidth: 1,
+          borderTopColor: COLORS.border,
           elevation: 0,
-          height: Platform.OS === "ios" ? 95 : 80, // Taller bar to accommodate the buttons
+          height: Platform.OS === "ios" ? 90 : 70,
           paddingTop: 10,
+          // Remove default bottom safe area padding to handle it manually or let flex handle it
+          paddingBottom: Platform.OS === "ios" ? 25 : 10,
         },
       }}
     >
@@ -124,7 +156,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <CustomTabItem name="home-outline" label="Home" focused={focused} />
+            <CustomTabItem name="home-outline" label="HOME" focused={focused} />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -133,7 +165,7 @@ export default function TabLayout() {
         name="hub"
         options={{
           tabBarIcon: ({ focused }) => (
-            <CustomTabItem name="grid-outline" label="Hub" focused={focused} />
+            <CustomTabItem name="grid-outline" label="HUB" focused={focused} />
           ),
         }}
         listeners={{ tabPress: () => Haptics.selectionAsync() }}
@@ -144,7 +176,7 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <CustomTabItem
               name="people-outline"
-              label="Clubs"
+              label="CLUBS"
               focused={focused}
             />
           ),
@@ -157,7 +189,7 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <CustomTabItem
               name="calendar-outline"
-              label="Bookings"
+              label="DATE"
               focused={focused}
             />
           ),
@@ -170,7 +202,7 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <CustomTabItem
               name="person-outline"
-              label="Profile"
+              label="USER"
               focused={focused}
             />
           ),

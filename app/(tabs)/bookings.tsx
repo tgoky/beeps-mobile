@@ -522,7 +522,7 @@ export default function BookingsScreen() {
                             colors={
                               isReceived
                                 ? ["#3B82F6", "#2563EB"]
-                                : ["#8B5CF6", "#7C3AED"]
+                                : [COLORS.accent, COLORS.accent]
                             }
                             style={styles.avatarGradient}
                           >

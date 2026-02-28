@@ -32,7 +32,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 dayjs.extend(relativeTime);
