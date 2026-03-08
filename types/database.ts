@@ -201,7 +201,9 @@ export interface Notification {
 }
 
 // Booking types
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'ACTIVE' | 'CANCELLED' | 'COMPLETED';
+export type PaymentStatus = 'UNPAID' | 'PAYMENT_HELD' | 'PAYMENT_CAPTURED' | 'PAYMENT_RELEASED' | 'REFUNDED';
+export type DisputeStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'DISMISSED';
 
 export interface Booking {
   id: string;
@@ -212,6 +214,42 @@ export interface Booking {
   status: BookingStatus;
   totalAmount: number;
   notes?: string;
+
+  // Session lifecycle
+  checkedInAt?: string;
+  checkedOutAt?: string;
+  qrCode?: string;
+  overtimeMinutes?: number;
+  overtimeAmount?: number;
+
+  // Payment/escrow
+  paymentStatus?: PaymentStatus;
+  paymentIntentId?: string;
+  platformFee?: number;
+
+  // Security confirmations
+  bookerConfirmedCheckIn?: boolean;
+  bookerConfirmedCheckOut?: boolean;
+  confirmationCode?: string;
+  confirmationExpiresAt?: string;
+
+  // Early end handling
+  earlyEndReason?: string;
+  actualSessionMinutes?: number;
+  proRataAmount?: number;
+  endedBy?: 'STUDIO_OWNER' | 'BOOKER';
+
+  // Dispute resolution
+  disputeStatus?: DisputeStatus;
+  disputeReason?: string;
+  disputedAt?: string;
+  disputeResolvedAt?: string;
+  disputedBy?: string;
+
+  // Payment release
+  paymentReleaseEligibleAt?: string;
+  bookerApprovedPayment?: boolean;
+
   createdAt: string;
   updatedAt: string;
 }
