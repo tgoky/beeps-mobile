@@ -28,6 +28,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -737,6 +738,20 @@ export default function StudioDetailScreen() {
                     ))}
                   </View>
 
+                  {/* Notes */}
+                  <Text style={styles.inputLabel}>NOTES (OPTIONAL)</Text>
+                  <View style={styles.notesInputContainer}>
+                    <TextInput
+                      style={styles.notesInput}
+                      placeholder="Any special requests or requirements..."
+                      placeholderTextColor={DARK_THEME.textDark}
+                      value={notes}
+                      onChangeText={setNotes}
+                      multiline
+                      numberOfLines={3}
+                    />
+                  </View>
+
                   {/* Receipt / Total */}
                   <View style={styles.receiptContainer}>
                     <View style={styles.receiptRow}>
@@ -1280,6 +1295,21 @@ const styles = StyleSheet.create({
   textSelected: {
     color: "#000",
     fontFamily: "Manrope_700Bold",
+  },
+  notesInputContainer: {
+    backgroundColor: DARK_THEME.surfaceHighlight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DARK_THEME.border,
+    marginBottom: 20,
+  },
+  notesInput: {
+    color: "#FFF",
+    fontSize: 14,
+    fontFamily: "Manrope_500Medium",
+    padding: 16,
+    minHeight: 80,
+    textAlignVertical: "top",
   },
   durationRow: {
     flexDirection: "row",

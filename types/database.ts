@@ -1,6 +1,11 @@
 // User roles and types
-export type UserRole = 'ARTIST' | 'PRODUCER' | 'STUDIO_OWNER' | 'GEAR_SELLER' | 'LYRICIST';
-export type MembershipTier = 'FREE' | 'BASIC' | 'PRO' | 'PREMIUM';
+export type UserRole =
+  | "ARTIST"
+  | "PRODUCER"
+  | "STUDIO_OWNER"
+  | "GEAR_SELLER"
+  | "LYRICIST";
+export type MembershipTier = "FREE" | "BASIC" | "PRO" | "PREMIUM";
 
 // User and Profile types
 export interface User {
@@ -32,7 +37,7 @@ export interface ArtistProfile {
   updatedAt: string;
 }
 
-export interface  ProducerProfile {
+export interface ProducerProfile {
   id: string;
   userId: string;
   genres: string[];
@@ -77,7 +82,7 @@ export interface Studio {
   description?: string;
   ownerId: string;
   clubId?: string;
-  location: string;  // Combined location string (required in Prisma schema)
+  location: string; // Combined location string (required in Prisma schema)
   city?: string;
   state?: string;
   country?: string;
@@ -85,7 +90,7 @@ export interface Studio {
   longitude?: number;
   hourlyRate: number;
   equipment: string[];
-  capacity?: string;  // Changed from number to string to match Prisma schema
+  capacity?: string; // Changed from number to string to match Prisma schema
   imageUrl?: string;
   rating: number;
   reviewsCount: number;
@@ -116,8 +121,12 @@ export interface Equipment {
 }
 
 // Collaboration types
-export type CollaborationType = 'PROJECT' | 'SESSION' | 'GIG' | 'AUCTION';
-export type CollaborationStatus = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type CollaborationType = "PROJECT" | "SESSION" | "GIG" | "AUCTION";
+export type CollaborationStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED";
 
 export interface Collaboration {
   id: string;
@@ -143,7 +152,12 @@ export interface Collaboration {
 }
 
 // Service Request types
-export type ServiceRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
+export type ServiceRequestStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "COMPLETED"
+  | "CANCELLED";
 
 export interface ServiceRequest {
   id: string;
@@ -161,7 +175,12 @@ export interface ServiceRequest {
 }
 
 // Community types
-export type CommunityRole = 'ARTIST' | 'PRODUCER' | 'STUDIO_OWNER' | 'GEAR_SELLER' | 'LYRICIST';
+export type CommunityRole =
+  | "ARTIST"
+  | "PRODUCER"
+  | "STUDIO_OWNER"
+  | "GEAR_SELLER"
+  | "LYRICIST";
 
 export interface CommunityPost {
   id: string;
@@ -201,7 +220,19 @@ export interface Notification {
 }
 
 // Booking types
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+export type BookingStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "ACTIVE"
+  | "CANCELLED"
+  | "COMPLETED";
+export type PaymentStatus =
+  | "UNPAID"
+  | "PAYMENT_HELD"
+  | "PAYMENT_CAPTURED"
+  | "PAYMENT_RELEASED"
+  | "REFUNDED";
+export type DisputeStatus = "OPEN" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED";
 
 export interface Booking {
   id: string;
@@ -212,12 +243,54 @@ export interface Booking {
   status: BookingStatus;
   totalAmount: number;
   notes?: string;
+
+  // Session lifecycle
+  checkedInAt?: string;
+  checkedOutAt?: string;
+  qrCode?: string;
+  overtimeMinutes?: number;
+  overtimeAmount?: number;
+
+  // Payment/escrow
+  paymentStatus?: PaymentStatus;
+  paymentIntentId?: string;
+  platformFee?: number;
+
+  // Security confirmations
+  bookerConfirmedCheckIn?: boolean;
+  bookerConfirmedCheckOut?: boolean;
+  confirmationCode?: string;
+  confirmationExpiresAt?: string;
+
+  // Early end handling
+  earlyEndReason?: string;
+  actualSessionMinutes?: number;
+  proRataAmount?: number;
+  endedBy?: "STUDIO_OWNER" | "BOOKER";
+
+  // Dispute resolution
+  disputeStatus?: DisputeStatus;
+  disputeReason?: string;
+  disputedAt?: string;
+  disputeResolvedAt?: string;
+  disputedBy?: string;
+
+  // Payment release
+  paymentReleaseEligibleAt?: string;
+  bookerApprovedPayment?: boolean;
+
   createdAt: string;
   updatedAt: string;
 }
 
 // Club types - Aligned with web app Prisma schema
-export type ClubType = 'RECORDING' | 'PRODUCTION' | 'RENTAL' | 'MANAGEMENT' | 'DISTRIBUTION' | 'CREATIVE';
+export type ClubType =
+  | "RECORDING"
+  | "PRODUCTION"
+  | "RENTAL"
+  | "MANAGEMENT"
+  | "DISTRIBUTION"
+  | "CREATIVE";
 
 export interface Club {
   id: string;
@@ -231,7 +304,7 @@ export interface Club {
   updatedAt: string;
 }
 
-export type ClubMemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type ClubMemberRole = "OWNER" | "ADMIN" | "MEMBER";
 
 export interface ClubMembership {
   id: string;
@@ -251,8 +324,13 @@ export interface UserRoleGrant {
 }
 
 // Transaction types
-export type TransactionType = 'BEAT_PURCHASE' | 'EQUIPMENT_PURCHASE' | 'STUDIO_BOOKING' | 'SERVICE_PAYMENT' | 'SUBSCRIPTION';
-export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+export type TransactionType =
+  | "BEAT_PURCHASE"
+  | "EQUIPMENT_PURCHASE"
+  | "STUDIO_BOOKING"
+  | "SERVICE_PAYMENT"
+  | "SUBSCRIPTION";
+export type TransactionStatus = "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
 
 export interface Transaction {
   id: string;
