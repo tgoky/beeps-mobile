@@ -130,10 +130,20 @@ export function useStudioOwnerBookings(userId?: string) {
     queryFn: async () => {
       if (!userId) return [];
 
+      // First get the studio_owner_profile for this user
+      const { data: ownerProfile, error: profileError } = await supabase
+        .from("studio_owner_profiles")
+        .select("id")
+        .eq("user_id", userId)
+        .single();
+
+      if (profileError || !ownerProfile) return [];
+
+      // Then find studios where owner_id matches the profile ID
       const { data: studios, error: studiosError } = await supabase
         .from("studios")
         .select("id")
-        .eq("owner_id", userId);
+        .eq("owner_id", ownerProfile.id);
 
       if (studiosError) throw studiosError;
       if (!studios || studios.length === 0) return [];
@@ -266,10 +276,21 @@ export function useActiveSessions(userId?: string) {
       if (err1) throw err1;
 
       // Get bookings for studios owned by user
-      const { data: studios } = await supabase
-        .from("studios")
+      // First get the studio_owner_profile for this user
+      const { data: ownerProfile } = await supabase
+        .from("studio_owner_profiles")
         .select("id")
-        .eq("owner_id", userId);
+        .eq("user_id", userId)
+        .single();
+
+      let studios: { id: string }[] | null = null;
+      if (ownerProfile) {
+        const { data: studioData } = await supabase
+          .from("studios")
+          .select("id")
+          .eq("owner_id", ownerProfile.id);
+        studios = studioData;
+      }
 
       let studioActive: any[] = [];
       if (studios && studios.length > 0) {
@@ -360,6 +381,47 @@ export function useCreateBooking() {
         .single();
 
       if (error) throw error;
+
+      // Notify the studio owner about the new booking
+      try {
+        const { data: studioData } = await supabase
+          .from("studios")
+          .select("name, studio_owner_profiles!owner_id (user_id)")
+          .eq("id", booking.studioId)
+          .single();
+
+        if (studioData?.studio_owner_profiles?.user_id) {
+          const { data: bookerData } = await supabase
+            .from("users")
+            .select("username, full_name")
+            .eq("id", booking.userId)
+            .single();
+
+          const bookerName =
+            bookerData?.full_name || bookerData?.username || "Someone";
+          const startDate = new Date(booking.startTime);
+          const formattedDate = startDate.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          });
+
+          await supabase.from("notifications").insert({
+            id: Crypto.randomUUID(),
+            user_id: studioData.studio_owner_profiles.user_id,
+            type: "NEW_BOOKING",
+            title: "New Booking Request",
+            message: `${bookerName} wants to book ${studioData.name} on ${formattedDate}`,
+            reference_id: bookingId,
+            reference_type: "BOOKING",
+            created_at: now,
+          });
+        }
+      } catch {
+        // Don't fail the booking if notification fails
+      }
+
       return data;
     },
     onSuccess: () => {
