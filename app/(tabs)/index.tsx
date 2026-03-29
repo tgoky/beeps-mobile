@@ -1,6 +1,7 @@
 import CustomMapView from "@/components/CustomMapView";
 import { NotificationBell } from "@/components/NotificationBell";
 import { RequestServiceModal } from "@/components/RequestServiceModal";
+import StudioVerificationBadge from "@/components/StudioVerificationBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useArtists } from "@/hooks/useArtists";
@@ -54,7 +55,7 @@ const EXPANDED_HEIGHT = height * 0.92;
 const DRAG_THRESHOLD = 50;
 
 type TabType = "studios" | "producers" | "artists";
-type SortOrder = "price_asc" | "price_desc" | "rating_desc" | null;
+type SortOrder = "price_asc" | "price_desc" | "rating_desc" | "nearest" | null;
 
 // --- DYNAMIC FILTER CONFIGURATION ---
 const FILTER_OPTIONS = {
@@ -174,6 +175,9 @@ export default function HomeScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [filterCountry, setFilterCountry] = useState<string | null>(null);
+  const [filterCity, setFilterCity] = useState<string | null>(null);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [requestServiceProducer, setRequestServiceProducer] =
@@ -288,6 +292,9 @@ export default function HomeScreen() {
     setSortOrder(null);
     setSearchQuery("");
     setSearchSuggestions([]);
+    setFilterCountry(null);
+    setFilterCity(null);
+    setVerifiedOnly(false);
   }, [activeTab]);
 
   const filteredData = useMemo(() => {
@@ -357,7 +364,25 @@ export default function HomeScreen() {
       }
     }
 
-    // 3. Sort
+    // 3. Location Filters (studios only)
+    if (activeTab === "studios") {
+      if (filterCountry) {
+        data = data.filter(
+          (d) => (d.country || "").toLowerCase() === filterCountry.toLowerCase(),
+        );
+      }
+      if (filterCity) {
+        data = data.filter(
+          (d) => (d.city || "").toLowerCase() === filterCity.toLowerCase(),
+        );
+      }
+      // 4. Verified Only Filter
+      if (verifiedOnly) {
+        data = data.filter((d) => d.verificationStatus === "VERIFIED");
+      }
+    }
+
+    // 5. Sort
     if (sortOrder === "price_asc") {
       const getPrice = (item: any) => {
         if (activeTab === "studios") return item.hourlyRate || 0;
@@ -368,6 +393,18 @@ export default function HomeScreen() {
     } else if (sortOrder === "rating_desc") {
       const getRating = (item: any) => item.rating || item.user?.rating || 0;
       data.sort((a, b) => getRating(b) - getRating(a));
+    } else if (sortOrder === "nearest" && userLocation) {
+      data.sort((a, b) => {
+        const distA = getDistance(
+          userLocation.latitude, userLocation.longitude,
+          a.latitude || 0, a.longitude || 0,
+        );
+        const distB = getDistance(
+          userLocation.latitude, userLocation.longitude,
+          b.latitude || 0, b.longitude || 0,
+        );
+        return (parseFloat(distA || "9999") - parseFloat(distB || "9999"));
+      });
     }
 
     return data;
@@ -379,6 +416,10 @@ export default function HomeScreen() {
     searchQuery,
     selectedFilterIndex,
     sortOrder,
+    filterCountry,
+    filterCity,
+    verifiedOnly,
+    userLocation,
   ]);
 
   // --- SMOOTHER DRAG GESTURE ---
@@ -510,12 +551,20 @@ export default function HomeScreen() {
           />
           <View style={styles.vMain}>
             <View style={styles.vHeader}>
-              <Text
-                style={[styles.vTitle, { color: theme.text }]}
-                numberOfLines={1}
-              >
-                {title}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 4 }}>
+                <Text
+                  style={[styles.vTitle, { color: theme.text, flex: 0 }]}
+                  numberOfLines={1}
+                >
+                  {title}
+                </Text>
+                {activeTab === "studios" && item.verificationStatus && (
+                  <StudioVerificationBadge
+                    status={item.verificationStatus}
+                    size="sm"
+                  />
+                )}
+              </View>
               <Text style={[styles.vPrice, { color: theme.text }]}>
                 ${rate}
                 <Text style={styles.vUnit}>{rateDisplay}</Text>
@@ -787,7 +836,176 @@ export default function HomeScreen() {
                       Highest Rated
                     </Text>
                   </TouchableOpacity>
+                  {activeTab === "studios" && userLocation && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        setSortOrder(
+                          sortOrder === "nearest" ? null : "nearest",
+                        )
+                      }
+                      style={styles.sortBtn}
+                    >
+                      <Text
+                        style={[
+                          styles.sortBtnText,
+                          sortOrder === "nearest" && { color: theme.accent },
+                        ]}
+                      >
+                        Nearest
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
+
+                {/* Location & Verification Filters (Studios only) */}
+                {activeTab === "studios" && (
+                  <>
+                    <View
+                      style={[styles.divider, { backgroundColor: theme.border }]}
+                    />
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.filterScroll}
+                    >
+                      <TouchableOpacity
+                        onPress={() => {
+                          setVerifiedOnly(!verifiedOnly);
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }}
+                        style={[
+                          styles.pill,
+                          verifiedOnly
+                            ? { backgroundColor: "#3B82F6" }
+                            : { borderColor: theme.border, borderWidth: 1 },
+                        ]}
+                      >
+                        <Ionicons
+                          name="shield-checkmark"
+                          size={12}
+                          color={verifiedOnly ? "#FFF" : "#3B82F6"}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text
+                          style={[
+                            styles.pillText,
+                            { color: verifiedOnly ? "#FFF" : theme.text },
+                          ]}
+                        >
+                          Verified Only
+                        </Text>
+                      </TouchableOpacity>
+                      {/* Country filter pills from available data */}
+                      {(() => {
+                        const countries = [
+                          ...new Set(
+                            (studios || [])
+                              .map((s) => s.country)
+                              .filter(Boolean),
+                          ),
+                        ];
+                        return countries.map((country) => (
+                          <TouchableOpacity
+                            key={country}
+                            onPress={() => {
+                              setFilterCountry(
+                                filterCountry === country ? null : country!,
+                              );
+                              setFilterCity(null);
+                              Haptics.impactAsync(
+                                Haptics.ImpactFeedbackStyle.Light,
+                              );
+                            }}
+                            style={[
+                              styles.pill,
+                              filterCountry === country
+                                ? { backgroundColor: theme.text }
+                                : { borderColor: theme.border, borderWidth: 1 },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.pillText,
+                                {
+                                  color:
+                                    filterCountry === country
+                                      ? theme.bg
+                                      : theme.text,
+                                },
+                              ]}
+                            >
+                              {country}
+                            </Text>
+                          </TouchableOpacity>
+                        ));
+                      })()}
+                    </ScrollView>
+
+                    {/* City filter (shown when country is selected) */}
+                    {filterCountry && (() => {
+                      const cities = [
+                        ...new Set(
+                          (studios || [])
+                            .filter(
+                              (s) =>
+                                (s.country || "").toLowerCase() ===
+                                filterCountry.toLowerCase(),
+                            )
+                            .map((s) => s.city)
+                            .filter(Boolean),
+                        ),
+                      ];
+                      if (cities.length === 0) return null;
+                      return (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={[
+                            styles.filterScroll,
+                            { marginTop: 8 },
+                          ]}
+                        >
+                          {cities.map((city) => (
+                            <TouchableOpacity
+                              key={city}
+                              onPress={() => {
+                                setFilterCity(
+                                  filterCity === city ? null : city!,
+                                );
+                                Haptics.impactAsync(
+                                  Haptics.ImpactFeedbackStyle.Light,
+                                );
+                              }}
+                              style={[
+                                styles.pill,
+                                filterCity === city
+                                  ? { backgroundColor: theme.text }
+                                  : {
+                                      borderColor: theme.border,
+                                      borderWidth: 1,
+                                    },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.pillText,
+                                  {
+                                    color:
+                                      filterCity === city
+                                        ? theme.bg
+                                        : theme.text,
+                                  },
+                                ]}
+                              >
+                                {city}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      );
+                    })()}
+                  </>
+                )}
               </View>
             )}
 

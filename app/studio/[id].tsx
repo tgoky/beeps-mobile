@@ -1,5 +1,8 @@
+import StudioVerificationBadge from "@/components/StudioVerificationBadge";
+import StudioVerificationRequest from "@/components/StudioVerificationRequest";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateBooking, useStudioBookings } from "@/hooks/useBookings";
+import { VerificationStatus } from "@/types/database";
 import { supabase } from "@/lib/supabase";
 import {
   Manrope_400Regular,
@@ -114,6 +117,9 @@ export default function StudioDetailScreen() {
         rating: data.rating || 0,
         reviewsCount: data.reviews_count || 0,
         isActive: data.is_active,
+        verificationStatus: (data.verification_status || "UNVERIFIED") as VerificationStatus,
+        latitude: data.latitude,
+        longitude: data.longitude,
         createdAt: data.created_at,
         owner: {
           id: ownerUser?.id || "",
@@ -413,7 +419,14 @@ export default function StudioDetailScreen() {
                   </Text>
                 </View>
 
-                <Text style={styles.heroTitle}>{studio.name}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={styles.heroTitle}>{studio.name}</Text>
+                  <StudioVerificationBadge
+                    status={studio.verificationStatus}
+                    size="lg"
+                    showLabel
+                  />
+                </View>
 
                 <View style={styles.locationRow}>
                   <Ionicons
@@ -510,6 +523,72 @@ export default function StudioDetailScreen() {
                   <Text style={styles.ownerRole}>Studio Owner</Text>
                 </View>
               </View>
+
+              {/* Verification Section (Owner Only) */}
+              {user?.id === studio.owner.id && (
+                <>
+                  <Text style={styles.sectionHeader}>VERIFICATION</Text>
+                  <View
+                    style={{
+                      backgroundColor: DARK_THEME.surface,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: DARK_THEME.border,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <StudioVerificationRequest studioId={studio.id} />
+                  </View>
+                </>
+              )}
+
+              {/* Location Map Hint */}
+              {studio.latitude && studio.longitude && (
+                <>
+                  <Text style={styles.sectionHeader}>LOCATION</Text>
+                  <View
+                    style={{
+                      backgroundColor: DARK_THEME.surface,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: DARK_THEME.border,
+                      padding: 16,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <Ionicons
+                      name="navigate-outline"
+                      size={24}
+                      color={DARK_THEME.accent}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          color: DARK_THEME.text,
+                          fontSize: 14,
+                          fontWeight: "600",
+                        }}
+                      >
+                        {[studio.city, studio.state, studio.country]
+                          .filter(Boolean)
+                          .join(", ") || studio.location}
+                      </Text>
+                      <Text
+                        style={{
+                          color: DARK_THEME.textDim,
+                          fontSize: 12,
+                          marginTop: 2,
+                        }}
+                      >
+                        Coordinates: {studio.latitude.toFixed(4)},{" "}
+                        {studio.longitude.toFixed(4)}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
             </View>
           )}
 

@@ -75,6 +75,9 @@ export interface Beat {
   updatedAt: string;
 }
 
+// Verification types
+export type VerificationStatus = "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
+
 // Studio types
 export interface Studio {
   id: string;
@@ -83,6 +86,7 @@ export interface Studio {
   ownerId: string;
   clubId?: string;
   location: string; // Combined location string (required in Prisma schema)
+  streetAddress?: string;
   city?: string;
   state?: string;
   country?: string;
@@ -95,6 +99,11 @@ export interface Studio {
   rating: number;
   reviewsCount: number;
   isActive: boolean;
+  verificationStatus: VerificationStatus;
+  verificationDocuments?: string[];
+  verificationNotes?: string;
+  verifiedAt?: string;
+  verificationRequestedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

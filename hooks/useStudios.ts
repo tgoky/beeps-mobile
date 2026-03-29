@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Studio } from '@/types/database';
+import { Studio, VerificationStatus } from '@/types/database';
+import * as Crypto from 'expo-crypto';
 
 export interface StudioWithOwner extends Studio {
   owner: {
@@ -58,6 +59,11 @@ export function useStudios() {
           rating: studio.rating || 0,
           reviewsCount: studio.reviews_count || 0,
           isActive: studio.is_active,
+          verificationStatus: studio.verification_status || 'UNVERIFIED',
+          verificationDocuments: studio.verification_documents,
+          verificationNotes: studio.verification_notes,
+          verifiedAt: studio.verified_at,
+          verificationRequestedAt: studio.verification_requested_at,
           createdAt: studio.created_at,
           updatedAt: studio.updated_at,
           owner: {
@@ -119,6 +125,11 @@ export function useAllStudiosDebug() {
           rating: studio.rating || 0,
           reviewsCount: studio.reviews_count || 0,
           isActive: studio.is_active,
+          verificationStatus: studio.verification_status || 'UNVERIFIED',
+          verificationDocuments: studio.verification_documents,
+          verificationNotes: studio.verification_notes,
+          verifiedAt: studio.verified_at,
+          verificationRequestedAt: studio.verification_requested_at,
           createdAt: studio.created_at,
           updatedAt: studio.updated_at,
           owner: {
@@ -207,6 +218,11 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
             rating: studio.rating || 0,
             reviewsCount: studio.reviews_count || 0,
             isActive: studio.is_active,
+            verificationStatus: studio.verification_status || 'UNVERIFIED',
+            verificationDocuments: studio.verification_documents,
+            verificationNotes: studio.verification_notes,
+            verifiedAt: studio.verified_at,
+            verificationRequestedAt: studio.verification_requested_at,
             createdAt: studio.created_at,
             updatedAt: studio.updated_at,
             owner: {
@@ -273,6 +289,11 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
             rating: studio.rating || 0,
             reviewsCount: studio.reviews_count || 0,
             isActive: studio.is_active,
+            verificationStatus: studio.verification_status || 'UNVERIFIED',
+            verificationDocuments: studio.verification_documents,
+            verificationNotes: studio.verification_notes,
+            verifiedAt: studio.verified_at,
+            verificationRequestedAt: studio.verification_requested_at,
             createdAt: studio.created_at,
             updatedAt: studio.updated_at,
             owner: {
@@ -289,4 +310,111 @@ export function useNearbyStudios(latitude?: number, longitude?: number, radiusKm
     },
     enabled: !!latitude && !!longitude,
   });
+}
+
+// ---------- VERIFICATION HOOKS ----------
+
+export function useStudioVerification(studioId?: string) {
+  return useQuery({
+    queryKey: ['studio', 'verification', studioId],
+    queryFn: async () => {
+      if (!studioId) return null;
+
+      const { data, error } = await supabase
+        .from('studios')
+        .select('verification_status, verification_documents, verification_notes, verified_at, verification_requested_at')
+        .eq('id', studioId)
+        .single();
+
+      if (error) throw error;
+
+      return {
+        status: (data.verification_status || 'UNVERIFIED') as VerificationStatus,
+        documents: data.verification_documents || [],
+        notes: data.verification_notes,
+        verifiedAt: data.verified_at,
+        requestedAt: data.verification_requested_at,
+      };
+    },
+    enabled: !!studioId,
+  });
+}
+
+export function useRequestVerification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      studioId,
+      userId,
+      documents,
+    }: {
+      studioId: string;
+      userId: string;
+      documents: string[];
+    }) => {
+      // Verify ownership through studio_owner_profiles
+      const { data: studio } = await supabase
+        .from('studios')
+        .select('owner_id, name, studio_owner_profiles!owner_id (user_id)')
+        .eq('id', studioId)
+        .single();
+
+      if (!studio?.studio_owner_profiles || studio.studio_owner_profiles.user_id !== userId) {
+        throw new Error('Only the studio owner can request verification');
+      }
+
+      const now = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('studios')
+        .update({
+          verification_status: 'PENDING',
+          verification_documents: documents,
+          verification_requested_at: now,
+          updated_at: now,
+        })
+        .eq('id', studioId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Create notification for the owner
+      await supabase.from('notifications').insert({
+        id: Crypto.randomUUID(),
+        user_id: userId,
+        type: 'STUDIO_VERIFICATION_SUBMITTED',
+        title: 'Verification Request Submitted',
+        message: `Your verification request for ${studio.name} has been submitted and is under review.`,
+        reference_id: studioId,
+        reference_type: 'STUDIO',
+        created_at: now,
+      });
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['studios'] });
+      queryClient.invalidateQueries({ queryKey: ['studio'] });
+    },
+  });
+}
+
+// Haversine distance calculation (in miles)
+export function getDistanceMiles(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number,
+): number {
+  const R = 3959; // Earth radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }

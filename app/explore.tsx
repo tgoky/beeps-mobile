@@ -1,5 +1,6 @@
 import CustomMapView from "@/components/CustomMapView";
 import { RequestServiceModal } from "@/components/RequestServiceModal";
+import StudioVerificationBadge from "@/components/StudioVerificationBadge";
 import { Colors, Spacing } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -195,12 +196,20 @@ export default function ExploreScreen() {
         />
         <View style={styles.compactContent}>
           <View style={styles.compactHeader}>
-            <Text
-              style={[styles.compactTitle, { color: colors.text }]}
-              numberOfLines={1}
-            >
-              {name}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flex: 1 }}>
+              <Text
+                style={[styles.compactTitle, { color: colors.text, flex: 0 }]}
+                numberOfLines={1}
+              >
+                {name}
+              </Text>
+              {activeTab === "studios" && item.verificationStatus && (
+                <StudioVerificationBadge
+                  status={item.verificationStatus}
+                  size="sm"
+                />
+              )}
+            </View>
             {rating > 0 && (
               <View style={styles.compactRating}>
                 <Ionicons name="star" size={12} color="#F59E0B" />
