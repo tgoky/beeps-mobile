@@ -390,7 +390,7 @@ export function useCreateBooking() {
           .eq("id", booking.studioId)
           .single();
 
-        if ((studioData?.studio_owner_profiles as any)?.user_id) {
+        if (studioData && (studioData.studio_owner_profiles as any)?.user_id) {
           const { data: bookerData } = await supabase
             .from("users")
             .select("username, full_name")
