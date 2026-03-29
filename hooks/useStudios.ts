@@ -383,7 +383,7 @@ export function useRequestVerification() {
 
       if (
         !studio?.studio_owner_profiles ||
-        studio.studio_owner_profiles.user_id !== userId
+        (studio.studio_owner_profiles as any).user_id !== userId
       ) {
         throw new Error("Only the studio owner can request verification");
       }
