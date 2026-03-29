@@ -145,6 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       username: userData.username || email.split('@')[0],
       full_name: userData.fullName || '',
       primary_role: userData.primaryRole || 'ARTIST',
+      location: userData.location || null,
       verified: false,
       membership_tier: 'FREE',
       followers_count: 0,

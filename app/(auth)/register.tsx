@@ -12,58 +12,168 @@ import {
   ScrollView,
 } from 'react-native';
 import { Link, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { UserRole } from '@/types/database';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '@/constants/theme';
+import LocationSelector, { LocationData } from '@/components/LocationSelector';
+import { supabase } from '@/lib/supabase';
+import * as Crypto from 'expo-crypto';
 
-const USER_ROLES: { value: UserRole; label: string }[] = [
-  { value: 'ARTIST', label: 'Artist' },
-  { value: 'PRODUCER', label: 'Producer' },
-  { value: 'STUDIO_OWNER', label: 'Studio Owner' },
-  { value: 'GEAR_SELLER', label: 'Gear Seller' },
-  { value: 'LYRICIST', label: 'Lyricist' },
+const USER_ROLES: { value: UserRole; label: string; icon: keyof typeof Ionicons.glyphMap; needsLocation: boolean }[] = [
+  { value: 'ARTIST', label: 'Artist', icon: 'mic-outline', needsLocation: false },
+  { value: 'PRODUCER', label: 'Producer', icon: 'musical-notes-outline', needsLocation: false },
+  { value: 'STUDIO_OWNER', label: 'Studio Owner', icon: 'business-outline', needsLocation: true },
+  { value: 'GEAR_SELLER', label: 'Gear Seller', icon: 'cart-outline', needsLocation: true },
+  { value: 'LYRICIST', label: 'Lyricist', icon: 'document-text-outline', needsLocation: false },
 ];
 
 export default function RegisterScreen() {
   const { signUp } = useAuth();
   const { effectiveTheme } = useTheme();
   const colors = Colors[effectiveTheme];
+  const isDark = effectiveTheme === 'dark';
+
+  // Step tracking
+  const [step, setStep] = useState(1); // 1 = basic info, 2 = role-specific
+
+  // Basic fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+
+  // Location data (for studio owners and gear sellers)
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
+
+  // Studio owner specific
+  const [studioName, setStudioName] = useState('');
+  const [capacity, setCapacity] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('');
+
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = async () => {
+  const roleConfig = USER_ROLES.find(r => r.value === selectedRole);
+  const needsLocation = roleConfig?.needsLocation ?? false;
+
+  const validateStep1 = () => {
     if (!email || !password || !username || !fullName || !selectedRole) {
       Alert.alert('Error', 'Please fill in all fields');
-      return;
+      return false;
     }
-
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
-      return;
+      return false;
     }
-
     if (password.length < 6) {
       Alert.alert('Error', 'Password must be at least 6 characters');
+      return false;
+    }
+    return true;
+  };
+
+  const handleNext = () => {
+    if (!validateStep1()) return;
+
+    // If role needs location/extra fields, go to step 2
+    if (needsLocation) {
+      setStep(2);
+    } else {
+      handleRegister();
+    }
+  };
+
+  const handleRegister = async () => {
+    // Validate step 2 for studio owners
+    if (selectedRole === 'STUDIO_OWNER') {
+      if (!locationData?.city) {
+        Alert.alert('Error', 'Please select your location');
+        return;
+      }
+      if (!studioName) {
+        Alert.alert('Error', 'Please enter your studio name');
+        return;
+      }
+    }
+
+    if (selectedRole === 'GEAR_SELLER' && !locationData?.city) {
+      Alert.alert('Error', 'Please select your location');
       return;
     }
 
     setLoading(true);
     try {
+      // Create the user account
+      const locationString = locationData
+        ? locationData.fullAddress
+        : '';
+
       await signUp(email, password, {
         username,
         fullName,
-        primaryRole: selectedRole,
+        primaryRole: selectedRole!,
+        location: locationString,
         verified: false,
         membershipTier: 'FREE',
         followersCount: 0,
         followingCount: 0,
       });
+
+      // If studio owner, create studio_owner_profile and studio
+      if (selectedRole === 'STUDIO_OWNER' && studioName) {
+        // We need to get the user ID that was just created
+        // Wait a moment for the auth state to settle
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          // Find the user profile
+          const { data: userProfile } = await supabase
+            .from('users')
+            .select('id')
+            .eq('supabase_id', authData.user.id)
+            .single();
+
+          if (userProfile) {
+            const now = new Date().toISOString();
+            const profileId = Crypto.randomUUID();
+
+            // Create studio owner profile
+            await supabase.from('studio_owner_profiles').insert({
+              id: profileId,
+              user_id: userProfile.id,
+              created_at: now,
+              updated_at: now,
+            });
+
+            // Create the studio
+            const studioId = Crypto.randomUUID();
+            await supabase.from('studios').insert({
+              id: studioId,
+              name: studioName,
+              owner_id: profileId,
+              location: locationData?.fullAddress || '',
+              street_address: locationData?.streetAddress || null,
+              city: locationData?.city || null,
+              state: locationData?.state || null,
+              country: locationData?.country || null,
+              latitude: locationData?.latitude || null,
+              longitude: locationData?.longitude || null,
+              hourly_rate: parseFloat(hourlyRate) || 25,
+              capacity: capacity || null,
+              equipment: [],
+              rating: 0,
+              reviews_count: 0,
+              is_active: true,
+              verification_status: 'UNVERIFIED',
+              created_at: now,
+              updated_at: now,
+            });
+          }
+        }
+      }
+
       Alert.alert('Success', 'Account created! Please check your email to verify your account.');
       router.replace('/(auth)/login');
     } catch (error: any) {
@@ -73,6 +183,15 @@ export default function RegisterScreen() {
     }
   };
 
+  const locationColors = {
+    background: colors.background,
+    text: colors.text,
+    border: colors.border,
+    placeholder: colors.textTertiary,
+    card: colors.backgroundSecondary,
+    accent: colors.primary,
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -80,107 +199,215 @@ export default function RegisterScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Join the Beeps community</Text>
+          {step === 1 ? (
+            <>
+              <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Join the Beeps community</Text>
 
-          <View style={styles.form}>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
-              placeholder="Full Name"
-              placeholderTextColor={colors.textTertiary}
-              value={fullName}
-              onChangeText={setFullName}
-              editable={!loading}
-            />
+              <View style={styles.form}>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
+                  placeholder="Full Name"
+                  placeholderTextColor={colors.textTertiary}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  editable={!loading}
+                />
 
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
-              placeholder="Username"
-              placeholderTextColor={colors.textTertiary}
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              editable={!loading}
-            />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
+                  placeholder="Username"
+                  placeholderTextColor={colors.textTertiary}
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  editable={!loading}
+                />
 
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
-              placeholder="Email"
-              placeholderTextColor={colors.textTertiary}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              editable={!loading}
-            />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
+                  placeholder="Email"
+                  placeholderTextColor={colors.textTertiary}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  editable={!loading}
+                />
 
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
-              placeholder="Password"
-              placeholderTextColor={colors.textTertiary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={!loading}
-            />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
+                  placeholder="Password"
+                  placeholderTextColor={colors.textTertiary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  editable={!loading}
+                />
 
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
-              placeholder="Confirm Password"
-              placeholderTextColor={colors.textTertiary}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              editable={!loading}
-            />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
+                  placeholder="Confirm Password"
+                  placeholderTextColor={colors.textTertiary}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                  editable={!loading}
+                />
 
-            <Text style={[styles.label, { color: colors.text }]}>I am a:</Text>
-            <View style={styles.roleContainer}>
-              {USER_ROLES.map((role) => (
+                <Text style={[styles.label, { color: colors.text }]}>I am a:</Text>
+                <View style={styles.roleContainer}>
+                  {USER_ROLES.map((role) => (
+                    <TouchableOpacity
+                      key={role.value}
+                      style={[
+                        styles.roleButton,
+                        { borderColor: colors.border, backgroundColor: selectedRole === role.value ? colors.primary : colors.card },
+                      ]}
+                      onPress={() => setSelectedRole(role.value)}
+                      disabled={loading}
+                    >
+                      <Ionicons
+                        name={role.icon}
+                        size={16}
+                        color={selectedRole === role.value ? '#fff' : colors.textSecondary}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          styles.roleButtonText,
+                          { color: selectedRole === role.value ? '#fff' : colors.textSecondary },
+                          selectedRole === role.value && styles.roleButtonTextSelected,
+                        ]}
+                      >
+                        {role.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
                 <TouchableOpacity
-                  key={role.value}
-                  style={[
-                    styles.roleButton,
-                    { borderColor: colors.border, backgroundColor: selectedRole === role.value ? colors.primary : colors.card },
-                    selectedRole === role.value && styles.roleButtonSelected,
-                  ]}
-                  onPress={() => setSelectedRole(role.value)}
+                  style={[styles.button, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
+                  onPress={handleNext}
                   disabled={loading}
                 >
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      { color: selectedRole === role.value ? '#fff' : colors.textSecondary },
-                      selectedRole === role.value && styles.roleButtonTextSelected,
-                    ]}
-                  >
-                    {role.label}
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>
+                      {needsLocation ? 'Next' : 'Create Account'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.footer}>
+                  <Text style={[styles.footerText, { color: colors.textSecondary }]}>Already have an account? </Text>
+                  <Link href="/(auth)/login" asChild>
+                    <TouchableOpacity>
+                      <Text style={[styles.link, { color: colors.primary }]}>Sign In</Text>
+                    </TouchableOpacity>
+                  </Link>
+                </View>
+              </View>
+            </>
+          ) : (
+            <>
+              {/* Step 2: Location & Role-Specific Fields */}
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => setStep(1)}
+              >
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+
+              <Text style={[styles.title, { color: colors.text }]}>
+                {selectedRole === 'STUDIO_OWNER' ? 'Studio Setup' : 'Your Location'}
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                {selectedRole === 'STUDIO_OWNER'
+                  ? 'Tell us about your studio'
+                  : 'Where are you located?'}
+              </Text>
+
+              <View style={styles.form}>
+                {/* Studio Owner specific fields */}
+                {selectedRole === 'STUDIO_OWNER' && (
+                  <>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
+                      placeholder="Studio Name"
+                      placeholderTextColor={colors.textTertiary}
+                      value={studioName}
+                      onChangeText={setStudioName}
+                      editable={!loading}
+                    />
+
+                    <View style={styles.row}>
+                      <TextInput
+                        style={[styles.input, styles.halfInput, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
+                        placeholder="Capacity (e.g., 5)"
+                        placeholderTextColor={colors.textTertiary}
+                        value={capacity}
+                        onChangeText={setCapacity}
+                        editable={!loading}
+                      />
+                      <TextInput
+                        style={[styles.input, styles.halfInput, { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border }]}
+                        placeholder="Rate $/hr"
+                        placeholderTextColor={colors.textTertiary}
+                        value={hourlyRate}
+                        onChangeText={setHourlyRate}
+                        keyboardType="numeric"
+                        editable={!loading}
+                      />
+                    </View>
+                  </>
+                )}
+
+                {/* Location Selector */}
+                <View style={styles.locationSection}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    <Ionicons name="location-outline" size={16} color={colors.primary} />{' '}
+                    Location
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  <LocationSelector
+                    onLocationChange={setLocationData}
+                    showStreetAddress={selectedRole === 'STUDIO_OWNER'}
+                    showGeolocation
+                    compact
+                    colors={locationColors}
+                  />
+                </View>
 
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
-              onPress={handleRegister}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
-              )}
-            </TouchableOpacity>
+                {/* Location preview */}
+                {locationData?.fullAddress ? (
+                  <View style={[styles.locationPreview, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                    <Ionicons name="checkmark-circle" size={18} color="#00C853" />
+                    <Text style={[styles.locationPreviewText, { color: colors.text }]} numberOfLines={2}>
+                      {locationData.fullAddress}
+                    </Text>
+                    {locationData.latitude && (
+                      <Text style={[styles.coordText, { color: colors.textTertiary }]}>
+                        {locationData.latitude.toFixed(4)}, {locationData.longitude?.toFixed(4)}
+                      </Text>
+                    )}
+                  </View>
+                ) : null}
 
-            <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: colors.textSecondary }]}>Already have an account? </Text>
-              <Link href="/(auth)/login" asChild>
-                <TouchableOpacity>
-                  <Text style={[styles.link, { color: colors.primary }]}>Sign In</Text>
+                <TouchableOpacity
+                  style={[styles.button, { backgroundColor: colors.primary, marginTop: 16 }, loading && styles.buttonDisabled]}
+                  onPress={handleRegister}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>Create Account</Text>
+                  )}
                 </TouchableOpacity>
-              </Link>
-            </View>
-          </View>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -198,6 +425,10 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.xl,
     justifyContent: 'center',
+  },
+  backButton: {
+    marginBottom: 16,
+    alignSelf: 'flex-start',
   },
   title: {
     fontSize: FontSizes['4xl'],
@@ -220,10 +451,22 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     borderWidth: 1,
   },
+  row: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  halfInput: {
+    flex: 1,
+  },
   label: {
     fontSize: FontSizes.base,
     fontWeight: FontWeights.semiBold,
     marginBottom: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
   },
   roleContainer: {
     flexDirection: 'row',
@@ -232,17 +475,42 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   roleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
   },
-  roleButtonSelected: {},
   roleButtonText: {
     fontSize: FontSizes.sm,
   },
   roleButtonTextSelected: {
     fontWeight: FontWeights.semiBold,
+  },
+  locationSection: {
+    marginBottom: Spacing.md,
+  },
+  locationPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+    flexWrap: 'wrap',
+  },
+  locationPreviewText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  coordText: {
+    width: '100%',
+    fontSize: 11,
+    marginTop: 4,
+    marginLeft: 26,
   },
   button: {
     padding: Spacing.md,
