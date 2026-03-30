@@ -118,6 +118,8 @@ export default function BookingDetailScreen() {
 
   const [now, setNow] = useState(new Date());
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showQRInputModal, setShowQRInputModal] = useState(false);
+  const [qrCodeInput, setQrCodeInput] = useState("");
   const [showConfirmCodeModal, setShowConfirmCodeModal] = useState(false);
   const [confirmCode, setConfirmCode] = useState("");
   const [showEndSessionModal, setShowEndSessionModal] = useState(false);
@@ -241,35 +243,31 @@ export default function BookingDetailScreen() {
   };
 
   const handleCheckIn = () => {
-    if (!booking.qrCode) {
-      Alert.alert("Error", "No QR code found. Payment must be made first.");
+    setQrCodeInput("");
+    setShowQRInputModal(true);
+  };
+
+  const handleSubmitQRCheckIn = async () => {
+    const code = qrCodeInput.trim().toUpperCase();
+    if (!code) {
+      Alert.alert("Error", "Please enter the artist's QR code");
       return;
     }
-    Alert.alert(
-      "Start Session",
-      "Scan the artist's QR code to start the session?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Start Session",
-          onPress: async () => {
-            try {
-              const result = await checkIn.mutateAsync({
-                bookingId: id!,
-                qrCode: booking.qrCode!,
-              });
-              Alert.alert(
-                "Session Started",
-                `Confirmation code sent to the artist: ${(result as any).confirmationCode}. They must enter it within 10 minutes.`,
-              );
-              refetch();
-            } catch (e: any) {
-              Alert.alert("Error", e.message || "Failed to start session");
-            }
-          },
-        },
-      ],
-    );
+    try {
+      const result = await checkIn.mutateAsync({
+        bookingId: id!,
+        qrCode: code,
+      });
+      setShowQRInputModal(false);
+      setQrCodeInput("");
+      Alert.alert(
+        "Session Started!",
+        `A 6-digit confirmation code has been sent to the artist: ${(result as any).confirmationCode}\n\nThey must enter it within 10 minutes to confirm their presence.`,
+      );
+      refetch();
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Invalid QR code or check-in failed");
+    }
   };
 
   const handleConfirmPresence = async () => {
@@ -444,7 +442,7 @@ export default function BookingDetailScreen() {
     booking.paymentStatus !== "PAYMENT_RELEASED" &&
     !booking.disputeStatus;
   const showQR =
-    isClient && booking.qrCode && ["CONFIRMED"].includes(booking.status);
+    isClient && booking.qrCode && ["CONFIRMED", "ACTIVE"].includes(booking.status);
 
   return (
     <View style={s.container}>
@@ -609,6 +607,49 @@ export default function BookingDetailScreen() {
             </View>
           </TouchableOpacity>
         )}
+
+        {/* Check-in window info (for CONFIRMED + owner with payment held) */}
+        {isOwner && booking.status === "CONFIRMED" && booking.paymentStatus === "PAYMENT_HELD" && (() => {
+          const scheduledStart = new Date(booking.startTime);
+          const earliest = new Date(scheduledStart.getTime() - 30 * 60 * 1000);
+          const latest = new Date(scheduledStart.getTime() + 15 * 60 * 1000);
+          const tooEarly = now < earliest;
+          const expired = now > latest;
+          const inWindow = !tooEarly && !expired;
+          return (
+            <View style={[s.card, { borderColor: inWindow ? T.success : T.dim }]}>
+              <Text style={s.cardLabel}>CHECK-IN WINDOW</Text>
+              <View style={s.metaRow}>
+                <Ionicons name="time-outline" size={16} color={T.dim} />
+                <Text style={s.dimText}>
+                  Opens: {dayjs(earliest).format("h:mm A")} · Closes: {dayjs(latest).format("h:mm A")}
+                </Text>
+              </View>
+              {tooEarly && (
+                <View style={[s.warningBanner, { marginTop: 8 }]}>
+                  <Ionicons name="hourglass-outline" size={16} color={T.accent} />
+                  <Text style={s.warningText}>
+                    Check-in opens {dayjs(earliest).fromNow()}
+                  </Text>
+                </View>
+              )}
+              {inWindow && (
+                <View style={[s.warningBanner, { marginTop: 8, borderColor: T.success, backgroundColor: "rgba(0,224,150,0.08)" }]}>
+                  <Ionicons name="checkmark-circle-outline" size={16} color={T.success} />
+                  <Text style={[s.warningText, { color: T.success }]}>
+                    Check-in window is open — ask the artist for their QR code
+                  </Text>
+                </View>
+              )}
+              {expired && (
+                <View style={[s.warningBanner, { marginTop: 8, borderColor: T.error, backgroundColor: "rgba(255,69,58,0.08)" }]}>
+                  <Ionicons name="close-circle-outline" size={16} color={T.error} />
+                  <Text style={[s.warningText, { color: T.error }]}>Check-in window has expired</Text>
+                </View>
+              )}
+            </View>
+          );
+        })()}
 
         {/* Payment Info */}
         <View style={s.card}>
@@ -866,16 +907,41 @@ export default function BookingDetailScreen() {
             </View>
           )}
 
-          {/* Owner: Start session (check in) */}
-          {canCheckIn && (
-            <TouchableOpacity
-              style={[s.actionBtn, { backgroundColor: T.blue }]}
-              onPress={handleCheckIn}
-            >
-              <Ionicons name="play" size={20} color="#FFF" />
-              <Text style={s.actionBtnTextLight}>START SESSION</Text>
-            </TouchableOpacity>
-          )}
+          {/* Owner: Start session — opens QR input for 2FA verification */}
+          {canCheckIn && (() => {
+            const scheduledStart = new Date(booking.startTime);
+            const earliest = new Date(scheduledStart.getTime() - 30 * 60 * 1000);
+            const latest = new Date(scheduledStart.getTime() + 15 * 60 * 1000);
+            const inWindow = now >= earliest && now <= latest;
+            const tooEarly = now < earliest;
+            return inWindow ? (
+              <TouchableOpacity
+                style={[s.actionBtn, { backgroundColor: T.blue }]}
+                onPress={handleCheckIn}
+                disabled={checkIn.isPending}
+              >
+                {checkIn.isPending ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Ionicons name="play" size={20} color="#FFF" />
+                )}
+                <Text style={s.actionBtnTextLight}>START SESSION</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={[s.infoBox, { borderColor: tooEarly ? T.accent : T.error }]}>
+                <Ionicons
+                  name={tooEarly ? "hourglass-outline" : "close-circle-outline"}
+                  size={18}
+                  color={tooEarly ? T.accent : T.error}
+                />
+                <Text style={[s.infoText, { color: tooEarly ? T.accent : T.error }]}>
+                  {tooEarly
+                    ? `Check-in opens ${dayjs(earliest).fromNow()}`
+                    : "Check-in window has expired"}
+                </Text>
+              </View>
+            );
+          })()}
 
           {/* Client: Confirm presence */}
           {canConfirmPresence && (
@@ -913,6 +979,23 @@ export default function BookingDetailScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          {/* Owner: Awaiting artist payment approval */}
+          {isOwner &&
+            booking.status === "COMPLETED" &&
+            booking.paymentStatus === "PAYMENT_HELD" &&
+            !booking.bookerApprovedPayment && (
+              <View style={[s.infoBox, { borderColor: T.accent }]}>
+                <Ionicons name="time-outline" size={18} color={T.accent} />
+                <Text style={[s.infoText, { color: T.accent }]}>
+                  Awaiting artist payment approval. Payment auto-releases{" "}
+                  {booking.paymentReleaseEligibleAt
+                    ? dayjs(booking.paymentReleaseEligibleAt).fromNow()
+                    : "in 24h"}{" "}
+                  if no dispute is raised.
+                </Text>
+              </View>
+            )}
 
           {/* Dispute */}
           {canDispute && (
@@ -1121,6 +1204,52 @@ export default function BookingDetailScreen() {
                   <ActivityIndicator color="#FFF" />
                 ) : (
                   <Text style={s.actionBtnTextLight}>SUBMIT</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* QR CODE INPUT MODAL (Studio Owner — scans/enters artist's QR) */}
+      <Modal visible={showQRInputModal} animationType="slide" transparent>
+        <View style={s.modalOverlay}>
+          <View style={s.modalBox}>
+            <Text style={s.modalTitle}>START SESSION</Text>
+            <Text style={[s.dimText, { marginBottom: 6, textAlign: "center" }]}>
+              Ask the artist to show their QR code, then enter it below to verify and start the session.
+            </Text>
+            <View style={[s.warningBanner, { marginBottom: 16 }]}>
+              <Ionicons name="shield-checkmark-outline" size={16} color={T.accent} />
+              <Text style={s.warningText}>
+                This is a 2-factor verification step — only the artist's code will work.
+              </Text>
+            </View>
+            <TextInput
+              style={s.codeInput}
+              value={qrCodeInput}
+              onChangeText={setQrCodeInput}
+              placeholder="BEEPS-XXXXXXXX-XXXXXXXX"
+              placeholderTextColor={T.dark}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
+              <TouchableOpacity
+                style={[s.actionBtnOutline, { flex: 1, borderColor: T.dim }]}
+                onPress={() => { setShowQRInputModal(false); setQrCodeInput(""); }}
+              >
+                <Text style={[s.actionBtnTextLight, { color: T.dim }]}>CANCEL</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.actionBtn, { flex: 1, backgroundColor: T.blue }]}
+                onPress={handleSubmitQRCheckIn}
+                disabled={checkIn.isPending}
+              >
+                {checkIn.isPending ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={s.actionBtnTextLight}>VERIFY & START</Text>
                 )}
               </TouchableOpacity>
             </View>

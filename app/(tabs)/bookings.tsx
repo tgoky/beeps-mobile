@@ -720,7 +720,7 @@ export default function BookingsScreen() {
                     isStudioBooking && booking.status === "PENDING";
                   const canPay =
                     !isStudioBooking &&
-                    booking.status === "CONFIRMED" &&
+                    ["PENDING", "CONFIRMED"].includes(booking.status) &&
                     (booking.paymentStatus === "UNPAID" || !booking.paymentStatus);
 
                   return (
@@ -738,7 +738,9 @@ export default function BookingsScreen() {
                         <View style={styles.escrowBanner}>
                           <Ionicons name="lock-closed" size={13} color="#000" />
                           <Text style={styles.escrowBannerText}>
-                            ACTION REQUIRED · TAP TO PAY INTO ESCROW
+                            {booking.status === "CONFIRMED"
+                              ? "CONFIRMED · TAP TO PAY INTO ESCROW"
+                              : "ACTION REQUIRED · PAY TO CONFIRM BOOKING"}
                           </Text>
                         </View>
                       )}
@@ -833,7 +835,7 @@ export default function BookingsScreen() {
                                   { color: "#000" },
                                 ]}
                               >
-                                PAY TO ESCROW
+                                {booking.status === "CONFIRMED" ? "PAY TO ESCROW" : "PAY & CONFIRM"}
                               </Text>
                             </TouchableOpacity>
                           )}
