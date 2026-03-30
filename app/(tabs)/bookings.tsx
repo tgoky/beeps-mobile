@@ -4,6 +4,7 @@ import {
   useBookings,
   useCancelBooking,
   useConfirmBooking,
+  usePayBooking,
   useRejectBooking,
   useStudioOwnerBookings,
 } from "@/hooks/useBookings";
@@ -168,6 +169,7 @@ export default function BookingsScreen() {
   const cancelBooking = useCancelBooking();
   const confirmBooking = useConfirmBooking();
   const rejectBooking = useRejectBooking();
+  const payBooking = usePayBooking();
   const updateRequestStatus = useUpdateServiceRequestStatus();
 
   const handleRefresh = async () => {
@@ -258,6 +260,30 @@ export default function BookingsScreen() {
 
   const handleConfirmBooking = (id: string) => confirmBooking.mutate(id);
   const handleRejectBooking = (id: string) => rejectBooking.mutate(id);
+
+  const handlePayEscrow = (bookingId: string, totalAmount: number, studioName: string) => {
+    Alert.alert(
+      "Pay into Escrow",
+      `Hold $${totalAmount.toFixed(2)} securely in escrow for your booking at ${studioName}?\n\nFunds are only released after your session is completed.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Pay Now",
+          onPress: async () => {
+            try {
+              await payBooking.mutateAsync({ bookingId, totalAmount });
+              Alert.alert(
+                "Payment Held in Escrow",
+                "Your payment is secured. Show your QR code at the studio to check in.",
+              );
+            } catch (e: any) {
+              Alert.alert("Error", e.message || "Failed to process payment");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   // --- FILTERING ---
   const filteredServiceRequests = serviceRequests.filter((request) => {
@@ -692,9 +718,31 @@ export default function BookingsScreen() {
                     ["PENDING", "CONFIRMED"].includes(booking.status);
                   const canManage =
                     isStudioBooking && booking.status === "PENDING";
+                  const canPay =
+                    !isStudioBooking &&
+                    booking.status === "CONFIRMED" &&
+                    (booking.paymentStatus === "UNPAID" || !booking.paymentStatus);
 
                   return (
-                    <View key={booking.id} style={styles.card}>
+                    <TouchableOpacity
+                      key={booking.id}
+                      style={[
+                        styles.card,
+                        canPay && { borderColor: COLORS.accent, borderWidth: 1.5 },
+                      ]}
+                      onPress={() => router.push(`/bookings/${booking.id}`)}
+                      activeOpacity={0.85}
+                    >
+                      {/* Pay to Escrow Banner */}
+                      {canPay && (
+                        <View style={styles.escrowBanner}>
+                          <Ionicons name="lock-closed" size={13} color="#000" />
+                          <Text style={styles.escrowBannerText}>
+                            ACTION REQUIRED · TAP TO PAY INTO ESCROW
+                          </Text>
+                        </View>
+                      )}
+
                       <View style={styles.bookingLayout}>
                         {/* Date Leaf */}
                         <View style={styles.dateBox}>
@@ -741,16 +789,55 @@ export default function BookingsScreen() {
                             </Text>
                           )}
 
-                          <Text style={styles.bookingPrice}>
-                            ${booking.totalAmount.toFixed(2)}
-                          </Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                            <Text style={styles.bookingPrice}>
+                              ${booking.totalAmount.toFixed(2)}
+                            </Text>
+                            {booking.paymentStatus === "PAYMENT_HELD" && (
+                              <View style={styles.escrowHeldBadge}>
+                                <Ionicons name="lock-closed" size={11} color="#60A5FA" />
+                                <Text style={styles.escrowHeldText}>Escrow</Text>
+                              </View>
+                            )}
+                            {booking.paymentStatus === "PAYMENT_RELEASED" && (
+                              <View style={[styles.escrowHeldBadge, { backgroundColor: "rgba(0,200,83,0.12)" }]}>
+                                <Ionicons name="checkmark-circle" size={11} color={COLORS.green} />
+                                <Text style={[styles.escrowHeldText, { color: COLORS.green }]}>Paid</Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
                       </View>
 
                       {/* Actions */}
-                      {(canCancel || canManage) && (
+                      {(canPay || canCancel || canManage) && (
                         <View style={styles.cardFooter}>
-                          {canCancel && (
+                          {canPay && (
+                            <TouchableOpacity
+                              style={[
+                                styles.actionBtn,
+                                { backgroundColor: COLORS.accent, flex: 1 },
+                              ]}
+                              onPress={() =>
+                                handlePayEscrow(
+                                  booking.id,
+                                  booking.totalAmount,
+                                  booking.studio.name,
+                                )
+                              }
+                            >
+                              <Ionicons name="card" size={14} color="#000" />
+                              <Text
+                                style={[
+                                  styles.actionBtnText,
+                                  { color: "#000" },
+                                ]}
+                              >
+                                PAY TO ESCROW
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                          {canCancel && !canPay && (
                             <TouchableOpacity
                               style={[
                                 styles.actionBtnOutlined,
@@ -816,7 +903,7 @@ export default function BookingsScreen() {
                           )}
                         </View>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })
               ))}
@@ -1131,6 +1218,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Manrope_800ExtraBold",
     color: COLORS.pureWhite,
+  },
+  escrowBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  escrowBannerText: {
+    fontSize: 11,
+    fontFamily: "Manrope_800ExtraBold",
+    color: "#000",
+    letterSpacing: 0.5,
+  },
+  escrowHeldBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(96,165,250,0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  escrowHeldText: {
+    fontSize: 11,
+    fontFamily: "Manrope_700Bold",
+    color: "#60A5FA",
   },
 
   // FOOTER ACTIONS

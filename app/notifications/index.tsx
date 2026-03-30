@@ -11,6 +11,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import utc from "dayjs/plugin/utc";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -28,6 +29,7 @@ import {
 } from "react-native";
 
 dayjs.extend(relativeTime);
+dayjs.extend(utc);
 
 // Enable LayoutAnimation for Android
 if (
@@ -363,7 +365,7 @@ function NotificationCard({
                 {notification.title}
               </Text>
               <Text style={styles.timeText}>
-                {dayjs(notification.createdAt).fromNow(true)}
+                {dayjs.utc(notification.createdAt).local().fromNow()}
               </Text>
             </View>
 

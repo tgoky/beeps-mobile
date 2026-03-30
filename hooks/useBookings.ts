@@ -86,7 +86,7 @@ export function useBookings(userId?: string) {
         `,
         )
         .eq("user_id", userId)
-        .order("start_time", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -160,7 +160,7 @@ export function useStudioOwnerBookings(userId?: string) {
         `,
         )
         .in("studio_id", studioIds)
-        .order("start_time", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -484,6 +484,13 @@ export function useConfirmBooking() {
 
   return useMutation({
     mutationFn: async (bookingId: string) => {
+      // Fetch booking + studio name for notification
+      const { data: bookingData } = await supabase
+        .from("bookings")
+        .select(`*, studios!studio_id (name)`)
+        .eq("id", bookingId)
+        .single();
+
       const { data, error } = await supabase
         .from("bookings")
         .update({ status: "CONFIRMED", updated_at: new Date().toISOString() })
@@ -492,6 +499,25 @@ export function useConfirmBooking() {
         .single();
 
       if (error) throw error;
+
+      // Notify the client that their booking is confirmed and payment is due
+      if (bookingData) {
+        try {
+          await supabase.from("notifications").insert({
+            id: Crypto.randomUUID(),
+            user_id: bookingData.user_id,
+            type: "BOOKING_CONFIRMED",
+            title: "Booking Confirmed – Pay Now",
+            message: `Your booking at ${(bookingData.studios as any).name} has been confirmed. Pay now to secure your spot with escrow.`,
+            reference_id: bookingId,
+            reference_type: "BOOKING",
+            created_at: new Date().toISOString(),
+          });
+        } catch {
+          // Don't fail the confirm if notification fails
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
