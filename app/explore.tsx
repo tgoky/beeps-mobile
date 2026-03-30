@@ -325,6 +325,7 @@ export default function ExploreScreen() {
           onStudioPress={setSelectedStudio}
           selectedStudio={selectedStudio}
           userLocation={userLocation}
+          region={userLocation}
         />
       );
     }

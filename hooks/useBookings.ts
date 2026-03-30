@@ -390,7 +390,7 @@ export function useCreateBooking() {
           .eq("id", booking.studioId)
           .single();
 
-        if (studioData?.studio_owner_profiles?.user_id) {
+        if (studioData && (studioData.studio_owner_profiles as any)?.user_id) {
           const { data: bookerData } = await supabase
             .from("users")
             .select("username, full_name")
@@ -409,7 +409,7 @@ export function useCreateBooking() {
 
           await supabase.from("notifications").insert({
             id: Crypto.randomUUID(),
-            user_id: studioData.studio_owner_profiles.user_id,
+            user_id: (studioData.studio_owner_profiles as any).user_id,
             type: "NEW_BOOKING",
             title: "New Booking Request",
             message: `${bookerName} wants to book ${studioData.name} on ${formattedDate}`,

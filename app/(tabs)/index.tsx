@@ -434,7 +434,7 @@ export default function HomeScreen() {
       onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 10,
 
       onPanResponderGrant: () => {
-        lastGestureDy.current = animatedTop._value;
+        lastGestureDy.current = (animatedTop as any)._value;
         animatedTop.extractOffset();
       },
 
